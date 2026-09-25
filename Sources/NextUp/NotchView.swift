@@ -107,22 +107,28 @@ struct OpenContent: View {
     let onDone: () -> Void
     let width: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var rowHovering = false
 
     var body: some View {
         let rows = store.list.rows
         let keys = rows.map(\.key)
+        let halfXHeight = NotchMetrics.titleXHeight / 2
         VStack(alignment: .leading, spacing: 6) {
             if let current = rows.first {
-                HStack(alignment: .top, spacing: 10) {
-                    DoneButton(armed: model.doneArmed, action: onDone)
-                        .padding(.top, 1)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    DoneButton(visible: rowHovering || model.doneArmed, armed: model.doneArmed, action: onDone)
+                        // The circle's center sits on the x-height center of the title's first line,
+                        // so it stays put when the title wraps to two lines.
+                        .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + halfXHeight }
                     Text(current.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(NotchMetrics.titleFont)
                         .foregroundStyle(.white)
                         .lineLimit(2)
                         .id(current.key)
                         .transition(Motion.push(reduceMotion))
                 }
+                .contentShape(Rectangle())
+                .onHover { rowHovering = $0 }
                 ForEach(rows.dropFirst().prefix(3)) { row in
                     Text(row.title)
                         .font(.system(size: 13))
@@ -188,8 +194,10 @@ struct NotchMenu: View {
     }
 }
 
-/// The circle that completes the current task.
+/// The circle that completes the current task. Shown only while the cursor is on the
+/// current task row; its 22pt space stays reserved so the title never shifts.
 struct DoneButton: View {
+    let visible: Bool
     let armed: Bool
     let action: () -> Void
     @State private var hovering = false
@@ -205,7 +213,9 @@ struct DoneButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .opacity(visible ? 1 : 0)
         .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: visible)
         .animation(Motion.content(reduceMotion), value: armed)
         .animation(Motion.content(reduceMotion), value: hovering)
         .accessibilityLabel("Done")
@@ -216,6 +226,11 @@ struct DoneButton: View {
 enum NotchMetrics {
     static let font = Font.system(size: 13, weight: .medium)
     @MainActor static let nsFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+    /// The current task in the open state.
+    static let titleFont = Font.system(size: 15, weight: .semibold)
+    @MainActor static let titleNSFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
+    /// x-height of the title font, for centering the done circle on the first line.
+    @MainActor static let titleXHeight: CGFloat = titleNSFont.xHeight
     static let textInset: CGFloat = 22
     static let flare = NotchGeometry.flare
     static let bottomRadius: CGFloat = 12
