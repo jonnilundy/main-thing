@@ -1,4 +1,4 @@
-![Main Thing](assets/cover.png)
+![Main Thing](assets/cover-2026-09.png)
 
 # Main Thing
 
