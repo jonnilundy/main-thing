@@ -78,9 +78,39 @@ struct NotchBody: View {
         .padding(.horizontal, NotchMetrics.flare)
         .background(shape.fill(.black))
         .clipShape(shape)
+        .contentShape(shape)
         .animation(Motion.shape(reduceMotion), value: model.isOpen)
         .animation(Motion.shape(reduceMotion), value: keys)
         .accessibilityLabel(title ?? "No task")
+        .contextMenu { NotchMenu(store: store) }
+    }
+}
+
+/// Right click menu: Launch at Login, Show Tasks File, Quit.
+struct NotchMenu: View {
+    let store: TaskStore
+
+    var body: some View {
+        if LaunchAtLogin.needsApproval {
+            Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
+        } else {
+            Toggle("Launch at Login", isOn: Binding(
+                get: { LaunchAtLogin.isEnabled },
+                set: { on in
+                    do {
+                        let status = try LaunchAtLogin.setEnabled(on)
+                        if status == .requiresApproval { LaunchAtLogin.openSettings() }
+                    } catch {
+                        NSSound.beep()
+                    }
+                }
+            ))
+        }
+        Button("Show Tasks File") {
+            NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
+        }
+        Divider()
+        Button("Quit NextUp") { NSApp.terminate(nil) }
     }
 }
 
