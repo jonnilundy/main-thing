@@ -98,6 +98,72 @@ func runOpenChecks() {
         check("count is 42 percent", Lanes.countOpacity == 0.42)
     }
 
+    section("ReminderSchedule")
+    do {
+        check("default is 3 minutes", ReminderSchedule.defaultInterval == 180 && ReminderSchedule.interval(stored: nil) == 180)
+        check("nonsense stored is the default", ReminderSchedule.interval(stored: -5) == 180)
+        check("0 is off", ReminderSchedule.interval(stored: 0) == 0 && ReminderSchedule.nextFire(after: 100, interval: 0) == nil)
+        check("any positive value counts, so a test can use 5 seconds", ReminderSchedule.interval(stored: 5) == 5 && ReminderSchedule.interval(stored: 600) == 600)
+        check("next fire is one interval after the last", ReminderSchedule.nextFire(after: 1000, interval: 180) == 1180)
+        check("menu: Off, 1, 3, 5, 10 minutes", ReminderSchedule.menuMinutes == [0, 1, 3, 5, 10])
+        check("labels", ReminderSchedule.label(minutes: 0) == "Off" && ReminderSchedule.label(minutes: 1) == "1 minute" && ReminderSchedule.label(minutes: 10) == "10 minutes")
+        check("a due sweep runs", ReminderSchedule.shouldSweep(locked: false, empty: false, crossingOff: false))
+        check("skipped while the screen is locked", !ReminderSchedule.shouldSweep(locked: true, empty: false, crossingOff: false))
+        check("skipped while the list is empty", !ReminderSchedule.shouldSweep(locked: false, empty: true, crossingOff: false))
+        check("skipped while a cross off is drawing", !ReminderSchedule.shouldSweep(locked: false, empty: false, crossingOff: true))
+        check("sweep takes 1.4s, band is 35 percent of the title", ReminderSchedule.sweepDuration == 1.4 && ReminderSchedule.bandShare == 0.35)
+        check("phase is the fraction of the sweep counter, 0 at rest", ReminderSchedule.phase(of: 3) == 0 && abs(ReminderSchedule.phase(of: 3.25) - 0.25) < 1e-9 && ReminderSchedule.phase(of: 0) == 0)
+        let start = ReminderSchedule.band(phase: 0, width: 200)
+        check("at 0 the band is entirely left of the title", start.start == -70 && start.end == 0)
+        let end = ReminderSchedule.band(phase: 1, width: 200)
+        check("at 1 the band is entirely right of the title", end.start == 200 && end.end == 270)
+        let mid = ReminderSchedule.band(phase: 0.5, width: 200)
+        check("halfway the band is centered on the title", abs((mid.start + mid.end) / 2 - 100) < 1e-9 && mid.end - mid.start == 70)
+    }
+
+    section("ColorClock")
+    do {
+        let pink = ColorClock.brand
+        check("the brand pink in OKLCH: L 0.69, C 0.22, hue 359", abs(pink.l - 0.6921) < 0.001 && abs(pink.c - 0.2196) < 0.001 && abs(pink.h - 358.56) < 0.05)
+        check("sRGB round trips through OKLCH", OKLCH(hex: 0xFF4F9A).hex == "#FF4F9A" && OKLCH(hex: 0x1DB49D).hex == "#1DB49D")
+        check("ten steps, 36 degrees apart, starting at the pink", ColorClock.steps == 10 && ColorClock.hue(step: 0) == pink.h && abs(ColorClock.hue(step: 1) - (pink.h + 36).truncatingRemainder(dividingBy: 360)) < 1e-9)
+        check("step 10 is step 0 again, and negative steps wrap", ColorClock.hue(step: 10) == ColorClock.hue(step: 0) && ColorClock.hue(step: -1) == ColorClock.hue(step: 9))
+        let colors = (0..<10).map { ColorClock.color(step: $0) }
+        check("every step keeps the pink's lightness", colors.allSatisfy { abs($0.l - pink.l) < 1e-9 })
+        check("every step fits sRGB", colors.allSatisfy(\.inGamut))
+        check("step 0 is the pink itself", colors[0].hex == "#FF4F9A")
+        check("ten distinct hues", Set(colors.map { Int($0.h.rounded()) }).count == 10)
+        check("a hue the screen cannot saturate keeps its lightness at less chroma", colors[6].c < pink.c && abs(colors[6].l - pink.l) < 1e-9)
+
+        let interval = 180.0
+        check("at 0 the clock is step 0, progress 0, the pink", ColorClock.state(elapsed: 0, interval: interval) == ColorClock.State(step: 0, progress: 0, color: colors[0]))
+        check("90s in: step 0, half way", ColorClock.state(elapsed: 90, interval: interval).step == 0 && abs(ColorClock.state(elapsed: 90, interval: interval).progress - 0.5) < 1e-9)
+        check("half way the hue is 18 degrees on", abs(ColorClock.state(elapsed: 90, interval: interval).color.h - (pink.h + 18).truncatingRemainder(dividingBy: 360)) < 1e-9)
+        check("180s in: step 1 just reached", ColorClock.state(elapsed: 180, interval: interval).step == 1 && ColorClock.state(elapsed: 180, interval: interval).progress == 0)
+        check("step 9 at 27 minutes", ColorClock.state(elapsed: 9 * 180 + 1, interval: interval).step == 9)
+        check("the clock wraps after ten steps: 30 minutes is the pink again", ColorClock.state(elapsed: 1800, interval: interval).step == 0 && ColorClock.state(elapsed: 1800, interval: interval).color == colors[0])
+        check("and 33 minutes is step 1 again", ColorClock.state(elapsed: 1980, interval: interval).step == 1)
+        check("off: step 0, the pink, no drift", ColorClock.state(elapsed: 5000, interval: 0) == ColorClock.State(step: 0, progress: 0, color: colors[0]) && ColorClock.nextFlash(elapsed: 5000, interval: 0) == nil)
+        check("next flash: the next multiple of the interval", ColorClock.nextFlash(elapsed: 0, interval: 180) == 180 && ColorClock.nextFlash(elapsed: 181, interval: 180) == 360 && ColorClock.nextFlash(elapsed: 360, interval: 180) == 540)
+        check("negative elapsed (clock set back) is step 0", ColorClock.state(elapsed: -5, interval: interval).step == 0)
+        check("ticks: 10s at 3 minutes, faster at a 5s test interval, a minute when off", ColorClock.tick(interval: 180) == 10 && abs(ColorClock.tick(interval: 5) - 5.0 / 18) < 1e-9 && ColorClock.tick(interval: 0) == 60)
+        let edge = ColorClock.edge(of: colors[0])
+        check("the edge is lighter and softer, the same hue", edge.l > colors[0].l && edge.c < colors[0].c && edge.h == colors[0].h && edge.inGamut)
+
+        let none = ColorClock.anchor(current: nil, firstKey: nil, now: 100)
+        check("empty list: no anchor", none == nil)
+        let a = ColorClock.anchor(current: nil, firstKey: "A#0", now: 100)
+        check("first task anchors at now", a == ColorClock.Anchor(key: "A#0", start: 100))
+        check("same key later: the anchor stays (relaunch continuity)", ColorClock.anchor(current: a, firstKey: "A#0", now: 5000) == a)
+        check("a cross off: task 2 becomes task 1 and the clock resets", ColorClock.anchor(current: a, firstKey: "B#0", now: 5000) == ColorClock.Anchor(key: "B#0", start: 5000))
+        check("a reorder or a new list with another first key resets", ColorClock.anchor(current: a, firstKey: "C#1", now: 6000)?.start == 6000)
+        check("the list emptied: no anchor; the same task back later starts over", ColorClock.anchor(current: a, firstKey: nil, now: 7000) == nil && ColorClock.anchor(current: nil, firstKey: "A#0", now: 8000)?.start == 8000)
+
+        check("tooltip under a minute", ColorClock.tooltip(elapsed: 30) == "On this task for under a minute")
+        check("tooltip in minutes", ColorClock.tooltip(elapsed: 24 * 60 + 59) == "On this task for 24 min")
+        check("tooltip in hours", ColorClock.tooltip(elapsed: 3600) == "On this task for 1 h" && ColorClock.tooltip(elapsed: 3600 * 2 + 300) == "On this task for 2 h 5 min")
+    }
+
     section("PenStroke")
     do {
         let from = CGPoint(x: 10, y: 20), to = CGPoint(x: 210, y: 20)

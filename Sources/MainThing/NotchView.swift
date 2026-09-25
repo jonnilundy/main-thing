@@ -9,11 +9,12 @@ struct NotchView: View {
     let store: TaskStore
     let model: NotchModel
     var sounds: Sounds? = nil
+    var reminder: Reminder? = nil
     var onToggle: (TaskList.Row) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(store: store, model: model, sounds: sounds, onToggle: onToggle)
+            NotchBody(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: onToggle)
                 // The hosting view fills the panel, so the global space is panel space, origin top left.
                 // A GeometryReader preference in the background never delivered the laid out frame here
                 // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
@@ -35,6 +36,7 @@ struct NotchBody: View {
     let store: TaskStore
     let model: NotchModel
     let sounds: Sounds?
+    let reminder: Reminder?
     let onToggle: (TaskList.Row) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -63,6 +65,10 @@ struct NotchBody: View {
                 height: geometry.notchHeight,
                 isOpen: model.isOpen,
                 struck: rows.first.map { model.pending.isPending($0.key) } ?? false,
+                sweep: model.sweep,
+                dotColor: model.dotColor,
+                flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
+                taskTime: model.taskTime,
                 onToggle: { if let first = rows.first { onToggle(first) } }
             )
             if model.isOpen {
@@ -78,7 +84,7 @@ struct NotchBody: View {
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
-        .contextMenu { NotchMenu(store: store, sounds: sounds) }
+        .contextMenu { NotchMenu(store: store, sounds: sounds, reminder: reminder) }
     }
 }
 
@@ -93,6 +99,12 @@ struct Band: View {
     let height: CGFloat
     let isOpen: Bool
     let struck: Bool
+    /// Reminder sweeps so far; each bump runs the shimmer and the dot pulse.
+    let sweep: Int
+    /// The color clock: the dot now, the band of the step last reached, the dot's tooltip.
+    let dotColor: Color
+    let flash: Gradient
+    let taskTime: String
     let onToggle: () -> Void
     @State private var hovering = false
     @State private var countShown = false
@@ -101,8 +113,9 @@ struct Band: View {
     var body: some View {
         HStack(spacing: Lanes.gap) {
             if let current = rows.first {
-                Dot()
+                Dot(sweep: sweep, color: dotColor)
                     .frame(width: Lanes.markerSlot, height: Lanes.markerSlot)
+                    .help(taskTime)
                 ZStack(alignment: .leading) {
                     Button(action: onToggle) {
                         Text(current.title)
@@ -116,7 +129,10 @@ struct Band: View {
                                 key: current.key,
                                 xHeight: NotchMetrics.nsFont.xHeight,
                                 thickness: 3.2,
-                                inkOpacity: 1
+                                inkOpacity: 1,
+                                // Reduce Motion: the dot pulses, the title stays still.
+                                shimmer: reduceMotion ? 0 : Double(sweep),
+                                flash: flash
                             ))
                             .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
                             .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
@@ -158,13 +174,37 @@ struct Band: View {
     }
 }
 
-/// The pink dot: 7pt with a soft glow of its own color.
+/// The dot: 7pt with a soft glow of its own color, the color clock's color of the moment. On
+/// each reminder sweep it pulses once, scale 1 to 1.25 and back with the glow up; under Reduce
+/// Motion a slower, smaller pulse. The keyframes drive frames only while they run.
 struct Dot: View {
+    let sweep: Int
+    let color: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    struct Pulse {
+        var scale: CGFloat = 1
+        var glow: Double = NotchMetrics.dotGlowOpacity
+    }
+
     var body: some View {
         Circle()
-            .fill(NotchMetrics.pink)
+            .fill(color)
             .frame(width: NotchMetrics.dotSize, height: NotchMetrics.dotSize)
-            .shadow(color: NotchMetrics.pink.opacity(NotchMetrics.dotGlowOpacity), radius: NotchMetrics.dotGlow)
+            .keyframeAnimator(initialValue: Pulse(), trigger: sweep) { dot, pulse in
+                dot
+                    .scaleEffect(pulse.scale)
+                    .shadow(color: color.opacity(pulse.glow), radius: NotchMetrics.dotGlow)
+            } keyframes: { _ in
+                KeyframeTrack(\.scale) {
+                    CubicKeyframe(reduceMotion ? 1.12 : 1.25, duration: reduceMotion ? 0.9 : 0.5)
+                    CubicKeyframe(1, duration: reduceMotion ? 1.1 : 0.7)
+                }
+                KeyframeTrack(\.glow) {
+                    CubicKeyframe(1, duration: reduceMotion ? 0.9 : 0.5)
+                    CubicKeyframe(NotchMetrics.dotGlowOpacity, duration: reduceMotion ? 1.1 : 0.7)
+                }
+            }
     }
 }
 
@@ -347,7 +387,8 @@ struct TaskRow: View {
                         key: row.key,
                         xHeight: NotchMetrics.rowNSFont.xHeight,
                         thickness: 2.8,
-                        inkOpacity: Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast)
+                        inkOpacity: Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast),
+                        shimmer: 0
                     ))
                     // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
                     // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
@@ -381,25 +422,32 @@ struct Ink: ViewModifier, @preconcurrency Animatable {
     var xHeight: CGFloat
     var thickness: CGFloat
     var inkOpacity: Double
+    /// The reminder sweep counter; on its way from n to n + 1 the band crosses the title.
+    var shimmer: Double
+    /// The band: clear ends, the step's lighter edge, its core.
+    var flash: Gradient = Gradient(stops: NotchMetrics.shimmerStops(core: NotchMetrics.pink, edge: NotchMetrics.pinkEdge))
 
-    var animatableData: AnimatablePair<Double, Double> {
-        get { AnimatablePair(progress, preview) }
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, Double> {
+        get { AnimatablePair(AnimatablePair(progress, preview), shimmer) }
         set {
-            progress = newValue.first
-            preview = newValue.second
+            progress = newValue.first.first
+            preview = newValue.first.second
+            shimmer = newValue.second
         }
     }
 
     func body(content: Content) -> some View {
         content.textRenderer(CrossOffRenderer(
-            progress: progress, preview: preview, key: key, xHeight: xHeight, thickness: thickness, inkOpacity: inkOpacity
+            progress: progress, preview: preview, key: key, xHeight: xHeight, thickness: thickness, inkOpacity: inkOpacity,
+            shimmer: ReminderSchedule.phase(of: shimmer), flash: flash
         ))
     }
 }
 
 /// Draws the title and the ink over it. `progress` runs 0...lineCount: line 0 is crossed while it
 /// goes 0 to 1, line 1 while it goes 1 to 2 (titles are one line now, the loop stays general).
-/// `preview` fades a thin line in on hover.
+/// `preview` fades a thin line in on hover. `shimmer` 0...1 is the reminder band's progress: a
+/// pink gradient, masked to the glyphs, crossing the title left to right; 0 draws nothing.
 struct CrossOffRenderer: TextRenderer {
     var progress: Double
     var preview: Double
@@ -407,6 +455,8 @@ struct CrossOffRenderer: TextRenderer {
     var xHeight: CGFloat
     var thickness: CGFloat
     var inkOpacity: Double
+    var shimmer: Double
+    var flash: Gradient
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         let lines = Array(layout)
@@ -414,9 +464,26 @@ struct CrossOffRenderer: TextRenderer {
             let bounds = line.typographicBounds
             let t = PenStroke.lineProgress(progress, line: index)
             // The glyphs, dimming to 45 percent as the ink passes.
-            var glyphs = context
-            glyphs.opacity = 1 - 0.55 * t
-            glyphs.draw(line)
+            let glyphOpacity = 1 - 0.55 * t
+            if shimmer > 0 {
+                // The band, kept to the glyphs: draw them in a layer, then paint the gradient
+                // source atop. Clear ends leave the white; the middle is pink with a lighter edge.
+                let band = ReminderSchedule.band(phase: shimmer, width: bounds.rect.width)
+                let y = bounds.rect.midY
+                let start = CGPoint(x: bounds.rect.minX + band.start, y: y)
+                let end = CGPoint(x: bounds.rect.minX + band.end, y: y)
+                context.drawLayer { layer in
+                    layer.opacity = glyphOpacity
+                    layer.draw(line)
+                    layer.opacity = 1
+                    layer.blendMode = .sourceAtop
+                    layer.fill(Path(bounds.rect), with: .linearGradient(flash, startPoint: start, endPoint: end))
+                }
+            } else {
+                var glyphs = context
+                glyphs.opacity = glyphOpacity
+                glyphs.draw(line)
+            }
 
             // The strike line sits on the middle of the x-height of this line.
             let y = bounds.rect.minY + bounds.ascent - xHeight / 2
@@ -456,10 +523,11 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu: Launch at Login, Sound, Show Tasks File, Install Command Line Tool, Quit.
+/// Right click menu: Launch at Login, Sound, Reminder, Show Tasks File, Install Command Line Tool, Quit.
 struct NotchMenu: View {
     let store: TaskStore
     let sounds: Sounds?
+    let reminder: Reminder?
 
     var body: some View {
         if LaunchAtLogin.needsApproval {
@@ -490,6 +558,18 @@ struct NotchMenu: View {
                 SoundItem(choice: .off, current: current, sounds: sounds)
             }
         }
+        if reminder != nil {
+            // Read fresh every time the menu opens; `defaults write` can change it too.
+            let current = Reminder.interval
+            Menu("Reminder") {
+                ForEach(ReminderSchedule.menuMinutes, id: \.self) { minutes in
+                    Toggle(ReminderSchedule.label(minutes: minutes), isOn: Binding(
+                        get: { current == minutes * 60 },
+                        set: { on in if on { Reminder.store(seconds: minutes * 60) } }
+                    ))
+                }
+            }
+        }
         Button("Show Tasks File") {
             NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
         }
@@ -505,6 +585,17 @@ enum NotchMetrics {
     static let font = Font.system(size: 13.5, weight: .semibold)
     @MainActor static let nsFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
     static let pink = Color(red: 1, green: 0x4F / 255, blue: 0x9A / 255)
+    static let pinkEdge = Color(red: 1, green: 0x9E / 255, blue: 0xCB / 255)
+    /// The reminder band across the title: clear ends, the step's lighter edge, its core.
+    static func shimmerStops(core: Color, edge: Color) -> [Gradient.Stop] {
+        [
+            .init(color: .clear, location: 0),
+            .init(color: edge, location: 0.3),
+            .init(color: core, location: 0.5),
+            .init(color: edge, location: 0.7),
+            .init(color: .clear, location: 1),
+        ]
+    }
     static let dotSize: CGFloat = 7
     static let dotGlow: CGFloat = 8
     static let dotGlowOpacity: Double = 0.7

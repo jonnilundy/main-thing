@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var model: NotchModel?
     private var hover: HoverController?
     private var snapshotter: Snapshotter?
+    private var reminder: Reminder?
     private var screenObserver: (any NSObjectProtocol)?
 
     /// `MAINTHING_HEADLESS=1`: no notch, no hover, no single instance check. The store and the API
@@ -53,7 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sounds = Sounds()
         let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
-        let root = NotchView(store: store, model: model, sounds: sounds, onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
+        let reminder = Reminder(store: store, model: model)
+        let root = NotchView(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
         let hosting = NotchHostingView(rootView: root)
         hosting.onMouseMove = { [weak hover] point in hover?.evaluate(at: point, source: "tracking") }
         panel.contentView = hosting
@@ -64,6 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         snapshotter = Snapshotter(store: store, model: model)
         snapshotter?.start()
+        self.reminder = reminder
+        reminder.start()
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main

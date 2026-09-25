@@ -3,6 +3,7 @@ import CoreGraphics
 import Foundation
 import MainThingCore
 import Observation
+import SwiftUI
 import os
 
 /// UI state for the notch. The task list lives in `TaskStore`.
@@ -24,6 +25,15 @@ final class NotchModel {
     var openWidth: CGFloat = OpenLayout.minimumWidth
     /// Height the rows may take before they scroll. Nil: everything fits.
     var rowsMaxHeight: CGFloat?
+    /// Reminder sweeps so far. Bumped inside the shimmer animation; the fraction on the way from
+    /// n to n + 1 is the band's progress across the title, and each bump pulses the dot once.
+    var sweep = 0
+    /// The color clock: the dot's color now, the flash colors of the step last reached, and the
+    /// tooltip for the dot. Set by `Reminder`.
+    var dotColor: Color = NotchMetrics.pink
+    var flashCore: Color = NotchMetrics.pink
+    var flashEdge: Color = NotchMetrics.pinkEdge
+    var taskTime = ""
 
     /// Which row the cursor is on and whether the next entry earns a tick.
     @ObservationIgnored private var haptics = RowHaptics()

@@ -63,6 +63,8 @@ enum Motion {
 
     /// A row or the count fading in with a 4pt rise while the card widens.
     static let rise = Animation.easeOut(duration: 0.18)
+    /// The reminder band crossing the title: about 1.4s, a very smooth ease in and out.
+    static let shimmer = Animation.timingCurve(0.45, 0, 0.2, 1, duration: ReminderSchedule.sweepDuration)
 
     /// The open card body. In: nothing of its own, the rows and the count each rise in on their
     /// own schedule. Out: a quick calm fade while the shape shrinks.
