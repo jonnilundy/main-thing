@@ -1,11 +1,11 @@
 import AppKit
-import NextUpCore
+import MainThingCore
 import SwiftUI
 import os
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let log = Logger(subsystem: NextUpBundleID, category: "app")
+    private let log = Logger(subsystem: MainThingBundleID, category: "app")
     private var panel: NotchPanel?
     private var store: TaskStore?
     private var server: APIServer?
@@ -74,11 +74,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// One instance only. Returns true when this process should stop because another copy runs.
     private func quitIfAnotherInstanceRuns() -> Bool {
-        let bundleID = Bundle.main.bundleIdentifier ?? NextUpBundleID
+        let bundleID = Bundle.main.bundleIdentifier ?? MainThingBundleID
         let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
             .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
         guard let other = others.first else { return false }
-        log.notice("another NextUp runs as pid \(other.processIdentifier, privacy: .public), quitting")
+        log.notice("another Main Thing runs as pid \(other.processIdentifier, privacy: .public), quitting")
         NSApp.terminate(nil)
         return true
     }

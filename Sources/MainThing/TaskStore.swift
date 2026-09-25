@@ -1,27 +1,28 @@
 import Foundation
-import NextUpCore
+import MainThingCore
 import Observation
 import os
 
 /// The one writer of the task list. The API and the UI both go through here.
-/// Saves `[String]` atomically to `~/Library/Application Support/NextUp/tasks.json`.
+/// Saves `[String]` atomically to `~/Library/Application Support/MainThing/tasks.json`.
 @Observable
 @MainActor
 final class TaskStore {
     private(set) var list: TaskList
 
     @ObservationIgnored let fileURL: URL
-    @ObservationIgnored private let log = Logger(subsystem: NextUpBundleID, category: "store")
+    @ObservationIgnored private let log = Logger(subsystem: MainThingBundleID, category: "store")
 
     static var defaultFileURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base
-            .appendingPathComponent("NextUp", isDirectory: true)
+            .appendingPathComponent("MainThing", isDirectory: true)
             .appendingPathComponent("tasks.json")
     }
 
     init(fileURL: URL = TaskStore.defaultFileURL) {
+        TaskStore.copyLegacyFileIfNeeded(to: fileURL)
         self.fileURL = fileURL
         var loaded = TaskList()
         var loadError: String?
@@ -38,6 +39,26 @@ final class TaskStore {
             log.error("could not read \(fileURL.path, privacy: .public): \(loadError, privacy: .public)")
         } else {
             log.info("loaded \(loaded.count, privacy: .public) tasks from \(fileURL.path, privacy: .public)")
+        }
+    }
+
+    /// First launch after the rename: copy NextUp's list when Main Thing has none. The old file stays.
+    static func copyLegacyFileIfNeeded(to fileURL: URL) {
+        let files = FileManager.default
+        let legacy = fileURL.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(LegacyData.legacyDirectoryName, isDirectory: true)
+            .appendingPathComponent(fileURL.lastPathComponent)
+        guard LegacyData.shouldCopy(
+            newExists: files.fileExists(atPath: fileURL.path),
+            legacyExists: files.fileExists(atPath: legacy.path)
+        ) else { return }
+        let log = Logger(subsystem: MainThingBundleID, category: "store")
+        do {
+            try files.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try files.copyItem(at: legacy, to: fileURL)
+            log.notice("copied the NextUp list from \(legacy.path, privacy: .public)")
+        } catch {
+            log.error("could not copy the NextUp list from \(legacy.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -59,7 +80,7 @@ final class TaskStore {
     /// Routes one API request against the current list and runs the store method it asks for.
     /// `POST /tasks/done` and the done circle both end in `complete(expected:)`.
     func handle(_ request: HTTPRequest) -> HTTPResponse {
-        let outcome = NextUpRouter.handle(request, list: list)
+        let outcome = MainThingRouter.handle(request, list: list)
         switch outcome.action {
         case .replace(let titles): replace(titles)
         case .complete: complete(expected: nil)

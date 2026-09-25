@@ -87,7 +87,7 @@ public enum JSONBody {
     }
 
     public static func tasks(_ list: TaskList) -> Data { encode(Tasks(tasks: list.titles)) }
-    public static func health() -> Data { encode(Health(ok: true, version: NextUpVersion)) }
+    public static func health() -> Data { encode(Health(ok: true, version: MainThingVersion)) }
     public static func error(_ reason: String) -> Data { encode(Failure(error: reason)) }
 }
 

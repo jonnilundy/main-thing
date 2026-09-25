@@ -1,5 +1,5 @@
 import Foundation
-import NextUpCore
+import MainThingCore
 
 // Assertion runner. `import Testing` and XCTest are not available without Xcode.
 var failures = 0
@@ -37,7 +37,11 @@ do {
     check("current is index 0", list.current == "A")
     check("count", list.count == 2)
     check("empty list has no current", TaskList().current == nil && TaskList().isEmpty)
-    check("version is 0.1.0", NextUpVersion == "0.1.0")
+    check("version is 0.1.0", MainThingVersion == "0.1.0")
+    check("legacy data: copy when the new file is missing and the old one exists", LegacyData.shouldCopy(newExists: false, legacyExists: true))
+    check("legacy data: no copy when the new file exists", LegacyData.shouldCopy(newExists: true, legacyExists: true) == false)
+    check("legacy data: no copy without an old file", LegacyData.shouldCopy(newExists: false, legacyExists: false) == false)
+    check("legacy data: the old folder is NextUp", LegacyData.legacyDirectoryName == "NextUp")
 }
 do {
     var list = TaskList(["M", "M", "X"])
@@ -177,34 +181,34 @@ extension Result { var isFailure: Bool { if case .failure = self { true } else {
 
 // MARK: Routing and guards
 
-section("NextUpRouter")
+section("MainThingRouter")
 do {
     let list = TaskList(["A", "B"])
-    let out = NextUpRouter.handle(request("GET", "/tasks"), list: list)
+    let out = MainThingRouter.handle(request("GET", "/tasks"), list: list)
     check("GET /tasks", out.response.status == 200 && text(out.response) == "{\"tasks\":[\"A\",\"B\"]}" && out.changed == false)
-    let slash = NextUpRouter.handle(request("GET", "/tasks/"), list: list)
+    let slash = MainThingRouter.handle(request("GET", "/tasks/"), list: list)
     check("trailing slash is tolerated", slash.response.status == 200)
 }
 do {
     let list = TaskList(["A"])
-    let out = NextUpRouter.handle(request("PUT", "/tasks", body: "[\" X \", \"\", \"Y\"]"), list: list)
+    let out = MainThingRouter.handle(request("PUT", "/tasks", body: "[\" X \", \"\", \"Y\"]"), list: list)
     check("PUT array replaces, trims, drops blanks", out.response.status == 200 && text(out.response) == "{\"tasks\":[\"X\",\"Y\"]}")
     check("PUT reports changed", out.changed && out.list.titles == ["X", "Y"])
-    let obj = NextUpRouter.handle(request("PUT", "/tasks", body: "{\"tasks\":[\"Z\"]}"), list: list)
+    let obj = MainThingRouter.handle(request("PUT", "/tasks", body: "{\"tasks\":[\"Z\"]}"), list: list)
     check("PUT object form", obj.list.titles == ["Z"])
-    let bad = NextUpRouter.handle(request("PUT", "/tasks", body: "{oops"), list: list)
+    let bad = MainThingRouter.handle(request("PUT", "/tasks", body: "{oops"), list: list)
     check("PUT bad JSON is 400 with a reason", bad.response.status == 400 && text(bad.response) == "{\"error\":\"body is not valid JSON\"}" && bad.changed == false)
     check("PUT bad JSON leaves the list", bad.list == list)
 }
 do {
     let list = TaskList(["A", "B"])
-    let out = NextUpRouter.handle(request("POST", "/tasks/done"), list: list)
+    let out = MainThingRouter.handle(request("POST", "/tasks/done"), list: list)
     check("POST /tasks/done removes index 0", text(out.response) == "{\"tasks\":[\"B\"]}" && out.changed && out.list.titles == ["B"])
-    let empty = NextUpRouter.handle(request("POST", "/tasks/done"), list: TaskList())
+    let empty = MainThingRouter.handle(request("POST", "/tasks/done"), list: TaskList())
     check("POST /tasks/done on empty is 200 and unchanged", empty.response.status == 200 && text(empty.response) == "{\"tasks\":[]}" && empty.changed == false)
 }
 do {
-    let out = NextUpRouter.handle(request("GET", "/health"), list: TaskList())
+    let out = MainThingRouter.handle(request("GET", "/health"), list: TaskList())
     check("GET /health exact body", out.response.status == 200 && text(out.response) == "{\"ok\":true,\"version\":\"0.1.0\"}")
     let wire = String(decoding: out.response.serialized(), as: UTF8.self)
     check("serialized status line", wire.hasPrefix("HTTP/1.1 200 OK\r\n"))
@@ -214,33 +218,33 @@ do {
 }
 do {
     let list = TaskList(["A"])
-    check("404 unknown route", NextUpRouter.handle(request("GET", "/nope"), list: list).response.status == 404)
-    let del = NextUpRouter.handle(request("DELETE", "/tasks"), list: list)
+    check("404 unknown route", MainThingRouter.handle(request("GET", "/nope"), list: list).response.status == 404)
+    let del = MainThingRouter.handle(request("DELETE", "/tasks"), list: list)
     check("405 DELETE /tasks", del.response.status == 405 && del.response.headers["Allow"] == "GET, PUT")
-    check("405 GET /tasks/done", NextUpRouter.handle(request("GET", "/tasks/done"), list: list).response.status == 405)
-    check("405 POST /health", NextUpRouter.handle(request("POST", "/health"), list: list).response.status == 405)
-    check("405 lowercase get", NextUpRouter.handle(request("get", "/tasks"), list: list).response.status == 405)
+    check("405 GET /tasks/done", MainThingRouter.handle(request("GET", "/tasks/done"), list: list).response.status == 405)
+    check("405 POST /health", MainThingRouter.handle(request("POST", "/health"), list: list).response.status == 405)
+    check("405 lowercase get", MainThingRouter.handle(request("get", "/tasks"), list: list).response.status == 405)
     check("405 does not change the list", del.changed == false && del.list == list)
 }
 do {
     let list = TaskList(["A"])
-    let origin = NextUpRouter.handle(request("GET", "/health", headers: ["origin": "http://127.0.0.1:7788"]), list: list)
+    let origin = MainThingRouter.handle(request("GET", "/health", headers: ["origin": "http://127.0.0.1:7788"]), list: list)
     check("Origin is refused even on /health", origin.response.status == 403)
-    let originPut = NextUpRouter.handle(request("PUT", "/tasks", headers: ["origin": "null"], body: "[\"x\"]"), list: list)
+    let originPut = MainThingRouter.handle(request("PUT", "/tasks", headers: ["origin": "null"], body: "[\"x\"]"), list: list)
     check("Origin PUT is refused and leaves the list", originPut.response.status == 403 && originPut.changed == false && originPut.list == list)
-    check("missing Host is refused", NextUpRouter.handle(request("GET", "/health", host: nil), list: list).response.status == 403)
-    check("foreign Host is refused", NextUpRouter.handle(request("GET", "/health", host: "evil.example"), list: list).response.status == 403)
-    check("Host 127.0.0.1:7788", NextUpRouter.handle(request("GET", "/health", host: "127.0.0.1:7788"), list: list).response.status == 200)
-    check("Host localhost:7788", NextUpRouter.handle(request("GET", "/health", host: "localhost:7788"), list: list).response.status == 200)
-    check("Host [::1]:7788", NextUpRouter.handle(request("GET", "/health", host: "[::1]:7788"), list: list).response.status == 200)
-    check("Host nextup.localhost:7788", NextUpRouter.handle(request("GET", "/health", host: "nextup.localhost:7788"), list: list).response.status == 200)
-    check("Host nextup.localhost without port", NextUpRouter.handle(request("GET", "/health", host: "NextUp.localhost"), list: list).response.status == 200)
-    check("Host other.localhost is refused", NextUpRouter.handle(request("GET", "/health", host: "other.localhost:7788"), list: list).response.status == 403)
-    check("Host without port", NextUpRouter.handle(request("GET", "/health", host: "localhost"), list: list).response.status == 200)
-    check("Host is case insensitive", NextUpRouter.handle(request("GET", "/health", host: "LOCALHOST:7788"), list: list).response.status == 200)
-    check("Host lookalike is refused", NextUpRouter.handle(request("GET", "/health", host: "localhost.evil.example"), list: list).response.status == 403)
-    check("hostWithoutPort strips a v6 port", NextUpRouter.hostWithoutPort("[::1]:7788") == "[::1]")
-    check("hostWithoutPort strips a v4 port", NextUpRouter.hostWithoutPort("127.0.0.1:7788") == "127.0.0.1")
+    check("missing Host is refused", MainThingRouter.handle(request("GET", "/health", host: nil), list: list).response.status == 403)
+    check("foreign Host is refused", MainThingRouter.handle(request("GET", "/health", host: "evil.example"), list: list).response.status == 403)
+    check("Host 127.0.0.1:7788", MainThingRouter.handle(request("GET", "/health", host: "127.0.0.1:7788"), list: list).response.status == 200)
+    check("Host localhost:7788", MainThingRouter.handle(request("GET", "/health", host: "localhost:7788"), list: list).response.status == 200)
+    check("Host [::1]:7788", MainThingRouter.handle(request("GET", "/health", host: "[::1]:7788"), list: list).response.status == 200)
+    check("Host mainthing.localhost:7788", MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost:7788"), list: list).response.status == 200)
+    check("Host mainthing.localhost without port", MainThingRouter.handle(request("GET", "/health", host: "MainThing.localhost"), list: list).response.status == 200)
+    check("Host other.localhost is refused", MainThingRouter.handle(request("GET", "/health", host: "other.localhost:7788"), list: list).response.status == 403)
+    check("Host without port", MainThingRouter.handle(request("GET", "/health", host: "localhost"), list: list).response.status == 200)
+    check("Host is case insensitive", MainThingRouter.handle(request("GET", "/health", host: "LOCALHOST:7788"), list: list).response.status == 200)
+    check("Host lookalike is refused", MainThingRouter.handle(request("GET", "/health", host: "localhost.evil.example"), list: list).response.status == 403)
+    check("hostWithoutPort strips a v6 port", MainThingRouter.hostWithoutPort("[::1]:7788") == "[::1]")
+    check("hostWithoutPort strips a v4 port", MainThingRouter.hostWithoutPort("127.0.0.1:7788") == "127.0.0.1")
 }
 
 runHoverChecks()

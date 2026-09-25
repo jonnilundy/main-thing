@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import NextUpCore
+import MainThingCore
 
 @MainActor
 func runHoverChecks() {
@@ -36,14 +36,14 @@ func runHoverChecks() {
     section("Router actions")
     let list = TaskList(["A", "B"])
     let host = ["host": "localhost"]
-    let put = NextUpRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("[\" X \",\"Y\"]".utf8)), list: list)
+    let put = MainThingRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("[\" X \",\"Y\"]".utf8)), list: list)
     check("PUT asks the store to replace with the decoded titles", put.action == .replace([" X ", "Y"]))
-    let done = NextUpRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: host), list: list)
+    let done = MainThingRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: host), list: list)
     check("POST /tasks/done asks the store to complete", done.action == .complete)
-    let get = NextUpRouter.handle(HTTPRequest(method: "GET", path: "/tasks", headers: host), list: list)
+    let get = MainThingRouter.handle(HTTPRequest(method: "GET", path: "/tasks", headers: host), list: list)
     check("GET asks for nothing", get.action == .none)
-    let bad = NextUpRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("x".utf8)), list: list)
+    let bad = MainThingRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("x".utf8)), list: list)
     check("bad PUT asks for nothing", bad.action == .none)
-    let refused = NextUpRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: ["host": "evil"]), list: list)
+    let refused = MainThingRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: ["host": "evil"]), list: list)
     check("refused request asks for nothing", refused.action == .none)
 }

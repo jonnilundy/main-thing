@@ -1,5 +1,5 @@
 import AppKit
-import NextUpCore
+import MainThingCore
 import Observation
 import os
 
@@ -15,7 +15,7 @@ final class HoverController {
     private let panel: NSPanel
     private let model: NotchModel
     private let store: TaskStore
-    private let log = Logger(subsystem: NextUpBundleID, category: "hover")
+    private let log = Logger(subsystem: MainThingBundleID, category: "hover")
     private var monitors: [Any] = []
     private var pendingOpen: Task<Void, Never>?
     /// Last cursor position seen in an event, AppKit screen coordinates.

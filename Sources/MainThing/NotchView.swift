@@ -1,5 +1,5 @@
 import AppKit
-import NextUpCore
+import MainThingCore
 import SwiftUI
 import os
 
@@ -28,7 +28,7 @@ struct NotchView: View {
     }
 }
 
-private let viewLog = Logger(subsystem: NextUpBundleID, category: "hover")
+private let viewLog = Logger(subsystem: MainThingBundleID, category: "hover")
 
 struct NotchBody: View {
     let store: TaskStore
@@ -190,7 +190,7 @@ struct NotchMenu: View {
             NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
         }
         Divider()
-        Button("Quit NextUp") { NSApp.terminate(nil) }
+        Button("Quit Main Thing") { NSApp.terminate(nil) }
     }
 }
 

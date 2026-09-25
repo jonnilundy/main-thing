@@ -1,12 +1,12 @@
 #!/bin/bash
-# Exercise every route with curl and the nextup CLI against the running app.
+# Exercise every route with curl and the mainthing CLI against the running app.
 # Exits non-zero on any mismatch. The list that was there before the run is put back at the end.
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PORT="${NEXTUP_PORT:-7788}"
+PORT="${MAINTHING_PORT:-7788}"
 BASE="http://localhost:$PORT"
-CLI="$ROOT/bin/nextup"
+CLI="$ROOT/bin/mainthing"
 fails=0
 
 pass() { echo "ok   $1"; }
@@ -75,22 +75,22 @@ expect "GET /tasks with Origin" 403 '{"error":"requests with an Origin header ar
 expect "PUT /tasks with Origin" 403 '' -X PUT -H 'Origin: null' --data-binary '["x"]' "$BASE/tasks"
 expect "GET /health with a foreign Host" 403 '' -H 'Host: evil.example' "$BASE/health"
 expect "GET /health with Host other.localhost" 403 '' -H "Host: other.localhost:$PORT" "$BASE/health"
-expect "GET /health with Host nextup.localhost" 200 '{"ok":true,"version":"0.1.0"}' -H "Host: nextup.localhost:$PORT" "$BASE/health"
-expect "GET /health at http://nextup.localhost (resolved to loopback)" 200 '{"ok":true,"version":"0.1.0"}' \
-    --resolve "nextup.localhost:$PORT:127.0.0.1" "http://nextup.localhost:$PORT/health"
+expect "GET /health with Host mainthing.localhost" 200 '{"ok":true,"version":"0.1.0"}' -H "Host: mainthing.localhost:$PORT" "$BASE/health"
+expect "GET /health at http://mainthing.localhost (resolved to loopback)" 200 '{"ok":true,"version":"0.1.0"}' \
+    --resolve "mainthing.localhost:$PORT:127.0.0.1" "http://mainthing.localhost:$PORT/health"
 expect "GET /health over IPv6" 200 '{"ok":true,"version":"0.1.0"}' -6 "http://[::1]:$PORT/health"
 expect "GET /health via 127.0.0.1" 200 '{"ok":true,"version":"0.1.0"}' "http://127.0.0.1:$PORT/health"
 
-echo "--- nextup CLI"
-same "nextup health" '{"ok":true,"version":"0.1.0"}' "$(NEXTUP_PORT=$PORT "$CLI" health)"
-same "nextup set with quotes and an apostrophe" $'She said "go"\nJonni\'s memo\nTab\\there' \
-    "$(NEXTUP_PORT=$PORT "$CLI" set 'She said "go"' "Jonni's memo" 'Tab\there')"
-same "nextup prints the current task" 'She said "go"' "$(NEXTUP_PORT=$PORT "$CLI")"
-same "nextup list" $'She said "go"\nJonni\'s memo\nTab\\there' "$(NEXTUP_PORT=$PORT "$CLI" list)"
-same "nextup done" $'Jonni\'s memo\nTab\\there' "$(NEXTUP_PORT=$PORT "$CLI" done)"
-same "nextup set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | NEXTUP_PORT=$PORT "$CLI" set -)"
-same "nextup unknown command exits 1" "1" "$(NEXTUP_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
-same "nextup on a dead port says not running" "1" "$(NEXTUP_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
+echo "--- mainthing CLI"
+same "mainthing health" '{"ok":true,"version":"0.1.0"}' "$(MAINTHING_PORT=$PORT "$CLI" health)"
+same "mainthing set with quotes and an apostrophe" $'She said "go"\nJonni\'s memo\nTab\\there' \
+    "$(MAINTHING_PORT=$PORT "$CLI" set 'She said "go"' "Jonni's memo" 'Tab\there')"
+same "mainthing prints the current task" 'She said "go"' "$(MAINTHING_PORT=$PORT "$CLI")"
+same "mainthing list" $'She said "go"\nJonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" list)"
+same "mainthing done" $'Jonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" done)"
+same "mainthing set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | MAINTHING_PORT=$PORT "$CLI" set -)"
+same "mainthing unknown command exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
+same "mainthing on a dead port says not running" "1" "$(MAINTHING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
 
 expect "restore the saved list" 200 "$original" -X PUT --data-binary "$original" "$BASE/tasks"
 

@@ -1,23 +1,23 @@
 #!/bin/bash
-# nextup: talk to the NextUp notch over its local API.
+# mainthing: talk to the Main Thing notch over its local API.
 #
-#   nextup                  print the current task
-#   nextup list             one task per line
-#   nextup set "A" "B" ...  replace the list
-#   nextup set -            replace the list with one task per line from stdin
-#   nextup done             mark the current task done
-#   nextup health           is the app up
+#   mainthing                  print the current task
+#   mainthing list             one task per line
+#   mainthing set "A" "B" ...  replace the list
+#   mainthing set -            replace the list with one task per line from stdin
+#   mainthing done             mark the current task done
+#   mainthing health           is the app up
 #
-# NEXTUP_PORT overrides the port (default 7788).
+# MAINTHING_PORT overrides the port (default 7788).
 set -u
 
-PORT="${NEXTUP_PORT:-7788}"
+PORT="${MAINTHING_PORT:-7788}"
 BASE="http://localhost:$PORT"
 
-fail() { echo "nextup: $*" >&2; exit 1; }
+fail() { echo "mainthing: $*" >&2; exit 1; }
 
 not_running() {
-    fail "NextUp is not running on port $PORT. Start it from ~/Applications/NextUp.app, or set NEXTUP_PORT."
+    fail "Main Thing is not running on port $PORT. Start it from ~/Applications/MainThing.app, or set MAINTHING_PORT."
 }
 
 # GET or PUT or POST; prints the body, exits 1 with a clear message when the app is down.
@@ -101,6 +101,6 @@ case "$cmd" in
         sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     *)
-        fail "unknown command '$cmd'. Try: nextup, nextup list, nextup set \"A\" \"B\", nextup set -, nextup done, nextup health"
+        fail "unknown command '$cmd'. Try: mainthing, mainthing list, mainthing set \"A\" \"B\", mainthing set -, mainthing done, mainthing health"
         ;;
 esac

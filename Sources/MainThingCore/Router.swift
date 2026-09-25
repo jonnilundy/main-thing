@@ -42,8 +42,8 @@ public enum BodyDecoding {
 }
 
 /// Pure routing. Takes a request and the current list, returns the response and the list after it.
-public enum NextUpRouter {
-    public static let allowedHosts: Set<String> = ["127.0.0.1", "localhost", "[::1]", "nextup.localhost"]
+public enum MainThingRouter {
+    public static let allowedHosts: Set<String> = ["127.0.0.1", "localhost", "[::1]", "mainthing.localhost"]
 
     public struct Outcome: Equatable, Sendable {
         public var response: HTTPResponse
@@ -94,7 +94,7 @@ public enum NextUpRouter {
             return unchanged(.error(403, "requests with an Origin header are refused"))
         }
         guard hostAllowed(request.header("host")) else {
-            return unchanged(.error(403, "Host must be localhost, nextup.localhost, 127.0.0.1 or [::1]"))
+            return unchanged(.error(403, "Host must be localhost, mainthing.localhost, 127.0.0.1 or [::1]"))
         }
 
         var path = request.path

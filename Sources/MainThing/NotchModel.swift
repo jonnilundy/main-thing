@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import NextUpCore
+import MainThingCore
 import Observation
 
 /// UI state for the notch. The task list lives in `TaskStore`.

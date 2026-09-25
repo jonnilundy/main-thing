@@ -1,8 +1,8 @@
 import AppKit
-import NextUpCore
+import MainThingCore
 import ServiceManagement
 
-// `NextUp --login status|enable|disable` reports or changes Launch at Login and exits.
+// `MainThing --login status|enable|disable` reports or changes Launch at Login and exits.
 // Runs before the app starts, so it works from a script against the installed bundle.
 if let flag = CommandLine.arguments.firstIndex(of: "--login") {
     let command = flag + 1 < CommandLine.arguments.count ? CommandLine.arguments[flag + 1] : "status"
@@ -12,7 +12,7 @@ if let flag = CommandLine.arguments.firstIndex(of: "--login") {
         case "enable": try LaunchAtLogin.setEnabled(true)
         case "disable": try LaunchAtLogin.setEnabled(false)
         default:
-            print("usage: NextUp --login status|enable|disable")
+            print("usage: MainThing --login status|enable|disable")
             exit(2)
         }
     } catch {

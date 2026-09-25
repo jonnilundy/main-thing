@@ -1,6 +1,6 @@
 import Foundation
 import Network
-import NextUpCore
+import MainThingCore
 import os
 
 /// Loopback HTTP server on the main queue. One listener for 127.0.0.1, one for ::1.
@@ -10,13 +10,13 @@ final class APIServer {
 
     let port: UInt16
     private let store: TaskStore
-    private let log = Logger(subsystem: NextUpBundleID, category: "server")
+    private let log = Logger(subsystem: MainThingBundleID, category: "server")
     private var listeners: [NWListener] = []
     private var connections: [ObjectIdentifier: ClientConnection] = [:]
     /// Called with true when 127.0.0.1 is bound, false when the bind fails.
     var onStatus: (@MainActor (Bool) -> Void)?
 
-    /// `defaults write com.jonnilundy.nextup port 7799` overrides the port.
+    /// `defaults write com.jonnilundy.mainthing port 7799` overrides the port.
     static func configuredPort(_ defaults: UserDefaults = .standard) -> UInt16 {
         let value = defaults.integer(forKey: "port")
         return (1...65535).contains(value) ? UInt16(value) : defaultPort

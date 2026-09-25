@@ -1,12 +1,12 @@
 import AppKit
-import NextUpCore
+import MainThingCore
 import ServiceManagement
 import os
 
 /// Launch at Login through `SMAppService.mainApp`. The app must run from a bundle.
 @MainActor
 enum LaunchAtLogin {
-    private static let log = Logger(subsystem: NextUpBundleID, category: "login")
+    private static let log = Logger(subsystem: MainThingBundleID, category: "login")
 
     static var status: SMAppService.Status { SMAppService.mainApp.status }
 

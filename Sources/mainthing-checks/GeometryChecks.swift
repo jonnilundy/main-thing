@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import NextUpCore
+import MainThingCore
 
 @MainActor
 func runGeometryChecks() {

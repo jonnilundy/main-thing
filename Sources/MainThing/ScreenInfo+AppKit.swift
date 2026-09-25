@@ -1,5 +1,5 @@
 import AppKit
-import NextUpCore
+import MainThingCore
 
 extension ScreenInfo {
     /// Reads the fields the geometry needs from a live screen.

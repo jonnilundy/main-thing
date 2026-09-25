@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "nextup",
+    name: "mainthing",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "NextUpCore", targets: ["NextUpCore"]),
-        .executable(name: "NextUp", targets: ["NextUp"]),
-        .executable(name: "nextup-checks", targets: ["nextup-checks"]),
+        .library(name: "MainThingCore", targets: ["MainThingCore"]),
+        .executable(name: "MainThing", targets: ["MainThing"]),
+        .executable(name: "mainthing-checks", targets: ["mainthing-checks"]),
     ],
     targets: [
-        .target(name: "NextUpCore"),
-        .executableTarget(name: "NextUp", dependencies: ["NextUpCore"]),
-        .executableTarget(name: "nextup-checks", dependencies: ["NextUpCore"]),
+        .target(name: "MainThingCore"),
+        .executableTarget(name: "MainThing", dependencies: ["MainThingCore"]),
+        .executableTarget(name: "mainthing-checks", dependencies: ["MainThingCore"]),
     ]
 )
