@@ -33,7 +33,7 @@ final class Snapshotter {
         withObservationTracking {
             _ = store.list
             _ = model.isOpen
-            _ = model.doneArmed
+            _ = model.pending
             _ = model.geometry
             _ = store.events.failing
         } onChange: { [weak self] in
@@ -56,7 +56,11 @@ final class Snapshotter {
     }
 
     private func write() {
-        let size = NotchGeometry.panelSize
+        // Tall enough for the biggest open card: 60 percent of the screen.
+        let size = CGSize(
+            width: NotchGeometry.panelSize.width,
+            height: max(NotchGeometry.panelSize.height, ceil(model.geometry.screenFrame.height * OpenLayout.screenHeightShare))
+        )
         let content = NotchView(store: store, model: model)
             .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: content)

@@ -35,7 +35,7 @@ func runEventChecks() {
         let put = MainThingRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("[\"A\"]".utf8), query: ["source": "agent"]), list: TaskList())
         check("PUT ?source=agent reaches the action", put.action == .replace(["A"], source: "agent"))
         let done = MainThingRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: host, query: ["source": "cli"]), list: TaskList(["A"]))
-        check("POST /tasks/done ?source=cli reaches the action", done.action == .complete(source: "cli"))
+        check("POST /tasks/done ?source=cli reaches the action", done.action == .complete(key: "A#0", source: "cli"))
         let bad = MainThingRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: host, query: ["source": "Bad One"]), list: TaskList(["A"]))
         check("bad source is 400 and changes nothing", bad.response.status == 400 && bad.changed == false && bad.action == .none)
     }

@@ -2,7 +2,7 @@
 
 # Main Thing
 
-Main Thing draws a notch at the top of your Mac screen with the one task you are on right now. Hover to open it. A circle marks it done. A local API and a small command set the list, so your scripts and your AI agent can keep it current.
+Main Thing draws a notch at the top of your Mac screen with the one task you are on right now. Hover to open the whole list. Click a task to mark it done. A local API and a small command set the list, so your scripts and your AI agent can keep it current.
 
 Requires macOS 14 or later.
 
@@ -21,13 +21,14 @@ The install script builds a release, copies `MainThing.app` to `~/Applications`,
 
 ## Use
 
-The list is ordered. The first task is the one in the notch. Hover over the notch to see the rest.
+The list is ordered. The first task is the one in the notch. Hover over the notch to see all of them; click any one to mark it done.
 
 ```sh
 mainthing set "Write the memo" "Review Q3 KPIs" "Call the vendor"
 mainthing                # prints the current task
 mainthing list           # one task per line
 mainthing done           # marks the current task done
+mainthing done 3         # marks the third task done
 mainthing health         # is the app up
 ```
 
@@ -56,11 +57,14 @@ curl -X PUT http://localhost:7788/tasks -d '[{"title":"Write the memo","ref":"op
 curl -X PUT 'http://localhost:7788/tasks?source=agent' -d '{"tasks":["Write the memo"]}'
 curl http://localhost:7788/tasks
 curl -X POST http://localhost:7788/tasks/done
+curl -X POST http://localhost:7788/tasks/done -d '{"index":2}'
+curl -X POST http://localhost:7788/tasks/done -d '{"ref":"openbrain:qh75pbc"}'
 curl http://localhost:7788/status
 curl http://localhost:7788/health
 ```
 
 - `PUT /tasks` takes a JSON array of strings, of `{"title","ref"}` objects, or a mix, bare or inside `{"tasks":[...]}`. Titles are trimmed and blank ones dropped. A `ref` is `<adapter>:<id>`, adapter name `[a-z0-9-]+`, at most 256 characters, one per list. Anything else is 400 with a one line reason.
+- `POST /tasks/done` completes the first task. With a body, `{"index":N}` completes the task at that 0 based index and `{"ref":"<adapter>:<id>"}` the task with that ref. A task that is not there is 404.
 - `GET /tasks`, `PUT /tasks` and `POST /tasks/done` answer `{"tasks":[{"title":"A"},{"ref":"openbrain:x","title":"B"}]}`.
 - `?source=<name>` on `PUT /tasks` and `POST /tasks/done` names the caller for hooks and adapters. Default `api`.
 - `GET /status` lists installed hooks and adapters with their last run.
@@ -103,7 +107,7 @@ An adapter is one executable file named after the adapter, taking `complete <id>
 
 A hook runs on every event, not only the ones with a ref. Put an executable at `~/.config/mainthing/hooks/<event>`:
 
-- `task-completed` runs when a task is completed from the notch, the API or the command.
+- `task-completed` runs when any task is completed from the notch, the API or the command.
 - `list-changed` runs on any change, a completion included.
 
 Each gets the event as JSON on stdin:
@@ -127,6 +131,7 @@ Commands, all local:
   mainthing list --json                      the list as JSON, first task is current
   mainthing set --json --source agent -      replace the whole list from a JSON array on stdin
   mainthing done --source agent              complete the current task
+  mainthing done 3 --source agent            complete the third task
 
 The JSON shape is an array of {"title": "...", "ref": "..."}. "ref" is optional
 and ties a task to another tool as "<adapter>:<id>", for example
@@ -165,6 +170,8 @@ Then relaunch the app. If the port is taken, the open notch says "API off on por
 An adapter or hook does not run: check its permissions. It must be a regular file (or a link to one) owned by you, executable, and not writable by group or others. `mainthing adapters` says which rule failed. If it needs a tool that is not on the app's PATH, add that folder at the top of the script.
 
 The notch does not open on hover: it only opens over the black shape itself. On a MacBook with a camera housing the shape hangs below the menu bar, under the housing.
+
+The open card is as wide as its longest task, between 420 points and 640 points or half the screen. It grows down to fit every task, up to 60 percent of the screen height; past that the list scrolls inside it.
 
 ## Uninstall
 

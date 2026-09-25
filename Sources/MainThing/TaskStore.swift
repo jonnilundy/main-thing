@@ -16,6 +16,9 @@ final class TaskStore {
     /// Hooks and adapters. Every change goes out as events after it is saved.
     @ObservationIgnored private(set) var runner: EventRunner!
     let events = EventStatus()
+    /// Called on the main actor right after the list changed and was saved, before events go out.
+    /// The panel uses it to size itself before the shape animates.
+    @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
     static var defaultFileURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -82,8 +85,15 @@ final class TaskStore {
     /// Done from the notch, the API or the CLI. Removes the current task only when its title still matches.
     @discardableResult
     func complete(expected: String?, source: String) -> Bool {
+        guard let key = list.rows.first?.key else { return false }
+        return complete(key: key, expected: expected, source: source)
+    }
+
+    /// Done for any row, by its key. `expected` guards against a stale click on a row that changed.
+    @discardableResult
+    func complete(key: String, expected: String?, source: String) -> Bool {
         let before = list
-        guard let removed = list.complete(expected: expected) else { return false }
+        guard let removed = list.complete(key: key, expected: expected) else { return false }
         save()
         emit(before: before, completed: removed, source: source)
         return true
@@ -95,7 +105,7 @@ final class TaskStore {
         let outcome = MainThingRouter.handle(request, list: list, status: events.report(installed: runner.installed()))
         switch outcome.action {
         case .replace(let tasks, let source): replace(tasks, source: source)
-        case .complete(let source): complete(expected: nil, source: source)
+        case .complete(let key, let source): complete(key: key, expected: nil, source: source)
         case .none: break
         }
         return outcome.response
@@ -103,6 +113,7 @@ final class TaskStore {
 
     /// `task-completed` then `list-changed` after a completion, `list-changed` after any other change.
     private func emit(before: TaskList, completed: TaskItem?, source: String) {
+        onChange?()
         for payload in EventPlan.events(before: before, after: list, completed: completed, source: source, at: Date()) {
             runner.emit(payload)
         }

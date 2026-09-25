@@ -8,6 +8,7 @@
 #   mainthing set -            replace the list with one task per line from stdin
 #   mainthing set --json -     replace the list with a JSON array of strings or objects from stdin
 #   mainthing done             mark the current task done
+#   mainthing done 3           mark the 3rd task done (1 based)
 #   mainthing adapters         installed adapters and their last run
 #   mainthing hooks            installed hooks and their last run
 #   mainthing health           is the app up
@@ -156,8 +157,13 @@ case "$cmd" in
     done)
         shift
         take_source "$@"
-        [[ ${#REST[@]} -eq 0 ]] || fail "unknown argument '${REST[0]}' for done. Try: mainthing done, mainthing done --source agent"
-        call POST "/tasks/done?source=$SOURCE" | titles
+        if [[ ${#REST[@]} -eq 0 ]]; then
+            call POST "/tasks/done?source=$SOURCE" | titles
+        elif [[ ${#REST[@]} -eq 1 && "${REST[0]}" =~ ^[1-9][0-9]*$ ]]; then
+            call POST "/tasks/done?source=$SOURCE" "{\"index\":$(( REST[0] - 1 ))}" | titles
+        else
+            fail "done takes nothing or a task number from 1. Try: mainthing done, mainthing done 3, mainthing done --source agent"
+        fi
         ;;
     adapters)
         call GET /status | installed adapters
@@ -170,9 +176,9 @@ case "$cmd" in
         echo
         ;;
     -h|--help|help)
-        sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     *)
-        fail "unknown command '$cmd'. Try: mainthing, mainthing list, mainthing list --json, mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -, mainthing done, mainthing adapters, mainthing hooks, mainthing health"
+        fail "unknown command '$cmd'. Try: mainthing, mainthing list, mainthing list --json, mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -, mainthing done, mainthing done 3, mainthing adapters, mainthing hooks, mainthing health"
         ;;
 esac

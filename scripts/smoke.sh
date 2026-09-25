@@ -66,6 +66,20 @@ expect "PUT /tasks duplicate ref" 400 '{"error":"item 1 repeats the ref smoke:1"
 expect "PUT /tasks object without title" 400 '{"error":"item 0 needs a \"title\" string"}' \
     -X PUT --data-binary '[{"ref":"smoke:1"}]' "$BASE/tasks"
 expect "POST /tasks/done" 200 '{"tasks":[{"ref":"smoke:1","title":"Smoke F"}]}' -X POST "$BASE/tasks/done"
+expect "PUT /tasks three for done by index and ref" 200 '{"tasks":[{"title":"Smoke G"},{"ref":"smoke:2","title":"Smoke H"},{"title":"Smoke I"}]}' \
+    -X PUT --data-binary '["Smoke G",{"title":"Smoke H","ref":"smoke:2"},"Smoke I"]' "$BASE/tasks"
+expect "POST /tasks/done {index:2} removes the third" 200 '{"tasks":[{"title":"Smoke G"},{"ref":"smoke:2","title":"Smoke H"}]}' \
+    -X POST --data-binary '{"index":2}' "$BASE/tasks/done"
+expect "POST /tasks/done {ref} removes that task" 200 '{"tasks":[{"title":"Smoke G"}]}' \
+    -X POST --data-binary '{"ref":"smoke:2"}' "$BASE/tasks/done"
+expect "POST /tasks/done {index:5} is 404" 404 '{"error":"no task at index 5, the list has 1"}' \
+    -X POST --data-binary '{"index":5}' "$BASE/tasks/done"
+expect "POST /tasks/done {ref} unknown is 404" 404 '{"error":"no task with ref smoke:9"}' \
+    -X POST --data-binary '{"ref":"smoke:9"}' "$BASE/tasks/done"
+expect "POST /tasks/done bad body is 400" 400 '' -X POST --data-binary '[1]' "$BASE/tasks/done"
+expect "POST /tasks/done ?source=agent" 200 '{"tasks":[]}' -X POST "$BASE/tasks/done?source=agent"
+expect "POST /tasks/done bad source is 400" 400 '{"error":"source must be [a-z0-9._-]"}' -X POST "$BASE/tasks/done?source=Bad%20One"
+expect "PUT /tasks ?source=agent" 200 '{"tasks":[{"title":"Smoke F"}]}' -X PUT --data-binary '["Smoke F"]' "$BASE/tasks?source=agent"
 expect "POST /tasks/done to empty" 200 '{"tasks":[]}' -X POST "$BASE/tasks/done"
 expect "POST /tasks/done on empty stays empty" 200 '{"tasks":[]}' -X POST "$BASE/tasks/done"
 expect "PUT /tasks bad JSON" 400 '{"error":"body is not valid JSON"}' -X PUT --data-binary 'not json' "$BASE/tasks"
@@ -97,6 +111,9 @@ same "mainthing set with quotes and an apostrophe" $'She said "go"\nJonni\'s mem
 same "mainthing prints the current task" 'She said "go"' "$(MAINTHING_PORT=$PORT "$CLI")"
 same "mainthing list" $'She said "go"\nJonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" list)"
 same "mainthing done" $'Jonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" done)"
+same "mainthing done 2 removes the second" "Jonni's memo" "$(MAINTHING_PORT=$PORT "$CLI" done 2)"
+same "mainthing done 0 exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" done 0 >/dev/null 2>&1; echo $?)"
+same "mainthing done 9 past the end exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" done 9 >/dev/null 2>&1; echo $?)"
 same "mainthing set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | MAINTHING_PORT=$PORT "$CLI" set -)"
 same "mainthing set --json - with a ref" $'Ref one\nPlain two' "$(printf '[{"title":"Ref one","ref":"smoke:9"},"Plain two"]' | MAINTHING_PORT=$PORT "$CLI" set --json -)"
 same "mainthing list --json prints the objects" '[{"ref":"smoke:9","title":"Ref one"},{"title":"Plain two"}]' "$(MAINTHING_PORT=$PORT "$CLI" list --json)"

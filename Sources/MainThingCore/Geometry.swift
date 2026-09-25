@@ -71,9 +71,12 @@ public struct NotchGeometry: Equatable, Sendable {
     public var notchHeight: CGFloat
     /// Collapsed content width floor, before the flares.
     public var minimumWidth: CGFloat
+    /// The chosen screen, for the open card's width and height caps.
+    public var screenFrame: CGRect
 
     public init(screen: ScreenInfo) {
         menuBarHeight = screen.menuBarHeight
+        screenFrame = screen.frame
         let size = NotchGeometry.panelSize
         let top: CGFloat
         if let housing = screen.hardwareNotch {
@@ -100,6 +103,11 @@ public struct NotchGeometry: Equatable, Sendable {
     }
 
     public var hasHardwareNotch: Bool { mode == .belowMenuBar }
+
+    /// The panel frame with another height. The top edge stays where it is; the panel grows down.
+    public func panelFrame(height: CGFloat) -> CGRect {
+        CGRect(x: panelFrame.minX, y: panelFrame.maxY - height, width: panelFrame.width, height: height)
+    }
 
     /// The collapsed shape in panel coordinates, origin top left. It starts at y 0, the
     /// panel's top edge, so below a hardware notch no part of it is above the menu bar's bottom edge.

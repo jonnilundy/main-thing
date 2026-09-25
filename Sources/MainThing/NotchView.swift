@@ -4,15 +4,15 @@ import SwiftUI
 import os
 
 /// The notch. Collapsed: a black shape at the top center with the current task inside.
-/// Open: the current task large with a done circle, the next three, and a "+N more" line.
+/// Open: every task, the current one large, each with a done circle on row hover.
 struct NotchView: View {
     let store: TaskStore
     let model: NotchModel
-    var onDone: () -> Void = {}
+    var onToggle: (TaskList.Row) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(store: store, model: model, onDone: onDone)
+            NotchBody(store: store, model: model, onToggle: onToggle)
                 // The hosting view fills the panel, so the global space is panel space, origin top left.
                 // A GeometryReader preference in the background never delivered the laid out frame here
                 // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
@@ -33,7 +33,7 @@ private let viewLog = Logger(subsystem: MainThingBundleID, category: "hover")
 struct NotchBody: View {
     let store: TaskStore
     let model: NotchModel
-    let onDone: () -> Void
+    let onToggle: (TaskList.Row) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -42,7 +42,7 @@ struct NotchBody: View {
         let title = rows.first?.title
         let geometry = model.geometry
         let collapsedWidth = NotchMetrics.width(for: title, minimum: geometry.minimumWidth)
-        let openWidth = max(collapsedWidth, NotchMetrics.openWidth)
+        let openWidth = max(collapsedWidth, model.openWidth)
         // The shape width springs between these. Content is laid out at its own final width,
         // never at the animating width, and the clip hides the overflow while the spring settles.
         let width = model.isOpen ? openWidth : collapsedWidth
@@ -60,17 +60,18 @@ struct NotchBody: View {
             }
             .frame(width: width, height: geometry.notchHeight)
             if model.isOpen {
-                OpenContent(store: store, model: model, onDone: onDone, width: openWidth)
+                OpenContent(store: store, model: model, onToggle: onToggle, width: openWidth)
                     .transition(Motion.openContent(reduceMotion))
             }
         }
         .padding(.horizontal, NotchMetrics.flare)
+        // Pure black, no translucency: it must match a hardware notch.
         .background(shape.fill(.black))
         .clipShape(shape)
         .contentShape(shape)
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
-        .animation(Motion.width(reduceMotion), value: keys)
-        .accessibilityLabel(title ?? "No task")
+        .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
+        .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
         .contextMenu { NotchMenu(store: store) }
     }
 }
@@ -101,54 +102,38 @@ struct CollapsedTitle: View {
     }
 }
 
+/// The open card: every row, the current one large. Past 60 percent of the screen the rows scroll.
 struct OpenContent: View {
     let store: TaskStore
     let model: NotchModel
-    let onDone: () -> Void
+    let onToggle: (TaskList.Row) -> Void
     let width: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var rowHovering = false
 
     var body: some View {
         let rows = store.list.rows
         let keys = rows.map(\.key)
-        let halfXHeight = NotchMetrics.titleXHeight / 2
-        VStack(alignment: .leading, spacing: 6) {
-            if let current = rows.first {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    DoneButton(visible: rowHovering || model.doneArmed, armed: model.doneArmed, action: onDone)
-                        // The circle's center sits on the x-height center of the title's first line,
-                        // so it stays put when the title wraps to two lines.
-                        .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + halfXHeight }
-                    Text(current.title)
-                        .font(NotchMetrics.titleFont)
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .id(current.key)
-                        .transition(Motion.push(reduceMotion))
-                }
-                .contentShape(Rectangle())
-                .onHover { rowHovering = $0 }
-                ForEach(rows.dropFirst().prefix(3)) { row in
-                    Text(row.title)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.55))
-                        .lineLimit(1)
-                        .padding(.leading, NotchMetrics.rowIndent)
-                        .transition(Motion.push(reduceMotion))
-                }
-                if rows.count > 4 {
-                    Text("+\(rows.count - 4) more")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.4))
-                        .padding(.leading, NotchMetrics.rowIndent)
-                        .transition(.opacity)
-                }
-            } else {
+        VStack(alignment: .leading, spacing: OpenLayout.rowSpacing) {
+            if rows.isEmpty {
                 Text("No tasks")
                     .font(.system(size: 13))
                     .foregroundStyle(.white.opacity(0.5))
                     .transition(.opacity)
+            } else {
+                RowsBlock(maxHeight: model.rowsMaxHeight) {
+                    VStack(alignment: .leading, spacing: OpenLayout.rowSpacing) {
+                        ForEach(rows) { row in
+                            TaskRow(
+                                row: row,
+                                isCurrent: row.key == keys.first,
+                                struck: model.pending.isPending(row.key),
+                                action: { onToggle(row) }
+                            )
+                            .transition(Motion.push(reduceMotion))
+                        }
+                    }
+                    .animation(Motion.content(reduceMotion), value: keys)
+                }
             }
             if !model.apiBound {
                 Text("API off on port " + String(model.apiPort))
@@ -164,13 +149,82 @@ struct OpenContent: View {
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 2)
-        .padding(.bottom, 14)
+        .padding(.horizontal, OpenLayout.horizontalPadding)
+        .padding(.top, OpenLayout.topPadding)
+        .padding(.bottom, OpenLayout.bottomPadding)
         // Laid out at the final open width. The width itself does not animate here.
         .frame(width: width, alignment: .leading)
         .animation(nil, value: width)
         .animation(Motion.content(reduceMotion), value: keys)
+    }
+}
+
+/// The rows, plain when they fit, in a scroll view with hidden indicators when they do not.
+struct RowsBlock<Content: View>: View {
+    let maxHeight: CGFloat?
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        if let maxHeight {
+            ScrollView(.vertical) {
+                content
+            }
+            .scrollIndicators(.automatic)
+            .frame(maxHeight: maxHeight)
+        } else {
+            content
+        }
+    }
+}
+
+/// One task. The whole row is the button. The circle appears on row hover; a click strikes the
+/// title through from left to right and dims it, and 250ms later the row leaves.
+struct TaskRow: View {
+    let row: TaskList.Row
+    let isCurrent: Bool
+    let struck: Bool
+    let action: () -> Void
+    @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let font = isCurrent ? NotchMetrics.titleFont : NotchMetrics.rowFont
+        let halfXHeight = (isCurrent ? NotchMetrics.titleXHeight : NotchMetrics.rowXHeight) / 2
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: OpenLayout.circleGap) {
+                DoneCircle(visible: hovering || struck, filled: struck)
+                    // The circle's center sits on the x-height center of the title's first line,
+                    // so it stays put when the title wraps to two lines.
+                    .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + halfXHeight }
+                Text(row.title)
+                    .font(font)
+                    .foregroundStyle(.white.opacity(isCurrent ? 1 : NotchMetrics.dimOpacity))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
+                    .opacity(struck ? 0.45 : 1)
+                    .overlay {
+                        // The strike line alone, through every line of the title, revealed left to right.
+                        Text(row.title)
+                            .font(font)
+                            .lineLimit(2)
+                            .truncationMode(.tail)
+                            .foregroundStyle(.clear)
+                            .strikethrough(true, color: .white.opacity(0.9))
+                            .mask(alignment: .leading) {
+                                Rectangle().scaleEffect(x: struck ? 1 : 0.001, anchor: .leading)
+                            }
+                            .opacity(struck ? 1 : 0)
+                            .allowsHitTesting(false)
+                    }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(reduceMotion ? Motion.reducedFade : Motion.strike, value: struck)
+        .accessibilityLabel(row.title)
+        .accessibilityHint(struck ? "Done, leaving" : "Mark done")
     }
 }
 
@@ -202,36 +256,31 @@ struct NotchMenu: View {
     }
 }
 
-/// The circle that completes the current task. Shown only while the cursor is on the
-/// current task row; its 22pt space stays reserved so the title never shifts.
-struct DoneButton: View {
+/// The circle that marks a row done. Shown only while the cursor is on the row; its 22pt space
+/// stays reserved so the title never shifts. Pops in from 0.85, grows to 1.1 under the cursor,
+/// bounces to 1.15 as it fills.
+struct DoneCircle: View {
     let visible: Bool
-    let armed: Bool
-    let action: () -> Void
+    let filled: Bool
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        // Pops in from 0.85 on row hover, grows to 1.1 under the cursor, bounces to 1.15 as it
-        // fills. Never from 0. A scale bounce, not symbolEffect(.bounce): that one left the
-        // symbol blank in this panel.
-        let scale: CGFloat = reduceMotion ? 1 : (!visible ? 0.85 : (armed ? 1.15 : (hovering ? 1.1 : 1)))
-        Button(action: action) {
-            Image(systemName: armed ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(.white.opacity(armed ? 1 : 0.6))
-                .contentTransition(Motion.symbol(reduceMotion))
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .opacity(visible ? 1 : 0)
-        .scaleEffect(scale)
-        .onHover { hovering = $0 }
-        .animation(reduceMotion ? Motion.reducedFade : Motion.popSpring, value: visible)
-        .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: hovering)
-        .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: armed)
-        .accessibilityLabel("Done")
+        // Never from 0. A scale bounce, not symbolEffect(.bounce): that one left the symbol blank in this panel.
+        let scale: CGFloat = reduceMotion ? 1 : (!visible ? 0.85 : (filled ? 1.15 : (hovering ? 1.1 : 1)))
+        Image(systemName: filled ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
+            .font(.system(size: 18, weight: .regular))
+            .foregroundStyle(.white.opacity(filled ? 1 : 0.6))
+            .contentTransition(Motion.symbol(reduceMotion))
+            .frame(width: OpenLayout.circleWidth, height: OpenLayout.circleWidth)
+            .contentShape(Rectangle())
+            .opacity(visible ? 1 : 0)
+            .scaleEffect(scale)
+            .onHover { hovering = $0 }
+            .animation(reduceMotion ? Motion.reducedFade : Motion.popSpring, value: visible)
+            .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: hovering)
+            .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: filled)
+            .accessibilityHidden(true)
     }
 }
 
@@ -242,15 +291,19 @@ enum NotchMetrics {
     /// The current task in the open state.
     static let titleFont = Font.system(size: 15, weight: .semibold)
     @MainActor static let titleNSFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
-    /// x-height of the title font, for centering the done circle on the first line.
+    /// The other tasks in the open state.
+    static let rowFont = Font.system(size: 13)
+    @MainActor static let rowNSFont = NSFont.systemFont(ofSize: 13)
+    /// x-heights, for centering the done circle on the first line.
     @MainActor static let titleXHeight: CGFloat = titleNSFont.xHeight
+    @MainActor static let rowXHeight: CGFloat = rowNSFont.xHeight
+    /// The other tasks are dimmed to this.
+    static let dimOpacity: Double = 0.55
     static let textInset: CGFloat = 22
     static let flare = NotchGeometry.flare
     static let bottomRadius: CGFloat = 12
     static let openBottomRadius: CGFloat = 24
     static let maxWidth: CGFloat = 600
-    static let openWidth: CGFloat = 420
-    static let rowIndent: CGFloat = 32
 
     /// Collapsed notch width before the flares. Follows the title, clamped.
     /// `minimum` comes from the geometry: plain 140, or the camera housing width.

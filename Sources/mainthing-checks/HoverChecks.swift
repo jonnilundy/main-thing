@@ -17,13 +17,10 @@ func runHoverChecks() {
     check("open: 9pt right of the shape is outside", !NotchHover.inside(CGPoint(x: 619, y: 50), shape: open, isOpen: true))
     check("empty shape is never inside", !NotchHover.inside(.zero, shape: .zero, isOpen: false))
 
-    check("collapsed, cursor enters: schedule open", NotchHover.intent(isOpen: false, pendingOpen: false, inside: true) == .scheduleOpen)
-    check("collapsed, pending, still inside: nothing", NotchHover.intent(isOpen: false, pendingOpen: true, inside: true) == .none)
-    check("collapsed, pending, cursor leaves: cancel", NotchHover.intent(isOpen: false, pendingOpen: true, inside: false) == .cancelOpen)
-    check("collapsed, outside, nothing pending: nothing", NotchHover.intent(isOpen: false, pendingOpen: false, inside: false) == .none)
-    check("open, inside: nothing", NotchHover.intent(isOpen: true, pendingOpen: false, inside: true) == .none)
-    check("open, cursor leaves: close", NotchHover.intent(isOpen: true, pendingOpen: false, inside: false) == .close)
-    check("open delay is 40ms", NotchHover.openDelay == .milliseconds(40))
+    check("collapsed, cursor enters: open at once", NotchHover.intent(isOpen: false, inside: true) == .open)
+    check("collapsed, outside: nothing", NotchHover.intent(isOpen: false, inside: false) == .none)
+    check("open, inside: nothing", NotchHover.intent(isOpen: true, inside: true) == .none)
+    check("open, cursor leaves: close", NotchHover.intent(isOpen: true, inside: false) == .close)
     check("slack is 8pt", NotchHover.slack == 8)
 
     // AppKit screen points on a 1440pt tall screen, panel 800x240 at the top center.
@@ -39,7 +36,7 @@ func runHoverChecks() {
     let put = MainThingRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("[\" X \",\"Y\"]".utf8)), list: list)
     check("PUT asks the store to replace with the decoded titles", put.action == .replace([" X ", "Y"], source: "api"))
     let done = MainThingRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: host), list: list)
-    check("POST /tasks/done asks the store to complete", done.action == .complete(source: "api"))
+    check("POST /tasks/done asks the store to complete the first key", done.action == .complete(key: "A#0", source: "api"))
     let get = MainThingRouter.handle(HTTPRequest(method: "GET", path: "/tasks", headers: host), list: list)
     check("GET asks for nothing", get.action == .none)
     let bad = MainThingRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("x".utf8)), list: list)

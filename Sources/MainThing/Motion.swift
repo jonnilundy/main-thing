@@ -1,18 +1,20 @@
 import SwiftUI
 
-/// Motion tokens. Snappy with a little bounce. Nothing runs longer than about 300ms.
-/// Reduce Motion: opacity only, ease out, never ease in.
+/// Motion tokens. Snappy with a little bounce. Nothing runs longer than about 300ms to settle,
+/// except the tail of the open bounce. Reduce Motion: opacity only, ease out, never ease in.
 enum Motion {
-    /// Open: lively, reaches most of its size fast and overshoots a little.
-    static let openSpring = Animation.spring(response: 0.3, dampingFraction: 0.65)
-    /// Close: quicker and calmer.
-    static let closeSpring = Animation.spring(response: 0.24, dampingFraction: 0.9)
-    /// Task change push and width changes.
+    /// Open: a fast rise, then a visible overshoot near full size and a settle.
+    static let openSpring = Animation.spring(duration: 0.28, bounce: 0.35)
+    /// Close: quicker and calm, no bounce.
+    static let closeSpring = Animation.spring(duration: 0.22, bounce: 0)
+    /// Task change push.
     static let pushSpring = Animation.spring(duration: 0.3, bounce: 0.15)
     /// Done circle pop in on row hover, about 200ms with bounce.
     static let popSpring = Animation.spring(response: 0.2, dampingFraction: 0.55)
     /// Done circle hover, scale to 1.1 with bounce.
     static let bounceSpring = Animation.spring(response: 0.25, dampingFraction: 0.5)
+    /// The strikethrough drawing left to right, and the text dimming with it.
+    static let strike = Animation.easeOut(duration: 0.15)
     /// Quick fade for content that must not wait for the shape.
     static let fade = Animation.easeOut(duration: 0.12)
     /// Reduce Motion fade.
@@ -23,9 +25,9 @@ enum Motion {
         reduceMotion ? nil : (opening ? openSpring : closeSpring)
     }
 
-    /// Width follows a task change.
-    static func width(_ reduceMotion: Bool) -> Animation? {
-        reduceMotion ? nil : pushSpring
+    /// Width and height follow a list change. Open: the open spring. Collapsed: the push spring.
+    static func size(_ reduceMotion: Bool, open: Bool) -> Animation? {
+        reduceMotion ? nil : (open ? openSpring : pushSpring)
     }
 
     /// Task change content.

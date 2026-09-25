@@ -5,13 +5,10 @@ import Foundation
 public enum NotchHover {
     /// Extra reach around the open shape before it closes.
     public static let slack: CGFloat = 8
-    /// Wait before opening, so a pass across the menu bar does not open the notch.
-    public static let openDelay: Duration = .milliseconds(40)
 
     public enum Intent: Equatable, Sendable {
         case none
-        case scheduleOpen
-        case cancelOpen
+        case open
         case close
     }
 
@@ -22,13 +19,11 @@ public enum NotchHover {
         return reach.contains(point)
     }
 
-    /// What to do on a cursor move.
-    public static func intent(isOpen: Bool, pendingOpen: Bool, inside: Bool) -> Intent {
-        switch (isOpen, pendingOpen, inside) {
-        case (true, _, true): .none
-        case (true, _, false): .close
-        case (false, false, true): .scheduleOpen
-        case (false, true, false): .cancelOpen
+    /// What to do on a cursor move. No delay: the first move inside the shape opens.
+    public static func intent(isOpen: Bool, inside: Bool) -> Intent {
+        switch (isOpen, inside) {
+        case (false, true): .open
+        case (true, false): .close
         default: .none
         }
     }

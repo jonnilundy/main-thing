@@ -163,8 +163,25 @@ public struct TaskList: Equatable, Sendable {
     @discardableResult
     public mutating func complete(expected: String?) -> TaskItem? {
         guard let first = rows.first else { return nil }
-        if let expected, expected != first.title { return nil }
-        rows.removeFirst()
-        return first.task
+        return complete(key: first.key, expected: expected)
+    }
+
+    /// Removes the row with `key`, anywhere in the list. When `expected` is given, it must equal
+    /// that row's title. Returns the removed task, or nil when the list did not change.
+    @discardableResult
+    public mutating func complete(key: String, expected: String?) -> TaskItem? {
+        guard let i = rows.firstIndex(where: { $0.key == key }) else { return nil }
+        if let expected, expected != rows[i].title { return nil }
+        return rows.remove(at: i).task
+    }
+
+    /// The row key at a 0 based index, or nil when out of range.
+    public func key(at index: Int) -> String? {
+        rows.indices.contains(index) ? rows[index].key : nil
+    }
+
+    /// The row key of the task with `ref`, or nil when no task has it.
+    public func key(ref: String) -> String? {
+        rows.first { $0.ref == ref }?.key
     }
 }

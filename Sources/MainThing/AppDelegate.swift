@@ -33,8 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.model = model
 
         let panel = NotchPanel(contentRect: geometry.panelFrame)
-        let hover = HoverController(panel: panel, model: model, store: store)
-        let root = NotchView(store: store, model: model, onDone: { [weak hover] in hover?.completeCurrent() })
+        let layout = PanelLayout(panel: panel, model: model, store: store)
+        let hover = HoverController(panel: panel, model: model, store: store, layout: layout)
+        store.onChange = { [weak hover] in hover?.listChanged() }
+        let root = NotchView(store: store, model: model, onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
         let hosting = NotchHostingView(rootView: root)
         hosting.onMouseMove = { [weak hover] point in hover?.evaluate(at: point, source: "tracking") }
         panel.contentView = hosting

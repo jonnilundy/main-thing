@@ -5,6 +5,17 @@ public struct BodyError: Error, Equatable, Sendable {
     public init(_ reason: String) { self.reason = reason }
 }
 
+/// A refusal with its status: 400 for a bad body, 404 for a task that is not there.
+public struct RouteFailure: Error, Equatable, Sendable {
+    public let status: Int
+    public let reason: String
+    public init(_ status: Int, _ reason: String) {
+        self.status = status
+        self.reason = reason
+    }
+    public var response: HTTPResponse { .error(status, reason) }
+}
+
 /// Decodes a `PUT /tasks` body. Accepts `["A","B"]`, `[{"title":"A","ref":"openbrain:x"}]`, a mix,
 /// or the same inside `{"tasks":[...]}`. Content-Type is ignored.
 public enum BodyDecoding {
@@ -90,7 +101,35 @@ public enum MainThingRouter {
     public enum Action: Equatable, Sendable {
         case none
         case replace([TaskItem], source: String)
-        case complete(source: String)
+        /// Complete the row with this key.
+        case complete(key: String, source: String)
+    }
+
+    /// Which row `POST /tasks/done` means. No body: the first. `{"index":N}`: 0 based.
+    /// `{"ref":"openbrain:x"}`: the task with that ref. Nil result with a reason when it names nothing.
+    public static func doneTarget(body: Data, list: TaskList) -> Result<String?, RouteFailure> {
+        let text = String(decoding: body, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty || text == "{}" {
+            return .success(list.rows.first?.key)
+        }
+        guard let object = try? JSONSerialization.jsonObject(with: body), let dict = object as? [String: Any] else {
+            return .failure(RouteFailure(400, "body must be empty, {\"index\":N} or {\"ref\":\"<adapter>:<id>\"}"))
+        }
+        if let raw = dict["index"] {
+            // JSON true and 1 both arrive as NSNumber; only a real boolean is refused.
+            let isBool = (raw as? NSNumber).map { CFGetTypeID($0) == CFBooleanGetTypeID() } ?? false
+            guard !isBool, let n = raw as? Int else { return .failure(RouteFailure(400, "index must be a whole number, 0 based")) }
+            guard n >= 0, let key = list.key(at: n) else {
+                return .failure(RouteFailure(404, "no task at index \(n), the list has \(list.count)"))
+            }
+            return .success(key)
+        }
+        if let raw = dict["ref"] {
+            guard let ref = raw as? String else { return .failure(RouteFailure(400, "ref must be a string")) }
+            guard let key = list.key(ref: ref) else { return .failure(RouteFailure(404, "no task with ref \(ref)")) }
+            return .success(key)
+        }
+        return .failure(RouteFailure(400, "body must be empty, {\"index\":N} or {\"ref\":\"<adapter>:<id>\"}"))
     }
 
     /// `[::1]:7788` -> `[::1]`, `localhost:7788` -> `localhost`. Lowercased.
@@ -166,9 +205,17 @@ public enum MainThingRouter {
             case .success(let s): source = s
             case .failure(let error): return unchanged(.error(400, error.reason))
             }
+            let key: String?
+            switch doneTarget(body: request.body, list: list) {
+            case .success(let k): key = k
+            case .failure(let failure): return unchanged(failure.response)
+            }
+            guard let key else {
+                return Outcome(response: .json(200, JSONBody.tasks(list)), list: list, changed: false, action: .none)
+            }
             var next = list
-            let changed = next.complete(expected: nil) != nil
-            return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: changed, action: .complete(source: source))
+            next.complete(key: key, expected: nil)
+            return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true, action: .complete(key: key, source: source))
 
         case "/health":
             guard request.method == "GET" else {

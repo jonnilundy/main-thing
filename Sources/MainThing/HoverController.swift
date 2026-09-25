@@ -3,7 +3,7 @@ import MainThingCore
 import Observation
 import os
 
-/// Opens and closes the notch from cursor moves, and decides click through.
+/// Opens and closes the notch from cursor moves, decides click through, and runs row completions.
 /// The rules are in `NotchHover`; this class only wires them to AppKit.
 ///
 /// Cursor moves arrive three ways: a global monitor while the panel ignores events,
@@ -12,19 +12,23 @@ import os
 /// can still report the old position inside the handler for a warped cursor.
 @MainActor
 final class HoverController {
+    /// From the click to the row leaving: the strikethrough draws for 150ms, then 250ms more.
+    static let completionDelay: Duration = .milliseconds(400)
+
     private let panel: NSPanel
     private let model: NotchModel
     private let store: TaskStore
+    private let layout: PanelLayout
     private let log = Logger(subsystem: MainThingBundleID, category: "hover")
     private var monitors: [Any] = []
-    private var pendingOpen: Task<Void, Never>?
     /// Last cursor position seen in an event, AppKit screen coordinates.
     private var lastScreenPoint: CGPoint
 
-    init(panel: NSPanel, model: NotchModel, store: TaskStore) {
+    init(panel: NSPanel, model: NotchModel, store: TaskStore, layout: PanelLayout) {
         self.panel = panel
         self.model = model
         self.store = store
+        self.layout = layout
         self.lastScreenPoint = NSEvent.mouseLocation
     }
 
@@ -82,7 +86,8 @@ final class HoverController {
         }
     }
 
-    /// Runs on every cursor move, with the position the event carried.
+    /// Runs on every cursor move, with the position the event carried. No delay: the first
+    /// move inside the shape opens the notch.
     func evaluate(at screenPoint: CGPoint, source: String) {
         lastScreenPoint = screenPoint
         if model.forceOpen {
@@ -94,45 +99,40 @@ final class HoverController {
         let inside = NotchHover.inside(point, shape: model.shapeRect, isOpen: model.isOpen)
         log.debug("\(source, privacy: .public) screen (\(Int(screenPoint.x), privacy: .public),\(Int(screenPoint.y), privacy: .public)) panel (\(Int(point.x), privacy: .public),\(Int(point.y), privacy: .public)) shape \(NSStringFromRect(self.model.shapeRect), privacy: .public) inside \(inside, privacy: .public) open \(self.model.isOpen, privacy: .public)")
         panel.ignoresMouseEvents = !inside
-        switch NotchHover.intent(isOpen: model.isOpen, pendingOpen: pendingOpen != nil, inside: inside) {
-        case .scheduleOpen:
-            pendingOpen = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: NotchHover.openDelay)
-                guard let self, !Task.isCancelled else { return }
-                self.pendingOpen = nil
-                if self.cursorInside() { self.setOpen(true) }
-            }
-        case .cancelOpen:
-            pendingOpen?.cancel()
-            pendingOpen = nil
-        case .close:
-            setOpen(false)
-        case .none:
-            break
+        switch NotchHover.intent(isOpen: model.isOpen, inside: inside) {
+        case .open: setOpen(true)
+        case .close: setOpen(false)
+        case .none: break
         }
-    }
-
-    private func cursorInside() -> Bool {
-        let point = NotchHover.panelPoint(screenPoint: lastScreenPoint, panelFrame: panel.frame)
-        return NotchHover.inside(point, shape: model.shapeRect, isOpen: model.isOpen)
     }
 
     func setOpen(_ open: Bool) {
         guard model.isOpen != open else { return }
+        // The panel grows before the shape animates, so nothing is clipped on the way up.
+        if open { layout.fitOpen() }
         model.isOpen = open
         log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public))")
-        if !open { model.doneArmed = false }
+        if !open {
+            model.pending = PendingCompletions()
+            layout.fitClosed()
+        }
     }
 
-    /// The done circle. Fills for 250ms, then completes the task the button showed.
-    func completeCurrent() {
-        guard !model.doneArmed, let title = store.current else { return }
-        model.doneArmed = true
+    /// The list changed while open: rows that left are no longer pending, and the card refits.
+    func listChanged() {
+        model.pending.keep(only: Set(store.list.rows.map(\.key)))
+        if model.isOpen { layout.fitOpen() }
+    }
+
+    /// A click on a row. The row is struck through at once; after `completionDelay` it leaves,
+    /// and that removal is the completion: events and the adapter run for that task.
+    func toggleCompletion(of row: TaskList.Row) {
+        guard !model.pending.isPending(row.key) else { return }
+        _ = model.pending.toggle(row.key)
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(250))
-            guard let self else { return }
-            self.store.complete(expected: title, source: EventSource.notch)
-            self.model.doneArmed = false
+            try? await Task.sleep(for: HoverController.completionDelay)
+            guard let self, self.model.pending.finish(row.key) else { return }
+            self.store.complete(key: row.key, expected: row.title, source: EventSource.notch)
             self.refresh()
         }
     }
