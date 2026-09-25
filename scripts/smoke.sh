@@ -49,18 +49,27 @@ fi
 echo "saved list: $original"
 
 expect "GET /health" 200 '{"ok":true,"version":"0.1.0"}' "$BASE/health"
-expect "PUT /tasks array, trims and drops blanks" 200 '{"tasks":["Smoke A","Smoke B"]}' \
+expect "PUT /tasks array, trims and drops blanks" 200 '{"tasks":[{"title":"Smoke A"},{"title":"Smoke B"}]}' \
     -X PUT --data-binary '["Smoke A","  Smoke B  ","", "   "]' "$BASE/tasks"
-expect "GET /tasks" 200 '{"tasks":["Smoke A","Smoke B"]}' "$BASE/tasks"
-expect "PUT /tasks object form" 200 '{"tasks":["Smoke C","Smoke D"]}' \
+expect "GET /tasks" 200 '{"tasks":[{"title":"Smoke A"},{"title":"Smoke B"}]}' "$BASE/tasks"
+expect "PUT /tasks object form" 200 '{"tasks":[{"title":"Smoke C"},{"title":"Smoke D"}]}' \
     -X PUT --data-binary '{"tasks":["Smoke C","Smoke D"]}' "$BASE/tasks"
-expect "PUT /tasks with a text Content-Type" 200 '{"tasks":["Smoke E","Smoke F"]}' \
+expect "PUT /tasks with a text Content-Type" 200 '{"tasks":[{"title":"Smoke E"},{"title":"Smoke F"}]}' \
     -X PUT -H 'Content-Type: text/plain' --data-binary '["Smoke E","Smoke F"]' "$BASE/tasks"
-expect "POST /tasks/done" 200 '{"tasks":["Smoke F"]}' -X POST "$BASE/tasks/done"
+expect "PUT /tasks with refs, strings and objects mixed" 200 '{"tasks":[{"title":"Smoke E"},{"ref":"smoke:1","title":"Smoke F"}]}' \
+    -X PUT --data-binary '["Smoke E",{"title":"Smoke F","ref":"smoke:1"}]' "$BASE/tasks"
+expect "GET /tasks returns the ref" 200 '{"tasks":[{"title":"Smoke E"},{"ref":"smoke:1","title":"Smoke F"}]}' "$BASE/tasks"
+expect "PUT /tasks bad ref" 400 '{"error":"item 0: ref must look like <adapter>:<id>"}' \
+    -X PUT --data-binary '[{"title":"x","ref":"nocolon"}]' "$BASE/tasks"
+expect "PUT /tasks duplicate ref" 400 '{"error":"item 1 repeats the ref smoke:1"}' \
+    -X PUT --data-binary '[{"title":"x","ref":"smoke:1"},{"title":"y","ref":"smoke:1"}]' "$BASE/tasks"
+expect "PUT /tasks object without title" 400 '{"error":"item 0 needs a \"title\" string"}' \
+    -X PUT --data-binary '[{"ref":"smoke:1"}]' "$BASE/tasks"
+expect "POST /tasks/done" 200 '{"tasks":[{"ref":"smoke:1","title":"Smoke F"}]}' -X POST "$BASE/tasks/done"
 expect "POST /tasks/done to empty" 200 '{"tasks":[]}' -X POST "$BASE/tasks/done"
 expect "POST /tasks/done on empty stays empty" 200 '{"tasks":[]}' -X POST "$BASE/tasks/done"
 expect "PUT /tasks bad JSON" 400 '{"error":"body is not valid JSON"}' -X PUT --data-binary 'not json' "$BASE/tasks"
-expect "PUT /tasks non-string item" 400 '{"error":"item 0 is not a string"}' -X PUT --data-binary '[1,2]' "$BASE/tasks"
+expect "PUT /tasks non-string item" 400 '{"error":"item 0 is not a string or a {\"title\",\"ref\"} object"}' -X PUT --data-binary '[1,2]' "$BASE/tasks"
 expect "PUT /tasks empty body" 400 '' -X PUT "$BASE/tasks"
 expect "GET /nope" 404 '' "$BASE/nope"
 expect "DELETE /tasks" 405 '' -X DELETE "$BASE/tasks"
@@ -89,6 +98,10 @@ same "mainthing prints the current task" 'She said "go"' "$(MAINTHING_PORT=$PORT
 same "mainthing list" $'She said "go"\nJonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" list)"
 same "mainthing done" $'Jonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" done)"
 same "mainthing set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | MAINTHING_PORT=$PORT "$CLI" set -)"
+same "mainthing set --json - with a ref" $'Ref one\nPlain two' "$(printf '[{"title":"Ref one","ref":"smoke:9"},"Plain two"]' | MAINTHING_PORT=$PORT "$CLI" set --json -)"
+same "mainthing list --json prints the objects" '[{"ref":"smoke:9","title":"Ref one"},{"title":"Plain two"}]' "$(MAINTHING_PORT=$PORT "$CLI" list --json)"
+same "mainthing list --json round trips through set --json -" $'Ref one\nPlain two' "$(MAINTHING_PORT=$PORT "$CLI" list --json | MAINTHING_PORT=$PORT "$CLI" set --json -)"
+same "mainthing set --json without - exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" set --json "A" >/dev/null 2>&1; echo $?)"
 same "mainthing unknown command exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
 same "mainthing on a dead port says not running" "1" "$(MAINTHING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
 

@@ -73,20 +73,21 @@ public struct HTTPResponse: Equatable, Sendable {
     }
 }
 
-/// Response bodies. Keys are sorted so the output is the same on every Foundation.
+/// Response bodies. Keys are sorted so the output is the same on every run and every Foundation:
+/// a task is `{"ref":...,"title":...}` with the ref left out when there is none.
 public enum JSONBody {
-    private struct Tasks: Encodable { let tasks: [String] }
+    private struct Tasks: Encodable { let tasks: [TaskItem] }
     private struct Health: Encodable { let ok: Bool; let version: String }
     private struct Failure: Encodable { let error: String }
 
-    private static func encode<T: Encodable>(_ value: T) -> Data {
+    public static func encode<T: Encodable>(_ value: T) -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         // Encoding plain strings and bools cannot fail.
         return (try? encoder.encode(value)) ?? Data("{}".utf8)
     }
 
-    public static func tasks(_ list: TaskList) -> Data { encode(Tasks(tasks: list.titles)) }
+    public static func tasks(_ list: TaskList) -> Data { encode(Tasks(tasks: list.tasks)) }
     public static func health() -> Data { encode(Health(ok: true, version: MainThingVersion)) }
     public static func error(_ reason: String) -> Data { encode(Failure(error: reason)) }
 }

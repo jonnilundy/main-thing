@@ -4,7 +4,8 @@ import Observation
 import os
 
 /// The one writer of the task list. The API and the UI both go through here.
-/// Saves `[String]` atomically to `~/Library/Application Support/MainThing/tasks.json`.
+/// Saves `[{"title":...,"ref":...}]` atomically to `~/Library/Application Support/MainThing/tasks.json`.
+/// A file written before refs existed, a plain `[String]`, still loads.
 @Observable
 @MainActor
 final class TaskStore {
@@ -28,7 +29,7 @@ final class TaskStore {
         var loadError: String?
         if let data = try? Data(contentsOf: fileURL) {
             do {
-                loaded = TaskList(try JSONDecoder().decode([String].self, from: data))
+                loaded = TaskList(try JSONDecoder().decode([TaskItem].self, from: data))
             } catch {
                 loadError = error.localizedDescription
             }
@@ -64,17 +65,17 @@ final class TaskStore {
 
     var current: String? { list.current }
 
-    func replace(_ titles: [String]) {
-        list.replace(titles)
+    func replace(_ tasks: [TaskItem]) {
+        list.replace(tasks)
         save()
     }
 
     /// Done from the UI. Removes the current task only when its title still matches.
     @discardableResult
     func complete(expected: String?) -> Bool {
-        let changed = list.complete(expected: expected)
-        if changed { save() }
-        return changed
+        let removed = list.complete(expected: expected)
+        if removed != nil { save() }
+        return removed != nil
     }
 
     /// Routes one API request against the current list and runs the store method it asks for.
@@ -82,7 +83,7 @@ final class TaskStore {
     func handle(_ request: HTTPRequest) -> HTTPResponse {
         let outcome = MainThingRouter.handle(request, list: list)
         switch outcome.action {
-        case .replace(let titles): replace(titles)
+        case .replace(let tasks): replace(tasks)
         case .complete: complete(expected: nil)
         case .none: break
         }
@@ -93,7 +94,7 @@ final class TaskStore {
         do {
             try FileManager.default.createDirectory(
                 at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let data = try JSONEncoder().encode(list.titles)
+            let data = JSONBody.encode(list.tasks)
             try data.write(to: fileURL, options: .atomic)
         } catch {
             log.error("save failed at \(self.fileURL.path, privacy: .public): \(error.localizedDescription, privacy: .public)")

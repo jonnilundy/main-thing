@@ -3,11 +3,14 @@
 #
 #   mainthing                  print the current task
 #   mainthing list             one task per line
+#   mainthing list --json      the tasks as a JSON array of {"title","ref"} objects
 #   mainthing set "A" "B" ...  replace the list
 #   mainthing set -            replace the list with one task per line from stdin
+#   mainthing set --json -     replace the list with a JSON array of strings or objects from stdin
 #   mainthing done             mark the current task done
 #   mainthing health           is the app up
 #
+# A ref ties a task to the same task in another tool: "<adapter>:<id>", for example "openbrain:md7abc".
 # MAINTHING_PORT overrides the port (default 7788).
 set -u
 
@@ -62,15 +65,22 @@ json_array() {
     printf '%s]' "$out"
 }
 
-# Print the titles of a {"tasks":[...]} body, one per line. JavaScript for Automation ships with macOS.
-titles() {
+# Run a JavaScript expression over the parsed {"tasks":[...]} body on stdin. JavaScript for Automation ships with macOS.
+jsbody() {
     osascript -l JavaScript -e '
         ObjC.import("Foundation");
         const data = $.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;
         const text = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding).js;
-        JSON.parse(text).tasks.join("\n");
+        const body = JSON.parse(text);
+        '"$1"'
     ' 2>/dev/null
 }
+
+# Titles, one per line.
+titles() { jsbody 'body.tasks.map(t => t.title).join("\n");'; }
+
+# The tasks as a JSON array of objects, the same shape `set --json -` reads.
+tasks_json() { jsbody 'JSON.stringify(body.tasks);'; }
 
 cmd="${1-current}"
 case "$cmd" in
@@ -79,16 +89,34 @@ case "$cmd" in
         [[ -n "$first" ]] && echo "$first"
         ;;
     list)
-        call GET /tasks | titles
+        if [[ "${2-}" == "--json" ]]; then
+            call GET /tasks | tasks_json
+        else
+            call GET /tasks | titles
+        fi
         ;;
     set)
         shift
-        if [[ "${1-}" == "-" ]]; then
-            lines=()
-            while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done
-            set -- "${lines[@]+"${lines[@]}"}"
+        json=0
+        while [[ "${1-}" == --* ]]; do
+            case "$1" in
+                --json) json=1; shift ;;
+                *) fail "unknown option '$1' for set. Try: mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -" ;;
+            esac
+        done
+        if [[ $json -eq 1 ]]; then
+            [[ "${1-}" == "-" ]] || fail "set --json reads the JSON array from stdin: mainthing set --json -"
+            body=$(cat)
+            [[ -n "$body" ]] || fail "set --json -: nothing on stdin"
+            call PUT /tasks "$body" | titles
+        else
+            if [[ "${1-}" == "-" ]]; then
+                lines=()
+                while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done
+                set -- "${lines[@]+"${lines[@]}"}"
+            fi
+            call PUT /tasks "$(json_array "$@")" | titles
         fi
-        call PUT /tasks "$(json_array "$@")" | titles
         ;;
     done)
         call POST /tasks/done | titles
@@ -98,9 +126,9 @@ case "$cmd" in
         echo
         ;;
     -h|--help|help)
-        sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     *)
-        fail "unknown command '$cmd'. Try: mainthing, mainthing list, mainthing set \"A\" \"B\", mainthing set -, mainthing done, mainthing health"
+        fail "unknown command '$cmd'. Try: mainthing, mainthing list, mainthing list --json, mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -, mainthing done, mainthing health"
         ;;
 esac

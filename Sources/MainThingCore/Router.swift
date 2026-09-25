@@ -5,11 +5,12 @@ public struct BodyError: Error, Equatable, Sendable {
     public init(_ reason: String) { self.reason = reason }
 }
 
-/// Decodes a `PUT /tasks` body. Accepts `["A","B"]` or `{"tasks":["A","B"]}`. Content-Type is ignored.
+/// Decodes a `PUT /tasks` body. Accepts `["A","B"]`, `[{"title":"A","ref":"openbrain:x"}]`, a mix,
+/// or the same inside `{"tasks":[...]}`. Content-Type is ignored.
 public enum BodyDecoding {
-    public static func tasks(from body: Data) -> Result<[String], BodyError> {
+    public static func tasks(from body: Data) -> Result<[TaskItem], BodyError> {
         guard !body.isEmpty else {
-            return .failure(BodyError("empty body, send a JSON array of strings"))
+            return .failure(BodyError("empty body, send a JSON array of tasks"))
         }
         let object: Any
         do {
@@ -18,24 +19,49 @@ public enum BodyDecoding {
             return .failure(BodyError("body is not valid JSON"))
         }
         if let array = object as? [Any] {
-            return strings(array)
+            return items(array)
         }
         if let dict = object as? [String: Any] {
             guard let array = dict["tasks"] as? [Any] else {
                 return .failure(BodyError("object needs a \"tasks\" array"))
             }
-            return strings(array)
+            return items(array)
         }
-        return .failure(BodyError("body must be a JSON array of strings or {\"tasks\":[...]}"))
+        return .failure(BodyError("body must be a JSON array of tasks or {\"tasks\":[...]}"))
     }
 
-    private static func strings(_ array: [Any]) -> Result<[String], BodyError> {
-        var out: [String] = []
+    private static func items(_ array: [Any]) -> Result<[TaskItem], BodyError> {
+        var out: [TaskItem] = []
+        var seenRefs: Set<String> = []
         for (i, element) in array.enumerated() {
-            guard let s = element as? String else {
-                return .failure(BodyError("item \(i) is not a string"))
+            let task: TaskItem
+            if let s = element as? String {
+                task = TaskItem(s)
+            } else if let dict = element as? [String: Any] {
+                guard let title = dict["title"] as? String else {
+                    return .failure(BodyError("item \(i) needs a \"title\" string"))
+                }
+                var ref: String?
+                if let raw = dict["ref"], !(raw is NSNull) {
+                    guard let s = raw as? String else {
+                        return .failure(BodyError("item \(i) has a \"ref\" that is not a string"))
+                    }
+                    let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        if let problem = TaskRef.problem(trimmed) {
+                            return .failure(BodyError("item \(i): \(problem)"))
+                        }
+                        if !seenRefs.insert(trimmed).inserted {
+                            return .failure(BodyError("item \(i) repeats the ref \(trimmed)"))
+                        }
+                        ref = trimmed
+                    }
+                }
+                task = TaskItem(title, ref: ref)
+            } else {
+                return .failure(BodyError("item \(i) is not a string or a {\"title\",\"ref\"} object"))
             }
-            out.append(s)
+            out.append(task)
         }
         return .success(out)
     }
@@ -62,7 +88,7 @@ public enum MainThingRouter {
     /// What the store must do to reach `list` from the list it was given.
     public enum Action: Equatable, Sendable {
         case none
-        case replace([String])
+        case replace([TaskItem])
         case complete
     }
 
@@ -107,10 +133,10 @@ public enum MainThingRouter {
                 return unchanged(.json(200, JSONBody.tasks(list)))
             case "PUT":
                 switch BodyDecoding.tasks(from: request.body) {
-                case .success(let titles):
+                case .success(let tasks):
                     var next = list
-                    next.replace(titles)
-                    return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true, action: .replace(titles))
+                    next.replace(tasks)
+                    return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true, action: .replace(tasks))
                 case .failure(let error):
                     return unchanged(.error(400, error.reason))
                 }
@@ -123,7 +149,7 @@ public enum MainThingRouter {
                 return unchanged(methodNotAllowed(request.method, path, allow: "POST"))
             }
             var next = list
-            let changed = next.complete(expected: nil)
+            let changed = next.complete(expected: nil) != nil
             return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: changed, action: .complete)
 
         case "/health":

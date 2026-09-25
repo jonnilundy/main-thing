@@ -48,15 +48,15 @@ do {
     check("duplicate titles get different keys", list.rows.map(\.key) == ["M#0", "M#1", "X#0"])
     check("row id is the key", list.rows[1].id == "M#1")
     let before = Array(list.rows.dropFirst())
-    check("complete(nil) removes index 0", list.complete(expected: nil) == true)
+    check("complete(nil) removes index 0 and returns it", list.complete(expected: nil) == TaskItem("M"))
     check("remaining keys are unchanged after done", list.rows == before)
     check("remaining keys after done", list.rows.map(\.key) == ["M#1", "X#0"])
-    check("complete with a stale title does nothing", list.complete(expected: "Not this") == false)
+    check("complete with a stale title does nothing", list.complete(expected: "Not this") == nil)
     check("list unchanged after stale done", list.rows.map(\.key) == ["M#1", "X#0"])
-    check("complete with the matching title works", list.complete(expected: "M") == true)
+    check("complete with the matching title works", list.complete(expected: "M") != nil)
     check("after matching done", list.rows.map(\.key) == ["X#0"])
     list.complete(expected: nil)
-    check("complete on empty is a no op", list.complete(expected: nil) == false && list.isEmpty)
+    check("complete on empty is a no op", list.complete(expected: nil) == nil && list.isEmpty)
 }
 do {
     var list = TaskList(["A", "B"])
@@ -78,6 +78,51 @@ do {
     check("re-adding a duplicate reuses #1 and mints the lowest free number", list.rows.map(\.key) == ["M#1", "M#0"])
     list.replace(["M", "M", "M"])
     check("third duplicate gets #2", list.rows.map(\.key) == ["M#1", "M#0", "M#2"])
+}
+
+// MARK: Refs
+
+section("TaskRef")
+do {
+    let ref = TaskRef("openbrain:md7abc")
+    check("ref parses into adapter and id", ref?.adapter == "openbrain" && ref?.id == "md7abc")
+    check("id may hold colons", TaskRef("a:b:c")?.id == "b:c")
+    check("adapter may hold digits and dashes", TaskRef("linear-2:ISS-12") != nil)
+    check("no colon is refused", TaskRef.problem("openbrain") == "ref must look like <adapter>:<id>")
+    check("empty adapter is refused", TaskRef.problem(":x") != nil && TaskRef(":x") == nil)
+    check("uppercase adapter is refused", TaskRef.problem("OpenBrain:x") != nil)
+    check("underscore in adapter is refused", TaskRef.problem("open_brain:x") != nil)
+    check("empty id is refused", TaskRef.problem("openbrain:") == "ref has no id after the colon")
+    check("space in id is refused", TaskRef.problem("openbrain:a b") != nil)
+    check("256 characters is fine", TaskRef.problem("ob:" + String(repeating: "x", count: 253)) == nil)
+    check("257 characters is refused", TaskRef.problem("ob:" + String(repeating: "x", count: 254)) == "ref is over 256 characters")
+}
+do {
+    var list = TaskList([TaskItem("A", ref: "openbrain:1"), "B", TaskItem("C", ref: "openbrain:2")])
+    check("ref'd rows are keyed by ref, others by title", list.rows.map(\.key) == ["ref:openbrain:1", "B#0", "ref:openbrain:2"])
+    check("tasks round trip", list.tasks == [TaskItem("A", ref: "openbrain:1"), "B", TaskItem("C", ref: "openbrain:2")])
+    list.replace([TaskItem("A renamed", ref: "openbrain:1"), "B", TaskItem("C", ref: "openbrain:2")])
+    check("rename of a ref'd task keeps its key", list.rows[0].key == "ref:openbrain:1" && list.rows[0].title == "A renamed")
+    list.replace(["B", TaskItem("A renamed", ref: "openbrain:1")])
+    check("reorder with a ref keeps keys", list.rows.map(\.key) == ["B#0", "ref:openbrain:1"])
+    list.replace(["A renamed", TaskItem("A renamed", ref: "openbrain:1")])
+    check("same title with and without a ref are different rows", list.rows.map(\.key) == ["A renamed#0", "ref:openbrain:1"])
+    let done = list.complete(expected: nil)
+    check("complete returns the removed task", done == TaskItem("A renamed"))
+    check("complete keeps the ref of the survivor", list.rows.map(\.key) == ["ref:openbrain:1"])
+    list.replace([TaskItem(" Spaced ", ref: "  openbrain:9 "), TaskItem("Empty ref", ref: "   ")])
+    check("clean trims the ref and drops an empty one", list.tasks == [TaskItem("Spaced", ref: "openbrain:9"), "Empty ref"])
+}
+do {
+    let decoder = JSONDecoder()
+    let old = try? decoder.decode([TaskItem].self, from: Data("[\"A\",\"B\"]".utf8))
+    check("old tasks.json of strings still loads", old == ["A", "B"])
+    let mixed = try? decoder.decode([TaskItem].self, from: Data("[\"A\",{\"title\":\"B\",\"ref\":\"openbrain:x\"},{\"title\":\"C\"}]".utf8))
+    check("objects and strings load together", mixed == ["A", TaskItem("B", ref: "openbrain:x"), "C"])
+    let encoded = String(decoding: JSONBody.encode([TaskItem("A"), TaskItem("B", ref: "openbrain:x")]), as: UTF8.self)
+    check("encoding leaves out a missing ref", encoded == "[{\"title\":\"A\"},{\"ref\":\"openbrain:x\",\"title\":\"B\"}]")
+    let body = String(decoding: JSONBody.tasks(TaskList(["A", TaskItem("B", ref: "openbrain:md7abc")])), as: UTF8.self)
+    check("GET /tasks body shape", body == "{\"tasks\":[{\"title\":\"A\"},{\"ref\":\"openbrain:md7abc\",\"title\":\"B\"}]}")
 }
 
 // MARK: Request parsing
@@ -172,10 +217,21 @@ check("array body", BodyDecoding.tasks(from: Data("[\"A\",\" B \"]".utf8)) == .s
 check("object body", BodyDecoding.tasks(from: Data("{\"tasks\":[\"A\"]}".utf8)) == .success(["A"]))
 check("empty array", BodyDecoding.tasks(from: Data("[]".utf8)) == .success([]))
 check("bad JSON", BodyDecoding.tasks(from: Data("not json".utf8)) == .failure(BodyError("body is not valid JSON")))
-check("non-string item", BodyDecoding.tasks(from: Data("[\"A\",2]".utf8)) == .failure(BodyError("item 1 is not a string")))
+check("non-string item", BodyDecoding.tasks(from: Data("[\"A\",2]".utf8)) == .failure(BodyError("item 1 is not a string or a {\"title\",\"ref\"} object")))
+check("object items", BodyDecoding.tasks(from: Data("[{\"title\":\"A\"},{\"title\":\"B\",\"ref\":\"openbrain:x\"}]".utf8)) == .success(["A", TaskItem("B", ref: "openbrain:x")]))
+check("mixed strings and objects", BodyDecoding.tasks(from: Data("[\"A\",{\"title\":\"B\",\"ref\":\"openbrain:x\"}]".utf8)) == .success(["A", TaskItem("B", ref: "openbrain:x")]))
+check("object inside the tasks form", BodyDecoding.tasks(from: Data("{\"tasks\":[{\"title\":\"A\",\"ref\":\"ob:1\"}]}".utf8)) == .success([TaskItem("A", ref: "ob:1")]))
+check("null ref is no ref", BodyDecoding.tasks(from: Data("[{\"title\":\"A\",\"ref\":null}]".utf8)) == .success(["A"]))
+check("empty ref is no ref", BodyDecoding.tasks(from: Data("[{\"title\":\"A\",\"ref\":\"\"}]".utf8)) == .success(["A"]))
+check("object without title", BodyDecoding.tasks(from: Data("[{\"ref\":\"ob:1\"}]".utf8)) == .failure(BodyError("item 0 needs a \"title\" string")))
+check("ref that is not a string", BodyDecoding.tasks(from: Data("[{\"title\":\"A\",\"ref\":5}]".utf8)) == .failure(BodyError("item 0 has a \"ref\" that is not a string")))
+check("bad ref shape is 400 with the reason", BodyDecoding.tasks(from: Data("[{\"title\":\"A\",\"ref\":\"nocolon\"}]".utf8)) == .failure(BodyError("item 0: ref must look like <adapter>:<id>")))
+check("bad adapter name", BodyDecoding.tasks(from: Data("[{\"title\":\"A\",\"ref\":\"Open_Brain:x\"}]".utf8)) == .failure(BodyError("item 0: ref adapter name must be [a-z0-9-]+ before the colon")))
+check("ref over 256 characters", BodyDecoding.tasks(from: Data(("[{\"title\":\"A\",\"ref\":\"ob:" + String(repeating: "x", count: 254) + "\"}]").utf8)) == .failure(BodyError("item 0: ref is over 256 characters")))
+check("duplicate ref in one body", BodyDecoding.tasks(from: Data("[{\"title\":\"A\",\"ref\":\"ob:1\"},{\"title\":\"B\",\"ref\":\"ob:1\"}]".utf8)) == .failure(BodyError("item 1 repeats the ref ob:1")))
 check("object without tasks", BodyDecoding.tasks(from: Data("{\"x\":1}".utf8)) == .failure(BodyError("object needs a \"tasks\" array")))
 check("top level string", BodyDecoding.tasks(from: Data("\"A\"".utf8)).isFailure)
-check("empty body", BodyDecoding.tasks(from: Data()) == .failure(BodyError("empty body, send a JSON array of strings")))
+check("empty body", BodyDecoding.tasks(from: Data()) == .failure(BodyError("empty body, send a JSON array of tasks")))
 
 extension Result { var isFailure: Bool { if case .failure = self { true } else { false } } }
 
@@ -185,17 +241,22 @@ section("MainThingRouter")
 do {
     let list = TaskList(["A", "B"])
     let out = MainThingRouter.handle(request("GET", "/tasks"), list: list)
-    check("GET /tasks", out.response.status == 200 && text(out.response) == "{\"tasks\":[\"A\",\"B\"]}" && out.changed == false)
+    check("GET /tasks", out.response.status == 200 && text(out.response) == "{\"tasks\":[{\"title\":\"A\"},{\"title\":\"B\"}]}" && out.changed == false)
     let slash = MainThingRouter.handle(request("GET", "/tasks/"), list: list)
     check("trailing slash is tolerated", slash.response.status == 200)
 }
 do {
     let list = TaskList(["A"])
     let out = MainThingRouter.handle(request("PUT", "/tasks", body: "[\" X \", \"\", \"Y\"]"), list: list)
-    check("PUT array replaces, trims, drops blanks", out.response.status == 200 && text(out.response) == "{\"tasks\":[\"X\",\"Y\"]}")
+    check("PUT array replaces, trims, drops blanks", out.response.status == 200 && text(out.response) == "{\"tasks\":[{\"title\":\"X\"},{\"title\":\"Y\"}]}")
     check("PUT reports changed", out.changed && out.list.titles == ["X", "Y"])
     let obj = MainThingRouter.handle(request("PUT", "/tasks", body: "{\"tasks\":[\"Z\"]}"), list: list)
     check("PUT object form", obj.list.titles == ["Z"])
+    let refs = MainThingRouter.handle(request("PUT", "/tasks", body: "[\"A\",{\"title\":\"B\",\"ref\":\"openbrain:md7abc\"}]"), list: list)
+    check("PUT with refs echoes objects", text(refs.response) == "{\"tasks\":[{\"title\":\"A\"},{\"ref\":\"openbrain:md7abc\",\"title\":\"B\"}]}")
+    check("PUT with refs asks the store for the tasks", refs.action == .replace(["A", TaskItem("B", ref: "openbrain:md7abc")]))
+    let badRef = MainThingRouter.handle(request("PUT", "/tasks", body: "[{\"title\":\"B\",\"ref\":\"bad ref\"}]"), list: list)
+    check("PUT with a bad ref is 400 with a one line reason", badRef.response.status == 400 && text(badRef.response) == "{\"error\":\"item 0: ref must look like <adapter>:<id>\"}" && badRef.changed == false)
     let bad = MainThingRouter.handle(request("PUT", "/tasks", body: "{oops"), list: list)
     check("PUT bad JSON is 400 with a reason", bad.response.status == 400 && text(bad.response) == "{\"error\":\"body is not valid JSON\"}" && bad.changed == false)
     check("PUT bad JSON leaves the list", bad.list == list)
@@ -203,7 +264,7 @@ do {
 do {
     let list = TaskList(["A", "B"])
     let out = MainThingRouter.handle(request("POST", "/tasks/done"), list: list)
-    check("POST /tasks/done removes index 0", text(out.response) == "{\"tasks\":[\"B\"]}" && out.changed && out.list.titles == ["B"])
+    check("POST /tasks/done removes index 0", text(out.response) == "{\"tasks\":[{\"title\":\"B\"}]}" && out.changed && out.list.titles == ["B"])
     let empty = MainThingRouter.handle(request("POST", "/tasks/done"), list: TaskList())
     check("POST /tasks/done on empty is 200 and unchanged", empty.response.status == 200 && text(empty.response) == "{\"tasks\":[]}" && empty.changed == false)
 }
