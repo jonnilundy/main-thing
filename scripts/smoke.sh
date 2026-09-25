@@ -121,12 +121,12 @@ expect "GET /health via 127.0.0.1" 200 "$HEALTH" "http://127.0.0.1:$PORT/health"
 
 echo "--- mainthing CLI"
 same "mainthing health" "$HEALTH" "$(MAINTHING_PORT=$PORT "$CLI" health)"
-same "mainthing set with quotes and an apostrophe" $'She said "go"\nJonni\'s memo\nTab\\there' \
-    "$(MAINTHING_PORT=$PORT "$CLI" set 'She said "go"' "Jonni's memo" 'Tab\there')"
+same "mainthing set with quotes and an apostrophe" $'She said "go"\nAna\'s memo\nTab\\there' \
+    "$(MAINTHING_PORT=$PORT "$CLI" set 'She said "go"' "Ana's memo" 'Tab\there')"
 same "mainthing prints the current task" 'She said "go"' "$(MAINTHING_PORT=$PORT "$CLI")"
-same "mainthing list" $'She said "go"\nJonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" list)"
-same "mainthing done" $'Jonni\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" done)"
-same "mainthing done 2 removes the second" "Jonni's memo" "$(MAINTHING_PORT=$PORT "$CLI" done 2)"
+same "mainthing list" $'She said "go"\nAna\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" list)"
+same "mainthing done" $'Ana\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" done)"
+same "mainthing done 2 removes the second" "Ana's memo" "$(MAINTHING_PORT=$PORT "$CLI" done 2)"
 same "mainthing done 0 exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" done 0 >/dev/null 2>&1; echo $?)"
 same "mainthing done 9 past the end exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" done 9 >/dev/null 2>&1; echo $?)"
 same "mainthing set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | MAINTHING_PORT=$PORT "$CLI" set -)"
