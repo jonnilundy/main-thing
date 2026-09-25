@@ -15,22 +15,48 @@
 #
 # A ref ties a task to the same task in another tool: "<adapter>:<id>", for example "openbrain:md7abc".
 # set and done take --source <name> to say who made the change (default cli); hooks see it.
-# MAINTHING_PORT overrides the port (default 7788).
+# The app is looked for at http://mainthing.localhost (port 80), then on port 7788. MAINTHING_PORT pins one port.
 set -u
 
-PORT="${MAINTHING_PORT:-7788}"
-BASE="http://localhost:$PORT"
+HOST=mainthing.localhost
+PORT="${MAINTHING_PORT:-}"
+BASE=""
 
 fail() { echo "mainthing: $*" >&2; exit 1; }
 
 not_running() {
-    fail "Main Thing is not running on port $PORT. Start it from ~/Applications/MainThing.app, or set MAINTHING_PORT."
+    fail "Main Thing is not running on port $PORT. Start the app, or set MAINTHING_PORT."
+}
+
+# True when a Main Thing answers GET /health at the base URL.
+is_mainthing() {
+    local body
+    body=$(curl -s --max-time 1 "$1/health" 2>/dev/null) || return 1
+    [[ "$body" == *'"ok":true'* && "$body" == *'"version"'* ]]
+}
+
+# Sets BASE: the pinned port when MAINTHING_PORT is set, else the first of port 80 and 7788 where the app answers.
+find_base() {
+    [[ -z "$BASE" ]] || return 0
+    if [[ -n "$PORT" ]]; then
+        BASE="http://$HOST:$PORT"
+        return 0
+    fi
+    local candidate
+    for candidate in "http://$HOST" "http://$HOST:7788"; do
+        if is_mainthing "$candidate"; then
+            BASE="$candidate"
+            return 0
+        fi
+    done
+    fail "Main Thing is not running. Tried $HOST on port 80 and 7788. Start the app, or set MAINTHING_PORT."
 }
 
 # GET or PUT or POST; prints the body, exits 1 with a clear message when the app is down.
 call() {
     local method="$1" path="$2" body="${3-}"
     local out rc
+    find_base
     if [[ -n "$body" ]]; then
         out=$(curl -s -S --max-time 3 -X "$method" --data-binary "$body" -w $'\n%{http_code}' "$BASE$path" 2>&1)
     else

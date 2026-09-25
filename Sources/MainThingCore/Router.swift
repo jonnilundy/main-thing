@@ -157,7 +157,8 @@ public enum MainThingRouter {
         return .success(raw)
     }
 
-    public static func handle(_ request: HTTPRequest, list: TaskList, status: StatusReport = StatusReport()) -> Outcome {
+    /// `port` is the one the API answers on; `GET /health` reports it.
+    public static func handle(_ request: HTTPRequest, list: TaskList, status: StatusReport = StatusReport(), port: UInt16 = APIPort.fallback) -> Outcome {
         func unchanged(_ response: HTTPResponse) -> Outcome {
             Outcome(response: response, list: list, changed: false)
         }
@@ -221,7 +222,7 @@ public enum MainThingRouter {
             guard request.method == "GET" else {
                 return unchanged(methodNotAllowed(request.method, path, allow: "GET"))
             }
-            return unchanged(.json(200, JSONBody.health()))
+            return unchanged(.json(200, JSONBody.health(port: port)))
 
         case "/status":
             guard request.method == "GET" else {

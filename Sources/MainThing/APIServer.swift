@@ -4,34 +4,53 @@ import MainThingCore
 import os
 
 /// Loopback HTTP server on the main queue. One listener for 127.0.0.1, one for ::1.
+/// Tries port 80 first, then 7788 when 80 is taken or refused (see `APIPort`). Both listeners
+/// must come up on the same port; if either fails the pair is dropped and the next port is tried.
 @MainActor
 final class APIServer {
-    static let defaultPort: UInt16 = 7788
-
-    let port: UInt16
+    /// The port in use, or the one being tried. Settled once `onStatus` has fired.
+    private(set) var port: UInt16
+    let candidates: [UInt16]
+    private var remaining: ArraySlice<UInt16>
     private let store: TaskStore
     private let log = Logger(subsystem: MainThingBundleID, category: "server")
     private var listeners: [NWListener] = []
+    private var ready: Set<String> = []
+    /// Bumped on every port attempt, so a late state update from a dropped listener is ignored.
+    private var attempt = 0
     private var connections: [ObjectIdentifier: ClientConnection] = [:]
-    /// Called with true when 127.0.0.1 is bound, false when the bind fails.
-    var onStatus: (@MainActor (Bool) -> Void)?
+    /// Called with true and the port once both listeners are up, false when every candidate failed.
+    var onStatus: (@MainActor (Bool, UInt16) -> Void)?
 
-    /// `defaults write com.jonnilundy.mainthing port 7799` overrides the port. `MAINTHING_PORT` in
-    /// the environment overrides both, for a second copy in tests.
-    static func configuredPort(_ defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment) -> UInt16 {
-        if let raw = environment["MAINTHING_PORT"], let value = Int(raw), (1...65535).contains(value) {
-            return UInt16(value)
-        }
-        let value = defaults.integer(forKey: "port")
-        return (1...65535).contains(value) ? UInt16(value) : defaultPort
+    /// `defaults write <bundle id> port 7799` pins the port. `MAINTHING_PORT` in the environment
+    /// overrides both, for a second copy in tests. Without either: 80, then 7788.
+    static func configuredPorts(_ defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment) -> [UInt16] {
+        APIPort.candidates(environment: environment["MAINTHING_PORT"], defaultsValue: defaults.integer(forKey: "port"))
     }
 
-    init(store: TaskStore, port: UInt16 = APIServer.configuredPort()) {
+    init(store: TaskStore, ports: [UInt16] = APIServer.configuredPorts()) {
         self.store = store
-        self.port = port
+        self.candidates = ports.isEmpty ? [APIPort.fallback] : ports
+        self.remaining = self.candidates[...]
+        self.port = self.candidates[0]
     }
 
     func start() {
+        tryNextPort()
+    }
+
+    private func tryNextPort() {
+        for listener in listeners { listener.stateUpdateHandler = nil; listener.cancel() }
+        listeners = []
+        ready = []
+        attempt += 1
+        guard let next = remaining.first else {
+            log.error("no port left to try: \(self.candidates.map(String.init).joined(separator: ", "), privacy: .public)")
+            onStatus?(false, port)
+            return
+        }
+        remaining = remaining.dropFirst()
+        port = next
         startListener(host: .ipv4(.loopback), label: "127.0.0.1")
         startListener(host: .ipv6(.loopback), label: "[::1]")
     }
@@ -47,21 +66,27 @@ final class APIServer {
             listener = try NWListener(using: parameters)
         } catch {
             log.error("listener setup failed on \(label, privacy: .public):\(self.port, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            portFailed()
             return
         }
 
+        let attempt = self.attempt
         listener.stateUpdateHandler = { [weak self] state in
             MainActor.assumeIsolated {
-                guard let self else { return }
+                guard let self, self.attempt == attempt else { return }
                 switch state {
                 case .ready:
                     self.log.info("listening on \(label, privacy: .public):\(self.port, privacy: .public)")
-                    if label == "127.0.0.1" { self.onStatus?(true) }
+                    self.ready.insert(label)
+                    if self.ready.count == 2 {
+                        self.log.notice("api on port \(self.port, privacy: .public)")
+                        self.onStatus?(true, self.port)
+                    }
                 case .failed(let error):
                     self.log.error("bind failed on \(label, privacy: .public):\(self.port, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                    if label == "127.0.0.1" { self.onStatus?(false) }
+                    self.portFailed()
                 case .cancelled:
-                    self.log.notice("listener on \(label, privacy: .public) cancelled")
+                    self.log.notice("listener on \(label, privacy: .public):\(self.port, privacy: .public) cancelled")
                 default:
                     break
                 }
@@ -74,6 +99,14 @@ final class APIServer {
         }
         listener.start(queue: .main)
         listeners.append(listener)
+    }
+
+    /// One listener of the pair failed: drop both and move to the next port.
+    private func portFailed() {
+        if let next = remaining.first {
+            log.notice("port \(self.port, privacy: .public) is not available, trying \(next, privacy: .public)")
+        }
+        tryNextPort()
     }
 
     private func accept(_ connection: NWConnection) {
@@ -91,7 +124,7 @@ final class APIServer {
     }
 
     private func handle(_ request: HTTPRequest) -> HTTPResponse {
-        let response = store.handle(request)
+        let response = store.handle(request, port: port)
         if response.status >= 400 {
             log.notice("rejected \(request.method, privacy: .public) \(request.path, privacy: .public): \(response.status, privacy: .public) \(response.bodyText, privacy: .public)")
         }

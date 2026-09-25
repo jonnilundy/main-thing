@@ -270,12 +270,23 @@ do {
 }
 do {
     let out = MainThingRouter.handle(request("GET", "/health"), list: TaskList())
-    check("GET /health exact body", out.response.status == 200 && text(out.response) == "{\"ok\":true,\"version\":\"0.1.0\"}")
+    check("GET /health exact body, port 7788 by default", out.response.status == 200 && text(out.response) == "{\"ok\":true,\"port\":7788,\"version\":\"0.1.0\"}")
+    let on80 = MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost"), list: TaskList(), port: 80)
+    check("GET /health reports the port it was given", text(on80.response) == "{\"ok\":true,\"port\":80,\"version\":\"0.1.0\"}")
     let wire = String(decoding: out.response.serialized(), as: UTF8.self)
     check("serialized status line", wire.hasPrefix("HTTP/1.1 200 OK\r\n"))
-    check("serialized content length", wire.contains("\r\nContent-Length: 29\r\n"))
+    check("serialized content length", wire.contains("\r\nContent-Length: 41\r\n"))
     check("serialized closes the connection", wire.contains("\r\nConnection: close\r\n"))
-    check("serialized body after blank line", wire.hasSuffix("\r\n\r\n{\"ok\":true,\"version\":\"0.1.0\"}"))
+    check("serialized body after blank line", wire.hasSuffix("\r\n\r\n{\"ok\":true,\"port\":7788,\"version\":\"0.1.0\"}"))
+}
+do {
+    check("ports: 80 then 7788 by default", APIPort.candidates(environment: nil, defaultsValue: 0) == [80, 7788])
+    check("ports: MAINTHING_PORT alone", APIPort.candidates(environment: "7799", defaultsValue: 0) == [7799])
+    check("ports: the defaults override alone", APIPort.candidates(environment: nil, defaultsValue: 7799) == [7799])
+    check("ports: the environment wins over the defaults", APIPort.candidates(environment: "8080", defaultsValue: 7799) == [8080])
+    check("ports: a bad environment value falls back to the defaults", APIPort.candidates(environment: "abc", defaultsValue: 7799) == [7799])
+    check("ports: out of range is ignored", APIPort.candidates(environment: "70000", defaultsValue: -1) == [80, 7788])
+    check("ports: 80 can be pinned", APIPort.candidates(environment: "80", defaultsValue: 0) == [80])
 }
 do {
     let list = TaskList(["A"])
@@ -302,6 +313,8 @@ do {
     check("Host mainthing.localhost without port", MainThingRouter.handle(request("GET", "/health", host: "MainThing.localhost"), list: list).response.status == 200)
     check("Host other.localhost is refused", MainThingRouter.handle(request("GET", "/health", host: "other.localhost:7788"), list: list).response.status == 403)
     check("Host without port", MainThingRouter.handle(request("GET", "/health", host: "localhost"), list: list).response.status == 200)
+    check("Host [::1] without port", MainThingRouter.handle(request("GET", "/health", host: "[::1]"), list: list).response.status == 200)
+    check("Host with port 80", MainThingRouter.handle(request("GET", "/health", host: "127.0.0.1:80"), list: list).response.status == 200)
     check("Host is case insensitive", MainThingRouter.handle(request("GET", "/health", host: "LOCALHOST:7788"), list: list).response.status == 200)
     check("Host lookalike is refused", MainThingRouter.handle(request("GET", "/health", host: "localhost.evil.example"), list: list).response.status == 403)
     check("hostWithoutPort strips a v6 port", MainThingRouter.hostWithoutPort("[::1]:7788") == "[::1]")

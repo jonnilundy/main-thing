@@ -2,11 +2,22 @@
 # Exercise every route with curl and the mainthing CLI against the running app, hooks included.
 # Exits non-zero on any mismatch. The list that was there before the run is put back at the end.
 # MAINTHING_PORT picks the app, MAINTHING_CONFIG_DIR its hooks folder (see README, a second copy for tests).
+# Without MAINTHING_PORT the app is looked for on port 80, then 7788.
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PORT="${MAINTHING_PORT:-7788}"
+PORT="${MAINTHING_PORT:-}"
+if [[ -z "$PORT" ]]; then
+    for candidate in 80 7788; do
+        if curl -s --max-time 1 "http://localhost:$candidate/health" 2>/dev/null | /usr/bin/grep -q '"ok":true'; then
+            PORT=$candidate
+            break
+        fi
+    done
+    [[ -n "$PORT" ]] || { echo "FAIL no Main Thing answers on port 80 or 7788"; exit 1; }
+fi
 BASE="http://localhost:$PORT"
+HEALTH="{\"ok\":true,\"port\":$PORT,\"version\":\"0.1.0\"}"
 CLI="$ROOT/bin/mainthing"
 fails=0
 
@@ -49,7 +60,7 @@ if [[ "$original" != \{\"tasks\":* ]]; then
 fi
 echo "saved list: $original"
 
-expect "GET /health" 200 '{"ok":true,"version":"0.1.0"}' "$BASE/health"
+expect "GET /health" 200 "$HEALTH" "$BASE/health"
 expect "PUT /tasks array, trims and drops blanks" 200 '{"tasks":[{"title":"Smoke A"},{"title":"Smoke B"}]}' \
     -X PUT --data-binary '["Smoke A","  Smoke B  ","", "   "]' "$BASE/tasks"
 expect "GET /tasks" 200 '{"tasks":[{"title":"Smoke A"},{"title":"Smoke B"}]}' "$BASE/tasks"
@@ -99,14 +110,17 @@ expect "GET /tasks with Origin" 403 '{"error":"requests with an Origin header ar
 expect "PUT /tasks with Origin" 403 '' -X PUT -H 'Origin: null' --data-binary '["x"]' "$BASE/tasks"
 expect "GET /health with a foreign Host" 403 '' -H 'Host: evil.example' "$BASE/health"
 expect "GET /health with Host other.localhost" 403 '' -H "Host: other.localhost:$PORT" "$BASE/health"
-expect "GET /health with Host mainthing.localhost" 200 '{"ok":true,"version":"0.1.0"}' -H "Host: mainthing.localhost:$PORT" "$BASE/health"
-expect "GET /health at http://mainthing.localhost (resolved to loopback)" 200 '{"ok":true,"version":"0.1.0"}' \
+expect "GET /health with Host mainthing.localhost" 200 "$HEALTH" -H "Host: mainthing.localhost:$PORT" "$BASE/health"
+expect "GET /health at http://mainthing.localhost (resolved to loopback)" 200 "$HEALTH" \
     --resolve "mainthing.localhost:$PORT:127.0.0.1" "http://mainthing.localhost:$PORT/health"
-expect "GET /health over IPv6" 200 '{"ok":true,"version":"0.1.0"}' -6 "http://[::1]:$PORT/health"
-expect "GET /health via 127.0.0.1" 200 '{"ok":true,"version":"0.1.0"}' "http://127.0.0.1:$PORT/health"
+expect "GET /health at http://mainthing.localhost (system resolver)" 200 "$HEALTH" "http://mainthing.localhost:$PORT/health"
+expect "GET /health with Host mainthing.localhost and no port" 200 "$HEALTH" -H "Host: mainthing.localhost" "$BASE/health"
+expect "GET /health with Host localhost:80 on any port" 200 "$HEALTH" -H "Host: localhost:80" "$BASE/health"
+expect "GET /health over IPv6" 200 "$HEALTH" -6 "http://[::1]:$PORT/health"
+expect "GET /health via 127.0.0.1" 200 "$HEALTH" "http://127.0.0.1:$PORT/health"
 
 echo "--- mainthing CLI"
-same "mainthing health" '{"ok":true,"version":"0.1.0"}' "$(MAINTHING_PORT=$PORT "$CLI" health)"
+same "mainthing health" "$HEALTH" "$(MAINTHING_PORT=$PORT "$CLI" health)"
 same "mainthing set with quotes and an apostrophe" $'She said "go"\nJonni\'s memo\nTab\\there' \
     "$(MAINTHING_PORT=$PORT "$CLI" set 'She said "go"' "Jonni's memo" 'Tab\there')"
 same "mainthing prints the current task" 'She said "go"' "$(MAINTHING_PORT=$PORT "$CLI")"

@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             server.start()
             self.store = store
             self.server = server
-            log.notice("headless: store at \(store.fileURL.path, privacy: .public), api port \(server.port, privacy: .public)")
+            log.notice("headless: store at \(store.fileURL.path, privacy: .public), api ports \(server.candidates.map(String.init).joined(separator: ", "), privacy: .public)")
             return
         }
         guard quitIfAnotherInstanceRuns() == false else { return }
@@ -39,7 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let server = APIServer(store: store)
         let model = NotchModel(geometry: geometry, apiPort: server.port)
         model.forceOpen = CommandLine.arguments.contains("--open")
-        server.onStatus = { [weak model] bound in model?.apiBound = bound }
+        server.onStatus = { [weak model] bound, port in
+            model?.apiBound = bound
+            model?.apiPort = port
+        }
         server.start()
         self.store = store
         self.server = server
@@ -68,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.screensChanged() }
         }
 
-        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hasHardwareNotch, privacy: .public), api port \(server.port, privacy: .public)")
+        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hasHardwareNotch, privacy: .public), api ports \(server.candidates.map(String.init).joined(separator: ", "), privacy: .public)")
     }
 
     /// Geometry for the chosen screen: the one with a hardware notch, else the primary.
