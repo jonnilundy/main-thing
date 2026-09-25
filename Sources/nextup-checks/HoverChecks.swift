@@ -23,7 +23,7 @@ func runHoverChecks() {
     check("collapsed, outside, nothing pending: nothing", NotchHover.intent(isOpen: false, pendingOpen: false, inside: false) == .none)
     check("open, inside: nothing", NotchHover.intent(isOpen: true, pendingOpen: false, inside: true) == .none)
     check("open, cursor leaves: close", NotchHover.intent(isOpen: true, pendingOpen: false, inside: false) == .close)
-    check("open delay is 100ms", NotchHover.openDelay == .milliseconds(100))
+    check("open delay is 40ms", NotchHover.openDelay == .milliseconds(40))
     check("slack is 8pt", NotchHover.slack == 8)
 
     // AppKit screen points on a 1440pt tall screen, panel 800x240 at the top center.

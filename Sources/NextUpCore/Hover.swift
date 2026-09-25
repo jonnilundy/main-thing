@@ -6,7 +6,7 @@ public enum NotchHover {
     /// Extra reach around the open shape before it closes.
     public static let slack: CGFloat = 8
     /// Wait before opening, so a pass across the menu bar does not open the notch.
-    public static let openDelay: Duration = .milliseconds(100)
+    public static let openDelay: Duration = .milliseconds(40)
 
     public enum Intent: Equatable, Sendable {
         case none

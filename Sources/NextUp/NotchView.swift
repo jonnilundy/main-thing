@@ -55,21 +55,21 @@ struct NotchBody: View {
             ZStack {
                 if !model.isOpen {
                     CollapsedTitle(rows: rows, height: geometry.notchHeight, minimumWidth: geometry.minimumWidth)
-                        .transition(Motion.fadeBlur(reduceMotion))
+                        .transition(Motion.collapsedTitle(reduceMotion))
                 }
             }
             .frame(width: width, height: geometry.notchHeight)
             if model.isOpen {
                 OpenContent(store: store, model: model, onDone: onDone, width: openWidth)
-                    .transition(Motion.fadeBlur(reduceMotion))
+                    .transition(Motion.openContent(reduceMotion))
             }
         }
         .padding(.horizontal, NotchMetrics.flare)
         .background(shape.fill(.black))
         .clipShape(shape)
         .contentShape(shape)
-        .animation(Motion.shape(reduceMotion), value: model.isOpen)
-        .animation(Motion.shape(reduceMotion), value: keys)
+        .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
+        .animation(Motion.width(reduceMotion), value: keys)
         .accessibilityLabel(title ?? "No task")
         .contextMenu { NotchMenu(store: store) }
     }
@@ -204,6 +204,10 @@ struct DoneButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        // Pops in from 0.85 on row hover, grows to 1.1 under the cursor, bounces to 1.15 as it
+        // fills. Never from 0. A scale bounce, not symbolEffect(.bounce): that one left the
+        // symbol blank in this panel.
+        let scale: CGFloat = reduceMotion ? 1 : (!visible ? 0.85 : (armed ? 1.15 : (hovering ? 1.1 : 1)))
         Button(action: action) {
             Image(systemName: armed ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
                 .font(.system(size: 18, weight: .regular))
@@ -214,10 +218,11 @@ struct DoneButton: View {
         }
         .buttonStyle(.plain)
         .opacity(visible ? 1 : 0)
+        .scaleEffect(scale)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.15), value: visible)
-        .animation(Motion.content(reduceMotion), value: armed)
-        .animation(Motion.content(reduceMotion), value: hovering)
+        .animation(reduceMotion ? Motion.reducedFade : Motion.popSpring, value: visible)
+        .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: hovering)
+        .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: armed)
         .accessibilityLabel("Done")
     }
 }

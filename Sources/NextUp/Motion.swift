@@ -1,19 +1,36 @@
 import SwiftUI
 
-/// Motion tokens. One spring for the shape and the content, a fade when Reduce Motion is on.
+/// Motion tokens. Snappy with a little bounce. Nothing runs longer than about 300ms.
+/// Reduce Motion: opacity only, ease out, never ease in.
 enum Motion {
-    /// Open, close, width and task changes. 300ms, a little bounce.
-    static let spring = Animation.spring(duration: 0.3, bounce: 0.15)
-    /// Reduce Motion: opacity only, ease out, never ease in.
-    static let fade = Animation.easeOut(duration: 0.2)
+    /// Open: lively, reaches most of its size fast and overshoots a little.
+    static let openSpring = Animation.spring(response: 0.3, dampingFraction: 0.65)
+    /// Close: quicker and calmer.
+    static let closeSpring = Animation.spring(response: 0.24, dampingFraction: 0.9)
+    /// Task change push and width changes.
+    static let pushSpring = Animation.spring(duration: 0.3, bounce: 0.15)
+    /// Done circle pop in on row hover, about 200ms with bounce.
+    static let popSpring = Animation.spring(response: 0.2, dampingFraction: 0.55)
+    /// Done circle hover, scale to 1.1 with bounce.
+    static let bounceSpring = Animation.spring(response: 0.25, dampingFraction: 0.5)
+    /// Quick fade for content that must not wait for the shape.
+    static let fade = Animation.easeOut(duration: 0.12)
+    /// Reduce Motion fade.
+    static let reducedFade = Animation.easeOut(duration: 0.2)
 
-    /// The shape does not animate under Reduce Motion, so nothing slides or grows.
-    static func shape(_ reduceMotion: Bool) -> Animation? {
-        reduceMotion ? nil : spring
+    /// The shape: open spring when opening, close spring when closing. Nothing under Reduce Motion.
+    static func shape(_ reduceMotion: Bool, opening: Bool) -> Animation? {
+        reduceMotion ? nil : (opening ? openSpring : closeSpring)
     }
 
+    /// Width follows a task change.
+    static func width(_ reduceMotion: Bool) -> Animation? {
+        reduceMotion ? nil : pushSpring
+    }
+
+    /// Task change content.
     static func content(_ reduceMotion: Bool) -> Animation {
-        reduceMotion ? fade : spring
+        reduceMotion ? reducedFade : pushSpring
     }
 
     /// Task change. The new title rises 10pt into place while it fades in and sharpens.
@@ -32,13 +49,24 @@ enum Motion {
         )
     }
 
-    /// Open and close. Content fades with a light blur while the shape springs.
-    static func fadeBlur(_ reduceMotion: Bool) -> AnyTransition {
-        if reduceMotion { return .opacity }
-        return .modifier(
-            active: Blend(offset: 0, opacity: 0, blur: 3),
-            identity: Blend(offset: 0, opacity: 1, blur: 0)
+    /// Open content. It does not wait for the shape: opacity fades in over 120ms from the
+    /// start, while it rises 4pt and scales from 0.97 with the open spring. Out: a quick fade.
+    static func openContent(_ reduceMotion: Bool) -> AnyTransition {
+        if reduceMotion { return .opacity.animation(reducedFade) }
+        return .asymmetric(
+            insertion: .opacity.animation(fade).combined(
+                with: .modifier(
+                    active: Rise(offset: 4, scale: 0.97),
+                    identity: Rise(offset: 0, scale: 1)
+                ).animation(openSpring)
+            ),
+            removal: .opacity.animation(fade)
         )
+    }
+
+    /// The collapsed title on open and close: a quick fade.
+    static func collapsedTitle(_ reduceMotion: Bool) -> AnyTransition {
+        .opacity.animation(reduceMotion ? reducedFade : fade)
     }
 
     static func symbol(_ reduceMotion: Bool) -> ContentTransition {
@@ -57,5 +85,17 @@ struct Blend: ViewModifier {
             .offset(y: offset)
             .opacity(opacity)
             .blur(radius: blur)
+    }
+}
+
+/// Vertical offset and scale from the top edge, for content that rises into place.
+struct Rise: ViewModifier {
+    var offset: CGFloat
+    var scale: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: offset)
+            .scaleEffect(scale, anchor: .top)
     }
 }
