@@ -31,8 +31,7 @@ final class HoverController {
     func start() {
         let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] event in
             MainActor.assumeIsolated {
-                // No window on a global event, so locationInWindow is already in screen coordinates.
-                self?.evaluate(at: event.locationInWindow, source: "global")
+                self?.evaluate(at: HoverController.screenPoint(of: event), source: "global")
             }
         })
         let local = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] event in
@@ -47,9 +46,20 @@ final class HoverController {
         evaluate(at: NSEvent.mouseLocation, source: "start")
     }
 
+    /// The event's position in AppKit screen coordinates.
+    ///
+    /// `locationInWindow` is not usable for this: a global monitor copy of an event over another
+    /// app's window carries that window's coordinates with `window` nil, and synthesized enter
+    /// and exit events carry garbage. The CGEvent location is always global (origin top left of
+    /// the primary screen), so it is converted from there.
     static func screenPoint(of event: NSEvent) -> CGPoint {
-        guard let window = event.window else { return event.locationInWindow }
-        return window.convertPoint(toScreen: event.locationInWindow)
+        if let location = event.cgEvent?.location, let primary = NSScreen.screens.first {
+            return CGPoint(x: location.x, y: primary.frame.maxY - location.y)
+        }
+        if let window = event.window {
+            return window.convertPoint(toScreen: event.locationInWindow)
+        }
+        return NSEvent.mouseLocation
     }
 
     /// A list change moves the shape, so a cursor that did not move can now be inside or outside.

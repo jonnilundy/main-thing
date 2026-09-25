@@ -61,8 +61,7 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     }
 
     private func report(_ event: NSEvent) {
-        let point = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
-        onMouseMove?(point)
+        onMouseMove?(HoverController.screenPoint(of: event))
     }
 
     override func mouseMoved(with event: NSEvent) {
