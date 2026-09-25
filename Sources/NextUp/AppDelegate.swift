@@ -12,19 +12,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var model: NotchModel?
     private var hover: HoverController?
     private var snapshotter: Snapshotter?
+    private var screenObserver: (any NSObjectProtocol)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard quitIfAnotherInstanceRuns() == false else { return }
 
-        guard let screen = NSScreen.screens.first else {
+        guard let geometry = currentGeometry() else {
             log.error("no screen at launch")
             return
         }
 
         let store = TaskStore()
         let server = APIServer(store: store)
-        let geometry = NotchGeometry(screen: screen)
-        let model = NotchModel(notchHeight: geometry.notchHeight, apiPort: server.port)
+        let model = NotchModel(geometry: geometry, apiPort: server.port)
         model.forceOpen = CommandLine.arguments.contains("--open")
         server.onStatus = { [weak model] bound in model?.apiBound = bound }
         server.start()
@@ -44,7 +44,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         snapshotter = Snapshotter(store: store, model: model)
         snapshotter?.start()
 
-        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), api port \(server.port, privacy: .public)")
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.screensChanged() }
+        }
+
+        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hardwareNotchWidth, privacy: .public), api port \(server.port, privacy: .public)")
+    }
+
+    /// Geometry for the chosen screen: the one with a hardware notch, else the primary.
+    private func currentGeometry() -> NotchGeometry? {
+        let screens = NSScreen.screens.map(ScreenInfo.init)
+        guard let index = NotchGeometry.chooseScreen(screens) else { return nil }
+        return NotchGeometry(screen: screens[index])
+    }
+
+    /// Display added, removed, or changed: move the panel and relayout the notch.
+    private func screensChanged() {
+        guard let panel, let model, let geometry = currentGeometry() else { return }
+        guard geometry != model.geometry else { return }
+        panel.setFrame(geometry.panelFrame, display: true)
+        model.geometry = geometry
+        hover?.refresh()
+        log.notice("display change: panel at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hardwareNotchWidth, privacy: .public)")
     }
 
     /// One instance only. Returns true when this process should stop because another copy runs.
@@ -56,27 +79,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("another NextUp runs as pid \(other.processIdentifier, privacy: .public), quitting")
         NSApp.terminate(nil)
         return true
-    }
-}
-
-/// Where the panel and the notch sit on a screen.
-struct NotchGeometry {
-    /// Fixed panel size. The notch draws at the top center of it. Later steps open down into the rest.
-    static let panelSize = CGSize(width: 800, height: 240)
-
-    let panelFrame: NSRect
-    let notchHeight: CGFloat
-
-    @MainActor
-    init(screen: NSScreen) {
-        let menuBar = screen.frame.maxY - screen.visibleFrame.maxY
-        notchHeight = menuBar > 0 ? menuBar : 30
-        let size = NotchGeometry.panelSize
-        panelFrame = NSRect(
-            x: (screen.frame.midX - size.width / 2).rounded(),
-            y: screen.frame.maxY - size.height,
-            width: size.width,
-            height: size.height
-        )
     }
 }

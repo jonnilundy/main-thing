@@ -34,7 +34,7 @@ final class Snapshotter {
             _ = store.list
             _ = model.isOpen
             _ = model.doneArmed
-            _ = model.notchHeight
+            _ = model.geometry
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.schedule()
