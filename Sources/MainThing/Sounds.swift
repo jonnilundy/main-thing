@@ -39,9 +39,11 @@ final class Sounds {
     /// Decoded custom sounds, by file name.
     private var custom: [String: AVAudioPlayer] = [:]
     private var playing: AVAudioPlayer?
-    /// Silence on a loop at volume 0: keeps the output device awake, so the first play after launch
-    /// starts at once instead of half a second later.
+    /// Silence on a loop at volume 0: keeps the output device awake while the notch is open, so a
+    /// cross off's sound starts at once instead of half a second later. Not always on: an active
+    /// output holds a system sleep assertion, so it rests a few seconds after the notch closes.
     private var keepAwake: AVAudioPlayer?
+    private var restTask: Task<Void, Never>?
     private var defaultsObserver: (any NSObjectProtocol)?
 
     init(configDirectory: URL = EventRunner.defaultConfigDirectory) {
@@ -59,13 +61,40 @@ final class Sounds {
             player.volume = 0
             player.numberOfLoops = -1
             player.prepareToPlay()
-            player.play()
             keepAwake = player
         }
         preload()
         // The choice can change from the menu or from `defaults write`: keep the chosen sound warm.
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.preload() }
+        }
+    }
+
+    /// The notch opened: start the silent loop so the output device is awake before any click.
+    func wake() {
+        restTask?.cancel()
+        restTask = nil
+        guard let keepAwake, !keepAwake.isPlaying else { return }
+        keepAwake.play()
+        log.debug("audio awake")
+    }
+
+    /// The notch closed: stop the silent loop 3 seconds later, or 3 seconds after the last sound
+    /// ends, whichever is later, so the Mac can idle sleep while the notch is closed.
+    func rest() {
+        restTask?.cancel()
+        restTask = Task { @MainActor [weak self] in
+            while true {
+                try? await Task.sleep(for: .seconds(3))
+                guard let self, !Task.isCancelled else { return }
+                let busy = (playing?.isPlaying ?? false)
+                    || scratches.contains { $0.isPlaying } || unscratches.contains { $0.isPlaying }
+                if !busy {
+                    keepAwake?.pause()
+                    log.debug("audio at rest")
+                    return
+                }
+            }
         }
     }
 
