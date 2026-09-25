@@ -30,6 +30,23 @@ func runHoverChecks() {
     check("panel point: the panel's top left is (0, 0)",
           NotchHover.panelPoint(screenPoint: CGPoint(x: 880, y: 1440), panelFrame: panel) == .zero)
 
+    section("RowHaptics")
+    do {
+        var h = RowHaptics()
+        check("entering a row ticks", h.enter("B#0", at: 10) == true)
+        check("moving within the row is silent", h.enter("B#0", at: 10.1) == false && h.enter("B#0", at: 11) == false)
+        check("the next row ticks", h.enter("C#0", at: 10.2) == true)
+        h.exit("C#0")
+        check("leaving and coming back ticks again", h.enter("C#0", at: 10.5) == true)
+        h.exit("B#0")
+        check("an exit of another row keeps the current one", h.enter("C#0", at: 10.6) == false)
+        h.listAnimates(at: 20)
+        check("a row arriving under a still cursor while the list moves is silent", h.enter("D#0", at: 20.1) == false)
+        check("and the row is remembered, so settling on it does not tick late", h.enter("D#0", at: 20.5) == false)
+        check("after 300ms entries tick again", h.enter("E#0", at: 20.3) == true)
+        check("settle is 300ms", RowHaptics.settle == 0.3)
+    }
+
     section("Router actions")
     let list = TaskList(["A", "B"])
     let host = ["host": "localhost"]

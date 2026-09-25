@@ -118,6 +118,7 @@ final class HoverController {
             sounds.rest()
         }
         model.isOpen = open
+        model.rowsAnimate()
         log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public))")
         if !open {
             model.pending = PendingCompletions()
@@ -128,6 +129,7 @@ final class HoverController {
     /// The list changed while open: rows that left are no longer pending, and the card refits.
     func listChanged() {
         model.pending.keep(only: Set(store.list.rows.map(\.key)))
+        model.rowsAnimate()
         if model.isOpen { layout.fitOpen() }
     }
 

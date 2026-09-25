@@ -198,6 +198,7 @@ struct OpenContent: View {
                                 number: index + 2,
                                 struck: model.pending.isPending(row.key),
                                 width: width,
+                                onHover: { model.rowHover(row.key, number: index + 2, inside: $0) },
                                 action: { onToggle(row) }
                             )
                             .transition(Motion.row(reduceMotion, index: index))
@@ -317,6 +318,8 @@ struct TaskRow: View {
     let struck: Bool
     /// Card content width, for the pill and the line count the pen has to cross.
     let width: CGFloat
+    /// The cursor entered or left the pill. The model turns entries into haptic ticks.
+    let onHover: (Bool) -> Void
     let action: () -> Void
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -358,7 +361,10 @@ struct TaskRow: View {
         }
         .buttonStyle(RowButtonStyle())
         // See Band: an explicit transaction keeps the row's position on the list's own animation.
-        .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside } }
+        .onHover { inside in
+            withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside }
+            onHover(inside)
+        }
         .help(truncated ? row.title : "")
         .accessibilityLabel(row.title)
         .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
