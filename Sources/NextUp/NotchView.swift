@@ -38,37 +38,45 @@ struct NotchBody: View {
     let model: NotchModel
     let onDone: () -> Void
     let titleSpace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let title = store.current
+        let rows = store.list.rows
+        let keys = rows.map(\.key)
+        let title = rows.first?.title
         let collapsedWidth = NotchMetrics.width(for: title)
         let width = model.isOpen ? max(collapsedWidth, NotchMetrics.openWidth) : collapsedWidth
+        let shape = NotchShape(
+            topRadius: NotchMetrics.flare,
+            bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
+        )
         VStack(spacing: 0) {
             ZStack {
-                if !model.isOpen, let title {
-                    Text(title)
+                if !model.isOpen, let current = rows.first {
+                    Text(current.title)
                         .font(NotchMetrics.font)
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .padding(.horizontal, NotchMetrics.textInset)
                         .matchedGeometryEffect(id: "title", in: titleSpace)
+                        .id(current.key)
+                        .transition(Motion.push(reduceMotion))
                 }
             }
             .frame(width: width, height: model.notchHeight)
+            .animation(Motion.content(reduceMotion), value: keys)
             if model.isOpen {
                 OpenContent(store: store, model: model, onDone: onDone, titleSpace: titleSpace)
                     .frame(width: width)
+                    .transition(.opacity)
             }
         }
         .padding(.horizontal, NotchMetrics.flare)
-        .background(
-            NotchShape(
-                topRadius: NotchMetrics.flare,
-                bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
-            )
-            .fill(.black)
-        )
+        .background(shape.fill(.black))
+        .clipShape(shape)
+        .animation(Motion.shape(reduceMotion), value: model.isOpen)
+        .animation(Motion.shape(reduceMotion), value: keys)
         .accessibilityLabel(title ?? "No task")
     }
 }
@@ -78,9 +86,11 @@ struct OpenContent: View {
     let model: NotchModel
     let onDone: () -> Void
     let titleSpace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let rows = store.list.rows
+        let keys = rows.map(\.key)
         VStack(alignment: .leading, spacing: 6) {
             if let current = rows.first {
                 HStack(alignment: .top, spacing: 10) {
@@ -92,6 +102,7 @@ struct OpenContent: View {
                         .lineLimit(2)
                         .matchedGeometryEffect(id: "title", in: titleSpace)
                         .id(current.key)
+                        .transition(Motion.push(reduceMotion))
                 }
                 ForEach(rows.dropFirst().prefix(3)) { row in
                     Text(row.title)
@@ -99,17 +110,20 @@ struct OpenContent: View {
                         .foregroundStyle(.white.opacity(0.55))
                         .lineLimit(1)
                         .padding(.leading, NotchMetrics.rowIndent)
+                        .transition(Motion.push(reduceMotion))
                 }
                 if rows.count > 4 {
                     Text("+\(rows.count - 4) more")
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.4))
                         .padding(.leading, NotchMetrics.rowIndent)
+                        .transition(.opacity)
                 }
             } else {
                 Text("No tasks")
                     .font(.system(size: 13))
                     .foregroundStyle(.white.opacity(0.5))
+                    .transition(.opacity)
             }
             if !model.apiBound {
                 Text("API off on port " + String(model.apiPort))
@@ -121,6 +135,7 @@ struct OpenContent: View {
         .padding(.top, 2)
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(Motion.content(reduceMotion), value: keys)
     }
 }
 
@@ -129,17 +144,21 @@ struct DoneButton: View {
     let armed: Bool
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
             Image(systemName: armed ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
                 .font(.system(size: 18, weight: .regular))
                 .foregroundStyle(.white.opacity(armed ? 1 : 0.6))
+                .contentTransition(Motion.symbol(reduceMotion))
                 .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .animation(Motion.content(reduceMotion), value: armed)
+        .animation(Motion.content(reduceMotion), value: hovering)
         .accessibilityLabel("Done")
     }
 }
