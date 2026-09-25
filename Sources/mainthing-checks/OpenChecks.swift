@@ -56,7 +56,7 @@ func runOpenChecks() {
         check("half of a tiny screen caps below 440", OpenLayout.width(titleWidths: [900], screenWidth: 800) == 400)
         check("width cap is the smaller of 440 and half the screen", OpenLayout.widthCap(screenWidth: 1512) == 440 && OpenLayout.widthCap(screenWidth: 700) == 350)
         check("title width is the card minus the chrome", OpenLayout.titleWidth(contentWidth: 300) == 268)
-        check("titles wrap up to three lines", OpenLayout.maxLines == 3)
+        check("titles never wrap", OpenLayout.maxLines == 1)
 
         check("content height: rows, spacing, padding", OpenLayout.contentHeight(rowHeights: [22, 18, 18]) == 2 + 58 + 12 + 14)
         check("content height with two note lines", OpenLayout.contentHeight(rowHeights: [22]) + 2 * (14 + 6) == OpenLayout.contentHeight(rowHeights: [22], notes: 2))

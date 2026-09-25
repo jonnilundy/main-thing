@@ -6,14 +6,14 @@ import Foundation
 ///
 /// A row is `[padding 16][title ...][padding 16]`, flush left. The card is as wide as its widest
 /// row, at least 300pt, at most 440pt (or half the screen on a tiny one). A title wider than that
-/// wraps, up to three lines, then truncates.
+/// stays on one line and truncates at the tail.
 public enum OpenLayout {
     public static let minimumWidth: CGFloat = 300
     public static let maximumWidth: CGFloat = 440
     public static let screenWidthShare: CGFloat = 0.5
     public static let horizontalPadding: CGFloat = 16
-    /// A title wraps this many times before it truncates.
-    public static let maxLines = 3
+    /// Titles never wrap.
+    public static let maxLines = 1
     public static let rowSpacing: CGFloat = 6
     public static let topPadding: CGFloat = 2
     public static let bottomPadding: CGFloat = 14

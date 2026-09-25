@@ -19,6 +19,7 @@ final class HoverController {
     private let model: NotchModel
     private let store: TaskStore
     private let layout: PanelLayout
+    private let sounds = Sounds()
     private let log = Logger(subsystem: MainThingBundleID, category: "hover")
     private var monitors: [Any] = []
     /// Last cursor position seen in an event, AppKit screen coordinates.
@@ -109,7 +110,10 @@ final class HoverController {
     func setOpen(_ open: Bool) {
         guard model.isOpen != open else { return }
         // The panel grows before the shape animates, so nothing is clipped on the way up.
-        if open { layout.fitOpen() }
+        if open {
+            layout.fitOpen()
+            sounds.prime()
+        }
         model.isOpen = open
         log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public))")
         if !open {
@@ -132,8 +136,11 @@ final class HoverController {
         switch model.pending.toggle(row.key) {
         case .cancelled:
             log.notice("cross off cancelled: \(row.title, privacy: .public)")
+            sounds.unscratch()
         case .armed:
             NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+            log.notice("stroke start: \(row.title, privacy: .public)")
+            sounds.scratch(lines: 1)
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: HoverController.completionDelay)
                 guard let self, self.model.pending.finish(row.key) else { return }

@@ -210,9 +210,10 @@ struct RowButtonStyle: ButtonStyle {
     }
 }
 
-/// One task, flush left. The whole row is the button. Hover shows a faint preview of the cross
-/// off; a click draws it like a pen on paper, line by line, and 400ms later the row leaves. A
-/// click in that window erases the ink and keeps the row.
+/// One task, flush left, one line: a title wider than the card truncates with an ellipsis and
+/// shows in full as a tooltip. The whole row is the button. Hover shows a faint preview of the
+/// cross off; a click draws it like a pen on paper, and 400ms later the row leaves. A click in
+/// that window erases the ink and keeps the row.
 struct TaskRow: View {
     let row: TaskList.Row
     let isCurrent: Bool
@@ -227,40 +228,40 @@ struct TaskRow: View {
         let font = isCurrent ? NotchMetrics.titleFont : NotchMetrics.rowFont
         let nsFont = isCurrent ? NotchMetrics.titleNSFont : NotchMetrics.rowNSFont
         let dim = OpenLayout.dimOpacity(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
-        let lines = PanelLayout.lineCount(of: row.title, font: nsFont, width: OpenLayout.titleWidth(contentWidth: width))
-        let ink = CrossOffRenderer(
-            progress: struck ? Double(lines) : 0,
-            preview: hovering && !struck ? 1 : 0,
-            key: row.key,
-            xHeight: nsFont.xHeight,
-            thickness: isCurrent ? 2.2 : 1.8,
-            inkOpacity: isCurrent ? 1 : dim
-        )
+        let truncated = PanelLayout.width(of: row.title, font: nsFont) > OpenLayout.titleWidth(contentWidth: width)
         Button(action: action) {
             Text(row.title)
                 .font(font)
                 .foregroundStyle(.white.opacity(isCurrent ? 1 : dim))
-                .lineLimit(OpenLayout.maxLines)
+                .lineLimit(1)
                 .truncationMode(.tail)
-                .textRenderer(ink)
+                .modifier(Ink(
+                    progress: struck ? 1 : 0,
+                    preview: hovering && !struck ? 1 : 0,
+                    key: row.key,
+                    xHeight: nsFont.xHeight,
+                    thickness: isCurrent ? 2.2 : 1.8,
+                    inkOpacity: isCurrent ? 1 : dim
+                ))
+                // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
+                // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
+                .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                .animation(reduceMotion ? nil : Motion.preview, value: hovering)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
         }
         .buttonStyle(RowButtonStyle())
         .onHover { hovering = $0 }
-        // The pen: linear across the lines, each line eased inside the renderer. Undo: a fast erase.
-        // Reduce Motion: the ink is just there.
-        .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine * Double(lines)) : Motion.unstrike), value: struck)
-        .animation(reduceMotion ? nil : Motion.preview, value: hovering)
+        .help(truncated ? row.title : "")
         .accessibilityLabel(row.title)
         .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
         .accessibilityAction(named: "Cross off") { action() }
     }
 }
 
-/// Draws the title and the ink over it. `progress` runs 0...lineCount: line 0 is crossed while it
-/// goes 0 to 1, line 1 while it goes 1 to 2. `preview` fades a thin line in on hover.
-struct CrossOffRenderer: TextRenderer, Animatable {
+/// The animatable half: SwiftUI interpolates a modifier's `animatableData`, so the progress and
+/// the preview live here and the renderer below only draws.
+struct Ink: ViewModifier, @preconcurrency Animatable {
     var progress: Double
     var preview: Double
     var key: String
@@ -275,6 +276,24 @@ struct CrossOffRenderer: TextRenderer, Animatable {
             preview = newValue.second
         }
     }
+
+    func body(content: Content) -> some View {
+        content.textRenderer(CrossOffRenderer(
+            progress: progress, preview: preview, key: key, xHeight: xHeight, thickness: thickness, inkOpacity: inkOpacity
+        ))
+    }
+}
+
+/// Draws the title and the ink over it. `progress` runs 0...lineCount: line 0 is crossed while it
+/// goes 0 to 1, line 1 while it goes 1 to 2 (titles are one line now, the loop stays general).
+/// `preview` fades a thin line in on hover.
+struct CrossOffRenderer: TextRenderer {
+    var progress: Double
+    var preview: Double
+    var key: String
+    var xHeight: CGFloat
+    var thickness: CGFloat
+    var inkOpacity: Double
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         let lines = Array(layout)
@@ -310,17 +329,12 @@ struct CrossOffRenderer: TextRenderer, Animatable {
                     path.closeSubpath()
                     context.fill(path, with: .color(.white.opacity(inkOpacity)))
                 }
-                // The blot where the pen lifts at the end of the last line.
-                if index == lines.count - 1, t >= 0.999, let lift = PenStroke.liftPoint(samples) {
-                    let r: CGFloat = 1.4
-                    context.fill(Path(ellipseIn: CGRect(x: lift.x - r, y: lift.y - r, width: 2 * r, height: 2 * r)), with: .color(.white.opacity(inkOpacity)))
-                }
             }
         }
     }
 }
 
-/// Right click menu: Launch at Login, Show Tasks File, Quit.
+/// Right click menu: Launch at Login, Sounds, Show Tasks File, Quit.
 struct NotchMenu: View {
     let store: TaskStore
 
@@ -340,6 +354,10 @@ struct NotchMenu: View {
                 }
             ))
         }
+        Toggle("Sounds", isOn: Binding(
+            get: { Sounds.enabled },
+            set: { Sounds.enabled = $0 }
+        ))
         Button("Show Tasks File") {
             NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
         }
