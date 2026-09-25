@@ -37,9 +37,9 @@ func runHoverChecks() {
     let list = TaskList(["A", "B"])
     let host = ["host": "localhost"]
     let put = MainThingRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("[\" X \",\"Y\"]".utf8)), list: list)
-    check("PUT asks the store to replace with the decoded titles", put.action == .replace([" X ", "Y"]))
+    check("PUT asks the store to replace with the decoded titles", put.action == .replace([" X ", "Y"], source: "api"))
     let done = MainThingRouter.handle(HTTPRequest(method: "POST", path: "/tasks/done", headers: host), list: list)
-    check("POST /tasks/done asks the store to complete", done.action == .complete)
+    check("POST /tasks/done asks the store to complete", done.action == .complete(source: "api"))
     let get = MainThingRouter.handle(HTTPRequest(method: "GET", path: "/tasks", headers: host), list: list)
     check("GET asks for nothing", get.action == .none)
     let bad = MainThingRouter.handle(HTTPRequest(method: "PUT", path: "/tasks", headers: host, body: Data("x".utf8)), list: list)

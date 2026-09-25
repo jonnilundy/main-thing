@@ -85,11 +85,12 @@ public enum MainThingRouter {
         }
     }
 
-    /// What the store must do to reach `list` from the list it was given.
+    /// What the store must do to reach `list` from the list it was given, and who asked.
+    /// The source is `api` unless the request said `?source=<name>`.
     public enum Action: Equatable, Sendable {
         case none
-        case replace([TaskItem])
-        case complete
+        case replace([TaskItem], source: String)
+        case complete(source: String)
     }
 
     /// `[::1]:7788` -> `[::1]`, `localhost:7788` -> `localhost`. Lowercased.
@@ -110,7 +111,14 @@ public enum MainThingRouter {
         return allowedHosts.contains(hostWithoutPort(host))
     }
 
-    public static func handle(_ request: HTTPRequest, list: TaskList) -> Outcome {
+    /// The source a change is attributed to: `?source=<name>` when given and valid, else `api`.
+    public static func source(of request: HTTPRequest) -> Result<String, BodyError> {
+        guard let raw = request.query["source"] else { return .success(EventSource.api) }
+        if let problem = EventSource.problem(raw) { return .failure(BodyError(problem)) }
+        return .success(raw)
+    }
+
+    public static func handle(_ request: HTTPRequest, list: TaskList, status: StatusReport = StatusReport()) -> Outcome {
         func unchanged(_ response: HTTPResponse) -> Outcome {
             Outcome(response: response, list: list, changed: false)
         }
@@ -132,11 +140,16 @@ public enum MainThingRouter {
             case "GET":
                 return unchanged(.json(200, JSONBody.tasks(list)))
             case "PUT":
+                let source: String
+                switch MainThingRouter.source(of: request) {
+                case .success(let s): source = s
+                case .failure(let error): return unchanged(.error(400, error.reason))
+                }
                 switch BodyDecoding.tasks(from: request.body) {
                 case .success(let tasks):
                     var next = list
                     next.replace(tasks)
-                    return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true, action: .replace(tasks))
+                    return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true, action: .replace(tasks, source: source))
                 case .failure(let error):
                     return unchanged(.error(400, error.reason))
                 }
@@ -148,15 +161,26 @@ public enum MainThingRouter {
             guard request.method == "POST" else {
                 return unchanged(methodNotAllowed(request.method, path, allow: "POST"))
             }
+            let source: String
+            switch MainThingRouter.source(of: request) {
+            case .success(let s): source = s
+            case .failure(let error): return unchanged(.error(400, error.reason))
+            }
             var next = list
             let changed = next.complete(expected: nil) != nil
-            return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: changed, action: .complete)
+            return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: changed, action: .complete(source: source))
 
         case "/health":
             guard request.method == "GET" else {
                 return unchanged(methodNotAllowed(request.method, path, allow: "GET"))
             }
             return unchanged(.json(200, JSONBody.health()))
+
+        case "/status":
+            guard request.method == "GET" else {
+                return unchanged(methodNotAllowed(request.method, path, allow: "GET"))
+            }
+            return unchanged(.json(200, JSONBody.status(status)))
 
         default:
             return unchanged(.error(404, "no route for \(request.method) \(path)"))

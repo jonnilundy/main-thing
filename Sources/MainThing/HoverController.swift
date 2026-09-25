@@ -131,7 +131,7 @@ final class HoverController {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(250))
             guard let self else { return }
-            self.store.complete(expected: title)
+            self.store.complete(expected: title, source: EventSource.notch)
             self.model.doneArmed = false
             self.refresh()
         }

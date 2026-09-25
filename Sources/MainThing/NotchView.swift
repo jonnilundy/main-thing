@@ -155,6 +155,14 @@ struct OpenContent: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.4))
             }
+            // A hook or adapter whose last run failed, until it next succeeds.
+            ForEach(store.events.failing, id: \.self) { label in
+                Text("sync failed: " + label)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+                    .transition(.opacity)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 2)

@@ -35,6 +35,7 @@ final class Snapshotter {
             _ = model.isOpen
             _ = model.doneArmed
             _ = model.geometry
+            _ = store.events.failing
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.schedule()

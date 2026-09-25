@@ -1,21 +1,35 @@
 import Foundation
 
-/// A parsed HTTP/1.x request. Header names are lowercased. `path` has no query.
+/// A parsed HTTP/1.x request. Header names are lowercased. `path` has no query; `query` holds it, decoded.
 public struct HTTPRequest: Equatable, Sendable {
     public var method: String
     public var path: String
     public var headers: [String: String]
     public var body: Data
+    public var query: [String: String]
 
-    public init(method: String, path: String, headers: [String: String] = [:], body: Data = Data()) {
+    public init(method: String, path: String, headers: [String: String] = [:], body: Data = Data(), query: [String: String] = [:]) {
         self.method = method
         self.path = path
         self.headers = headers
         self.body = body
+        self.query = query
     }
 
     public func header(_ name: String) -> String? {
         headers[name.lowercased()]
+    }
+
+    /// `a=1&b=x%20y` -> `["a": "1", "b": "x y"]`. A key without `=` maps to "". The last repeat wins.
+    public static func parseQuery(_ raw: String) -> [String: String] {
+        var out: [String: String] = [:]
+        for pair in raw.split(separator: "&", omittingEmptySubsequences: true) {
+            let parts = pair.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            let key = String(parts[0]).replacingOccurrences(of: "+", with: " ").removingPercentEncoding ?? String(parts[0])
+            let value = parts.count > 1 ? (String(parts[1]).replacingOccurrences(of: "+", with: " ").removingPercentEncoding ?? String(parts[1])) : ""
+            out[key] = value
+        }
+        return out
     }
 }
 
@@ -88,6 +102,7 @@ public enum JSONBody {
     }
 
     public static func tasks(_ list: TaskList) -> Data { encode(Tasks(tasks: list.tasks)) }
+    public static func status(_ report: StatusReport) -> Data { encode(report) }
     public static func health() -> Data { encode(Health(ok: true, version: MainThingVersion)) }
     public static func error(_ reason: String) -> Data { encode(Failure(error: reason)) }
 }
@@ -107,6 +122,7 @@ public struct HTTPRequestParser: Sendable {
     private struct Head: Sendable {
         var method: String
         var path: String
+        var query: [String: String]
         var headers: [String: String]
         var contentLength: Int
     }
@@ -138,7 +154,7 @@ public struct HTTPRequestParser: Sendable {
         let body = Data(buffer.prefix(head.contentLength))
         buffer = Data(buffer.dropFirst(head.contentLength))
         self.head = nil
-        return .request(HTTPRequest(method: head.method, path: head.path, headers: head.headers, body: body))
+        return .request(HTTPRequest(method: head.method, path: head.path, headers: head.headers, body: body, query: head.query))
     }
 
     private mutating func parseHead() -> HeadResult {
@@ -185,9 +201,11 @@ public struct HTTPRequestParser: Sendable {
         }
 
         let target = String(parts[1])
-        let path = target.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? target
+        let split = target.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)
+        let path = split.first.map(String.init) ?? target
+        let query = split.count > 1 ? HTTPRequest.parseQuery(String(split[1])) : [:]
 
         buffer = Data(buffer[separator.upperBound...])
-        return .head(Head(method: String(parts[0]), path: path, headers: headers, contentLength: contentLength))
+        return .head(Head(method: String(parts[0]), path: path, query: query, headers: headers, contentLength: contentLength))
     }
 }

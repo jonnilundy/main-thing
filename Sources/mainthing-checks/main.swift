@@ -254,7 +254,7 @@ do {
     check("PUT object form", obj.list.titles == ["Z"])
     let refs = MainThingRouter.handle(request("PUT", "/tasks", body: "[\"A\",{\"title\":\"B\",\"ref\":\"openbrain:md7abc\"}]"), list: list)
     check("PUT with refs echoes objects", text(refs.response) == "{\"tasks\":[{\"title\":\"A\"},{\"ref\":\"openbrain:md7abc\",\"title\":\"B\"}]}")
-    check("PUT with refs asks the store for the tasks", refs.action == .replace(["A", TaskItem("B", ref: "openbrain:md7abc")]))
+    check("PUT with refs asks the store for the tasks", refs.action == .replace(["A", TaskItem("B", ref: "openbrain:md7abc")], source: "api"))
     let badRef = MainThingRouter.handle(request("PUT", "/tasks", body: "[{\"title\":\"B\",\"ref\":\"bad ref\"}]"), list: list)
     check("PUT with a bad ref is 400 with a one line reason", badRef.response.status == 400 && text(badRef.response) == "{\"error\":\"item 0: ref must look like <adapter>:<id>\"}" && badRef.changed == false)
     let bad = MainThingRouter.handle(request("PUT", "/tasks", body: "{oops"), list: list)
@@ -310,5 +310,6 @@ do {
 
 runHoverChecks()
 runGeometryChecks()
+runEventChecks()
 print("\(passes) passed, \(failures) failed")
 exit(failures == 0 ? 0 : 1)

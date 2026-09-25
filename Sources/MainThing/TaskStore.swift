@@ -13,6 +13,9 @@ final class TaskStore {
 
     @ObservationIgnored let fileURL: URL
     @ObservationIgnored private let log = Logger(subsystem: MainThingBundleID, category: "store")
+    /// Hooks and adapters. Every change goes out as events after it is saved.
+    @ObservationIgnored private(set) var runner: EventRunner!
+    let events = EventStatus()
 
     static var defaultFileURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -22,7 +25,7 @@ final class TaskStore {
             .appendingPathComponent("tasks.json")
     }
 
-    init(fileURL: URL = TaskStore.defaultFileURL) {
+    init(fileURL: URL = TaskStore.defaultFileURL, configDirectory: URL = EventRunner.defaultConfigDirectory) {
         TaskStore.copyLegacyFileIfNeeded(to: fileURL)
         self.fileURL = fileURL
         var loaded = TaskList()
@@ -40,6 +43,10 @@ final class TaskStore {
             log.error("could not read \(fileURL.path, privacy: .public): \(loadError, privacy: .public)")
         } else {
             log.info("loaded \(loaded.count, privacy: .public) tasks from \(fileURL.path, privacy: .public)")
+        }
+        let events = self.events
+        self.runner = EventRunner(configDirectory: configDirectory) { job, record in
+            MainActor.assumeIsolated { events.record(job, record) }
         }
     }
 
@@ -65,29 +72,40 @@ final class TaskStore {
 
     var current: String? { list.current }
 
-    func replace(_ tasks: [TaskItem]) {
+    func replace(_ tasks: [TaskItem], source: String) {
+        let before = list
         list.replace(tasks)
         save()
+        emit(before: before, completed: nil, source: source)
     }
 
-    /// Done from the UI. Removes the current task only when its title still matches.
+    /// Done from the notch, the API or the CLI. Removes the current task only when its title still matches.
     @discardableResult
-    func complete(expected: String?) -> Bool {
-        let removed = list.complete(expected: expected)
-        if removed != nil { save() }
-        return removed != nil
+    func complete(expected: String?, source: String) -> Bool {
+        let before = list
+        guard let removed = list.complete(expected: expected) else { return false }
+        save()
+        emit(before: before, completed: removed, source: source)
+        return true
     }
 
     /// Routes one API request against the current list and runs the store method it asks for.
-    /// `POST /tasks/done` and the done circle both end in `complete(expected:)`.
+    /// `POST /tasks/done` and the done circle both end in `complete(expected:source:)`.
     func handle(_ request: HTTPRequest) -> HTTPResponse {
-        let outcome = MainThingRouter.handle(request, list: list)
+        let outcome = MainThingRouter.handle(request, list: list, status: events.report(installed: runner.installed()))
         switch outcome.action {
-        case .replace(let tasks): replace(tasks)
-        case .complete: complete(expected: nil)
+        case .replace(let tasks, let source): replace(tasks, source: source)
+        case .complete(let source): complete(expected: nil, source: source)
         case .none: break
         }
         return outcome.response
+    }
+
+    /// `task-completed` then `list-changed` after a completion, `list-changed` after any other change.
+    private func emit(before: TaskList, completed: TaskItem?, source: String) {
+        for payload in EventPlan.events(before: before, after: list, completed: completed, source: source, at: Date()) {
+            runner.emit(payload)
+        }
     }
 
     private func save() {

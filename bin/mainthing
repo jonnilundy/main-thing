@@ -8,9 +8,12 @@
 #   mainthing set -            replace the list with one task per line from stdin
 #   mainthing set --json -     replace the list with a JSON array of strings or objects from stdin
 #   mainthing done             mark the current task done
+#   mainthing adapters         installed adapters and their last run
+#   mainthing hooks            installed hooks and their last run
 #   mainthing health           is the app up
 #
 # A ref ties a task to the same task in another tool: "<adapter>:<id>", for example "openbrain:md7abc".
+# set and done take --source <name> to say who made the change (default cli); hooks see it.
 # MAINTHING_PORT overrides the port (default 7788).
 set -u
 
@@ -82,6 +85,36 @@ titles() { jsbody 'body.tasks.map(t => t.title).join("\n");'; }
 # The tasks as a JSON array of objects, the same shape `set --json -` reads.
 tasks_json() { jsbody 'JSON.stringify(body.tasks);'; }
 
+# One line per installed hook or adapter from a GET /status body: name, state, last run.
+installed() {
+    jsbody '
+        const rows = body["'"$1"'"];
+        if (rows.length === 0) "none installed in ~/.config/mainthing/'"$1"'";
+        else rows.map(r => {
+            const state = r.problem ? "skipped: " + r.problem : "ok";
+            const run = r.lastRun
+                ? "last run " + r.lastRun.at + " " + (r.lastRun.timedOut ? "killed after " : "exit " + r.lastRun.exit + " in ") + r.lastRun.ms + " ms" + (r.lastRun.ok ? "" : " FAILED") + (r.lastRun.stderr ? "\n    " + r.lastRun.stderr.split("\n").join("\n    ") : "")
+                : "never run";
+            return r.name + "  " + state + "  " + run;
+        }).join("\n");
+    '
+}
+
+# --source <name> from the front of the arguments. Sets SOURCE and leaves the rest in REST.
+SOURCE=cli
+REST=()
+take_source() {
+    REST=()
+    while [[ $# -gt 0 ]]; do
+        if [[ "$1" == "--source" ]]; then
+            [[ -n "${2-}" ]] || fail "--source needs a name, for example --source agent"
+            SOURCE="$2"; shift 2
+        else
+            REST+=("$1"); shift
+        fi
+    done
+}
+
 cmd="${1-current}"
 case "$cmd" in
     current)
@@ -97,38 +130,49 @@ case "$cmd" in
         ;;
     set)
         shift
+        take_source "$@"
+        set -- "${REST[@]+"${REST[@]}"}"
         json=0
         while [[ "${1-}" == --* ]]; do
             case "$1" in
                 --json) json=1; shift ;;
-                *) fail "unknown option '$1' for set. Try: mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -" ;;
+                *) fail "unknown option '$1' for set. Try: mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -, mainthing set --source agent ..." ;;
             esac
         done
         if [[ $json -eq 1 ]]; then
             [[ "${1-}" == "-" ]] || fail "set --json reads the JSON array from stdin: mainthing set --json -"
             body=$(cat)
             [[ -n "$body" ]] || fail "set --json -: nothing on stdin"
-            call PUT /tasks "$body" | titles
+            call PUT "/tasks?source=$SOURCE" "$body" | titles
         else
             if [[ "${1-}" == "-" ]]; then
                 lines=()
                 while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done
                 set -- "${lines[@]+"${lines[@]}"}"
             fi
-            call PUT /tasks "$(json_array "$@")" | titles
+            call PUT "/tasks?source=$SOURCE" "$(json_array "$@")" | titles
         fi
         ;;
     done)
-        call POST /tasks/done | titles
+        shift
+        take_source "$@"
+        [[ ${#REST[@]} -eq 0 ]] || fail "unknown argument '${REST[0]}' for done. Try: mainthing done, mainthing done --source agent"
+        call POST "/tasks/done?source=$SOURCE" | titles
+        ;;
+    adapters)
+        call GET /status | installed adapters
+        ;;
+    hooks)
+        call GET /status | installed hooks
         ;;
     health)
         call GET /health
         echo
         ;;
     -h|--help|help)
-        sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
         ;;
     *)
-        fail "unknown command '$cmd'. Try: mainthing, mainthing list, mainthing list --json, mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -, mainthing done, mainthing health"
+        fail "unknown command '$cmd'. Try: mainthing, mainthing list, mainthing list --json, mainthing set \"A\" \"B\", mainthing set -, mainthing set --json -, mainthing done, mainthing adapters, mainthing hooks, mainthing health"
         ;;
 esac
