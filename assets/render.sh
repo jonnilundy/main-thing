@@ -42,6 +42,16 @@ for pair in "16:icon_16x16" "32:icon_16x16@2x" "32:icon_32x32" "64:icon_32x32@2x
   cp "$T/icon-${pair%%:*}.png" "$T/AppIcon.iconset/${pair#*:}.png"
 done
 iconutil -c icns "$T/AppIcon.iconset" -o "$A/AppIcon.icns"
+# The cover carries the icon inline as a data URI (between the ICON markers), refreshed from icon.svg.
+ICON=$(base64 -i "$A/icon.svg" | tr -d '\n')
+python3 - "$A/cover.html" "$ICON" <<'PY'
+import re, sys
+p, uri = sys.argv[1], "data:image/svg+xml;base64," + sys.argv[2]
+s = open(p).read()
+s = re.sub(r'(/\*ICON\*/)[^"]*(/\*/ICON\*/)', lambda m: m.group(1) + uri + m.group(2), s)
+open(p, "w").write(s)
+PY
 shot "file://$A/cover.html" 1280 640 "$A/cover.png"
+shot "file://$A/cover.html#ember" 1280 640 "$A/cover-alt-ember.png"
 echo "wrote $A/AppIcon.icns and $A/cover.png"
 rm -rf "$T"
