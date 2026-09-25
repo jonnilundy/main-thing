@@ -45,6 +45,17 @@ func runOpenChecks() {
         check("POST /tasks/done on empty is 200 and asks nothing", empty.response.status == 200 && empty.action == .none)
     }
 
+    section("Lanes")
+    do {
+        check("band: padding 18, slot 18, gap 10, so the title starts at 46", Lanes.slotStart == 18 && Lanes.markerSlot == 18 && Lanes.gap == 10 && Lanes.textStart == 46)
+        check("row: inset 8 and padding 10 put the slot at 18 and the title at 46, the same lanes", Lanes.rowSlotStart == 18 && Lanes.rowTextStart == 46 && Lanes.rowTextStart == Lanes.textStart)
+        check("collapsed chrome is 64: the lanes plus the right padding", Lanes.collapsedChrome == 64)
+        check("collapsed width fits dot, title and padding", Lanes.collapsedWidth(titleWidth: 200.2, minimum: 169) == 265)
+        check("collapsed width keeps the minimum", Lanes.collapsedWidth(titleWidth: 40, minimum: 169) == 169 && Lanes.collapsedWidth(titleWidth: 40, minimum: 204) == 204)
+        check("no title: the minimum", Lanes.collapsedWidth(titleWidth: nil, minimum: 169) == 169 && Lanes.collapsedWidth(titleWidth: 0, minimum: 169) == 169)
+        check("collapsed width caps at 600", Lanes.collapsedWidth(titleWidth: 900, minimum: 169) == 600 && Lanes.collapsedTitleWidth == 536)
+    }
+
     section("OpenLayout")
     do {
         let screen: CGFloat = 2560

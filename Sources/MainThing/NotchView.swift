@@ -56,7 +56,7 @@ struct NotchBody: View {
             // The notch row, hanging under the menu bar. Holds the title when collapsed.
             ZStack {
                 if !model.isOpen {
-                    CollapsedTitle(rows: rows, height: geometry.notchHeight, minimumWidth: geometry.minimumWidth)
+                    Band(rows: rows, width: width, height: geometry.notchHeight)
                         .transition(Motion.collapsedTitle(reduceMotion))
                 }
             }
@@ -78,29 +78,46 @@ struct NotchBody: View {
     }
 }
 
-/// The title in the collapsed notch. Each title has its own fixed width, so a title that
-/// fits never truncates while the shape width animates around it.
-struct CollapsedTitle: View {
+/// The band: the pink dot in the marker lane, then the current task in the text lane, left
+/// aligned at the card padding. One view in both states, so nothing swaps on open. A task change
+/// pushes the new title in; each title keeps its own natural width, so a title that fits never
+/// truncates while the shape width animates around it. Empty list: nothing, the plain notch.
+struct Band: View {
     let rows: [TaskList.Row]
+    let width: CGFloat
     let height: CGFloat
-    let minimumWidth: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
+        HStack(spacing: Lanes.gap) {
             if let current = rows.first {
-                Text(current.title)
-                    .font(NotchMetrics.font)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, NotchMetrics.textInset)
-                    .frame(width: NotchMetrics.width(for: current.title, minimum: minimumWidth), height: height)
-                    .id(current.key)
-                    .transition(Motion.push(reduceMotion))
+                Dot()
+                    .frame(width: Lanes.markerSlot, height: Lanes.markerSlot)
+                ZStack(alignment: .leading) {
+                    Text(current.title)
+                        .font(NotchMetrics.font)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
+                        .id(current.key)
+                        .transition(Motion.push(reduceMotion))
+                }
             }
         }
+        .padding(.leading, Lanes.slotStart)
+        .frame(width: width, height: height, alignment: .leading)
         .animation(Motion.content(reduceMotion), value: rows.map(\.key))
+    }
+}
+
+/// The pink dot: 7pt with a soft glow of its own color.
+struct Dot: View {
+    var body: some View {
+        Circle()
+            .fill(NotchMetrics.pink)
+            .frame(width: NotchMetrics.dotSize, height: NotchMetrics.dotSize)
+            .shadow(color: NotchMetrics.pink.opacity(NotchMetrics.dotGlowOpacity), radius: NotchMetrics.dotGlow)
     }
 }
 
@@ -406,8 +423,13 @@ struct NotchMenu: View {
 
 /// Sizes shared by the view and the width measurement.
 enum NotchMetrics {
-    static let font = Font.system(size: 13, weight: .medium)
-    @MainActor static let nsFont = NSFont.systemFont(ofSize: 13, weight: .medium)
+    /// The current task, in the band, collapsed or open.
+    static let font = Font.system(size: 13.5, weight: .semibold)
+    @MainActor static let nsFont = NSFont.systemFont(ofSize: 13.5, weight: .semibold)
+    static let pink = Color(red: 1, green: 0x4F / 255, blue: 0x9A / 255)
+    static let dotSize: CGFloat = 7
+    static let dotGlow: CGFloat = 8
+    static let dotGlowOpacity: Double = 0.7
     /// The current task in the open state.
     static let titleFont = Font.system(size: 15, weight: .semibold)
     @MainActor static let titleNSFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
@@ -424,18 +446,21 @@ enum NotchMetrics {
     /// x-heights, for the strike line.
     @MainActor static let titleXHeight: CGFloat = titleNSFont.xHeight
     @MainActor static let rowXHeight: CGFloat = rowNSFont.xHeight
-    static let textInset: CGFloat = 22
     static let flare = NotchGeometry.flare
     static let bottomRadius: CGFloat = 12
     static let openBottomRadius: CGFloat = 24
-    static let maxWidth: CGFloat = 600
 
-    /// Collapsed notch width before the flares. Follows the title, clamped.
-    /// `minimum` comes from the geometry: plain 140, or the camera housing width.
+    /// Collapsed notch width before the flares: the dot, the title and the padding, clamped.
+    /// `minimum` comes from the geometry: plain 169, or the camera housing width.
     @MainActor static func width(for title: String?, minimum: CGFloat = NotchGeometry.housingWidth - 2 * NotchGeometry.flare) -> CGFloat {
         guard let title, !title.isEmpty else { return minimum }
         let text = (title as NSString).size(withAttributes: [.font: nsFont]).width
-        return min(max(ceil(text) + textInset * 2, minimum), maxWidth)
+        return Lanes.collapsedWidth(titleWidth: text, minimum: minimum)
+    }
+
+    /// The band title's own width: its single line width, capped where the collapsed notch caps.
+    @MainActor static func titleWidth(for title: String) -> CGFloat {
+        min(ceil((title as NSString).size(withAttributes: [.font: nsFont]).width), Lanes.collapsedTitleWidth)
     }
 }
 
