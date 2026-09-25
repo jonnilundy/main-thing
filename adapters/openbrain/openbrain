@@ -1,0 +1,58 @@
+#!/bin/zsh
+# openbrain: Main Thing adapter for Open Brain. Runs when a task with a ref
+# "openbrain:<id>" is completed in the notch, the API or the command.
+#
+#   openbrain complete <id>    mark Open Brain task <id> done, via `ob task done <id>`
+#
+# Needs the Open Brain CLI (`ob`) and OPEN_BRAIN_API_URL plus OPEN_BRAIN_API_KEY, read
+# from ~/.config/mainthing/openbrain.env (KEY=value, one per line). When that file
+# holds op:// references, the script runs itself through `op run --env-file`, so the
+# 1Password CLI resolves them. The event payload on stdin is ignored.
+#
+# Install:  ln -s "$PWD/adapters/openbrain/openbrain" ~/.config/mainthing/adapters/openbrain
+set -u
+
+# The app runs adapters with a small PATH. Add the usual homes of `ob` and `op`.
+path=("$HOME/.volta/bin" "$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/mainthing"
+env_file="$config/openbrain.env"
+script="$0"    # inside a zsh function $0 is the function name
+
+# Loads the env file. Plain values are sourced. op:// references go through `op run`,
+# which re-runs this script with the values in place.
+load_env() {
+    [[ -f "$env_file" ]] || return 0
+    if [[ -z "${MAINTHING_OPENBRAIN_ENV_LOADED:-}" ]] && /usr/bin/grep -q 'op://' "$env_file"; then
+        command -v op >/dev/null || { echo "openbrain: $env_file holds op:// references but the 1Password CLI (op) is not on PATH" >&2; exit 1; }
+        MAINTHING_OPENBRAIN_ENV_LOADED=1 exec op run --env-file "$env_file" -- "$script" "$@"
+    fi
+    set -a
+    source "$env_file"
+    set +a
+}
+
+verb="${1:-}"
+case "$verb" in
+    complete)
+        id="${2:-}"
+        [[ -n "$id" ]] || { echo "usage: openbrain complete <id>" >&2; exit 2; }
+        load_env "$@"
+        [[ -n "${OPEN_BRAIN_API_URL:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_URL is not set (put it in $env_file)" >&2; exit 1; }
+        [[ -n "${OPEN_BRAIN_API_KEY:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_KEY is not set (put it in $env_file)" >&2; exit 1; }
+        command -v ob >/dev/null || { echo "openbrain: the Open Brain CLI (ob) is not on PATH" >&2; exit 1; }
+        exec ob task done "$id"
+        ;;
+    -h|--help|help)
+        sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+    "")
+        echo "usage: openbrain complete <id>" >&2
+        exit 2
+        ;;
+    *)
+        echo "openbrain: unknown verb '$verb'. Only: complete <id>" >&2
+        exit 2
+        ;;
+esac

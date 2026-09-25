@@ -1,10 +1,12 @@
-# Adapters
+# Writing an adapter
 
 An adapter tells another tool that a task was completed in Main Thing. Main Thing does not know
 about Open Brain, Linear, Things or your own scripts. It knows one thing: a task can carry a `ref`
 of the form `<adapter>:<id>`. When that task is completed, Main Thing runs the executable at
 `~/.config/mainthing/adapters/<adapter>` with `complete <id>`. Everything else is the adapter's
 business.
+
+The adapters in this folder each have their own README. Open Brain: [openbrain/README.md](openbrain/README.md).
 
 ## The contract
 
@@ -16,8 +18,8 @@ business.
 
   ```json
   {"at":"2026-09-25T18:00:28.535Z","event":"task-completed","source":"cli",
-   "task":{"ref":"openbrain:md7abc","title":"Fireside chat writeup"},
-   "tasks":[{"title":"Draft Operations 2027"}]}
+   "task":{"ref":"openbrain:md7abc","title":"Write the memo"},
+   "tasks":[{"title":"Review the plan"}]}
   ```
 
   Reading it is optional. The id on the command line is enough for most adapters.
@@ -31,8 +33,8 @@ business.
   PATH, so add the folders your tools live in at the top of the script.
 - Adapters run one at a time, in event order, off the main thread. The API call that completed the
   task returns at once; it never waits for an adapter.
-- Secrets: never put them in the script. Read them at run time from your password manager. The
-  Open Brain adapter shows the 1Password pattern.
+- Secrets: never put them in the script. Read them from a file in `~/.config/mainthing/` with
+  mode 600, or from your password manager at run time.
 
 ## Template
 
@@ -53,44 +55,24 @@ Keep the script in your own repo or dotfiles and link it in:
 
 ```sh
 mkdir -p ~/.config/mainthing/adapters
-ln -s "$PWD/adapters/openbrain" ~/.config/mainthing/adapters/openbrain
-chmod 755 adapters/openbrain
+chmod 755 mytool
+ln -s "$PWD/mytool" ~/.config/mainthing/adapters/mytool
 mainthing adapters        # lists what is installed and whether each one may run
 ```
 
 Then give tasks refs:
 
 ```sh
-printf '[{"title":"Fireside chat writeup","ref":"openbrain:qh75pbcxsmevwzcj26887txqjd8eyzm7"}]' | mainthing set --json -
+printf '[{"title":"Write the memo","ref":"mytool:4821"}]' | mainthing set --json -
 ```
-
-## The Open Brain adapter
-
-`adapters/openbrain` runs `ob task done <id>` with the Open Brain CLI. It needs
-`OPEN_BRAIN_API_URL` and `OPEN_BRAIN_API_KEY`. Put them in `~/.config/mainthing/openbrain.env` as
-1Password references and the adapter runs itself through `op run --env-file`, so no secret ever
-sits on disk:
-
-```sh
-mkdir -p ~/.config/mainthing
-cat > ~/.config/mainthing/openbrain.env <<'EOF'
-OPEN_BRAIN_API_URL=https://<deployment>.convex.site
-OPEN_BRAIN_API_KEY=op://<vault>/<item>/password
-EOF
-chmod 600 ~/.config/mainthing/openbrain.env
-ln -s "$PWD/adapters/openbrain" ~/.config/mainthing/adapters/openbrain
-```
-
-Without the env file the adapter uses whatever `OPEN_BRAIN_API_URL` and `OPEN_BRAIN_API_KEY` the
-app inherited at launch. Task ids come from `ob task list --json`.
 
 ## Debug
 
 ```sh
-mainthing adapters                                       # installed, may it run, last exit and stderr
-echo '{}' | ~/.config/mainthing/adapters/openbrain complete <id>   # run it by hand, same call the app makes
-/usr/bin/log stream --predicate 'subsystem == "com.jonnilundy.mainthing" AND category == "events"' --style compact
-curl -s http://localhost:7788/status                     # the same as mainthing adapters, as JSON
+mainthing adapters                                              # installed, may it run, last exit and stderr
+echo '{}' | ~/.config/mainthing/adapters/mytool complete <id>   # run it by hand, same call the app makes
+mainthing logs                                                  # every run with its exit code
+curl -s mainthing.localhost/status                              # the same as mainthing adapters, as JSON
 ```
 
 A "skip" line in the log names the run rule that failed. A "killed after 10000 ms" line means the
