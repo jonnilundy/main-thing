@@ -1,5 +1,7 @@
 # NextUp
 
+![NextUp](assets/cover.png)
+
 A small Mac app with no Dock icon. It draws a notch at the top center of the screen and shows your current task in it. On a MacBook with a camera housing it hangs below the menu bar under the housing; on a screen without one it sits in the menu bar row. Hover to open it: the current task large, a circle to mark it done, and the next three. A local API sets the ordered list.
 
 Requires macOS 14 or later. Builds with the Command Line Tools alone (Swift 6.2), no Xcode.

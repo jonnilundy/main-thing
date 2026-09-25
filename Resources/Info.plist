@@ -4,15 +4,17 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>NextUp</string>
 	<key>CFBundleExecutable</key>
 	<string>NextUp</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.jonnilundy.nextup</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>NextUp</string>
-	<key>CFBundleDisplayName</key>
 	<string>NextUp</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
