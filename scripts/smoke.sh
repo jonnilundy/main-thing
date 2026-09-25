@@ -1,6 +1,7 @@
 #!/bin/bash
-# Exercise every route with curl and the mainthing CLI against the running app.
+# Exercise every route with curl and the mainthing CLI against the running app, hooks included.
 # Exits non-zero on any mismatch. The list that was there before the run is put back at the end.
+# MAINTHING_PORT picks the app, MAINTHING_CONFIG_DIR its hooks folder (see README, a second copy for tests).
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -121,6 +122,31 @@ same "mainthing list --json round trips through set --json -" $'Ref one\nPlain t
 same "mainthing set --json without - exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" set --json "A" >/dev/null 2>&1; echo $?)"
 same "mainthing unknown command exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
 same "mainthing on a dead port says not running" "1" "$(MAINTHING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
+
+echo "--- hooks"
+# A test hook writes its payload to a scratch file. Installed for the run, any existing hook is put back.
+CONFIG="${MAINTHING_CONFIG_DIR:-$HOME/.config/mainthing}"
+HOOK="$CONFIG/hooks/list-changed"
+SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/mainthing-smoke.XXXXXX")
+mkdir -p "$CONFIG/hooks"
+[[ -e "$HOOK" ]] && mv "$HOOK" "$HOOK.smoke-backup"
+printf '#!/bin/bash\ncat > "%s/payload.json"\n' "$SCRATCH" > "$HOOK"
+chmod 755 "$HOOK"
+expect "PUT /tasks ?source=smoke fires the hook" 200 '{"tasks":[{"ref":"smoke:7","title":"Hooked"}]}' \
+    -X PUT --data-binary '[{"title":"Hooked","ref":"smoke:7"}]' "$BASE/tasks?source=smoke"
+for _ in $(seq 1 20); do [[ -s "$SCRATCH/payload.json" ]] && break; sleep 0.1; done
+payload=$(cat "$SCRATCH/payload.json" 2>/dev/null)
+same "hook payload event and source" 'list-changed smoke' "$(printf '%s' "$payload" | /usr/bin/sed -E 's/.*"event":"([^"]*)".*"source":"([^"]*)".*/\1 \2/')"
+same "hook payload carries the list" '"tasks":[{"ref":"smoke:7","title":"Hooked"}]' "$(printf '%s' "$payload" | /usr/bin/sed -E 's/.*("tasks":\[.*\]).*/\1/')"
+same "hook payload time is ISO 8601 UTC" 'ok' "$(printf '%s' "$payload" | /usr/bin/grep -Eq '"at":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z"' && echo ok)"
+same "mainthing hooks lists it with exit 0" 'list-changed  ok  last run' "$(MAINTHING_PORT=$PORT "$CLI" hooks | /usr/bin/head -1 | /usr/bin/cut -c1-26)"
+chmod 775 "$HOOK"
+expect "group writable hook: the change still lands" 200 '{"tasks":[{"title":"Skipped"}]}' -X PUT --data-binary '["Skipped"]' "$BASE/tasks"
+sleep 0.3
+same "group writable hook is reported as skipped" 'list-changed  skipped: group or world writable' "$(MAINTHING_PORT=$PORT "$CLI" hooks | /usr/bin/head -1 | /usr/bin/cut -c1-46)"
+rm -f "$HOOK"
+[[ -e "$HOOK.smoke-backup" ]] && mv "$HOOK.smoke-backup" "$HOOK"
+rm -rf "$SCRATCH"
 
 expect "restore the saved list" 200 "$original" -X PUT --data-binary "$original" "$BASE/tasks"
 
