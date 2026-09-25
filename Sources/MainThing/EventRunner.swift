@@ -92,60 +92,81 @@ final class EventRunner: @unchecked Sendable {
         return (scan(EventPlan.adaptersDirectory(configDirectory)), scan(EventPlan.hooksDirectory(configDirectory)))
     }
 
+    /// After the timeout the group gets SIGTERM, and SIGKILL this much later if it is still there.
+    static let termGrace: TimeInterval = 1
+
+    /// Runs one job in its own process group, so a timeout kills the hook and everything it
+    /// started, not just the shell at the top.
     private func run(_ job: EventJob, stdin payload: Data) -> RunRecord {
         let started = Date()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: job.path)
-        process.arguments = job.arguments
-        process.environment = EventRunner.childEnvironment()
-        let input = Pipe()
-        let output = Pipe()
-        let errors = Pipe()
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = errors
-
-        let exited = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in exited.signal() }
-        do {
-            try process.run()
-        } catch {
+        guard let stdinPipe = EventRunner.pipe(), let stdoutPipe = EventRunner.pipe(), let stderrPipe = EventRunner.pipe() else {
+            return RunRecord(at: started, exit: nil, ms: 0, stderr: "could not open pipes")
+        }
+        let pid: pid_t
+        switch EventRunner.spawn(
+            path: job.path, arguments: job.arguments, environment: EventRunner.childEnvironment(),
+            stdin: stdinPipe.read, stdout: stdoutPipe.write, stderr: stderrPipe.write
+        ) {
+        case .success(let p): pid = p
+        case .failure(let error):
+            for fd in [stdinPipe.read, stdinPipe.write, stdoutPipe.read, stdoutPipe.write, stderrPipe.read, stderrPipe.write] { close(fd) }
             return RunRecord(at: started, exit: nil, ms: 0, stderr: "could not start: \(error.localizedDescription)")
         }
+        // The child holds its ends now.
+        close(stdinPipe.read)
+        close(stdoutPipe.write)
+        close(stderrPipe.write)
 
         // Feed stdin and drain both outputs on other threads, so a child that ignores its input or
         // talks a lot never blocks this one. The write end never raises SIGPIPE in this process.
         let io = DispatchGroup()
         io.enter()
         DispatchQueue.global(qos: .utility).async {
-            EventRunner.write(payload, to: input.fileHandleForWriting)
+            EventRunner.write(payload, to: FileHandle(fileDescriptor: stdinPipe.write, closeOnDealloc: true))
             io.leave()
         }
         let stdoutBox = DataBox()
         let stderrBox = DataBox()
         io.enter()
         DispatchQueue.global(qos: .utility).async {
-            stdoutBox.data = output.fileHandleForReading.readDataToEndOfFile()
+            stdoutBox.data = FileHandle(fileDescriptor: stdoutPipe.read, closeOnDealloc: true).readDataToEndOfFile()
             io.leave()
         }
         io.enter()
         DispatchQueue.global(qos: .utility).async {
-            stderrBox.data = errors.fileHandleForReading.readDataToEndOfFile()
+            stderrBox.data = FileHandle(fileDescriptor: stderrPipe.read, closeOnDealloc: true).readDataToEndOfFile()
             io.leave()
         }
 
+        // One thread waits for the child; this one waits on it with the timeout.
+        let exited = DispatchSemaphore(value: 0)
+        let statusBox = StatusBox()
+        DispatchQueue.global(qos: .utility).async {
+            var status: Int32 = 0
+            while waitpid(pid, &status, 0) < 0 && errno == EINTR {}
+            statusBox.status = status
+            exited.signal()
+        }
         var timedOut = false
         if exited.wait(timeout: .now() + EventRunner.timeout) == .timedOut {
             timedOut = true
-            kill(process.processIdentifier, SIGKILL)
-            exited.wait()
+            killpg(pid, SIGTERM)
+            if exited.wait(timeout: .now() + EventRunner.termGrace) == .timedOut {
+                killpg(pid, SIGKILL)
+                exited.wait()
+            }
+            // Whatever the child left behind in the group is gone too, or goes now.
+            killpg(pid, SIGKILL)
         }
         let ms = Int((Date().timeIntervalSince(started) * 1000).rounded())
-        // A grandchild holding the pipes open must not hold this queue forever.
+        // A stray process holding the pipes open must not hold this queue forever.
         _ = io.wait(timeout: .now() + 2)
         let stdoutData = stdoutBox.data
         let stderrData = stderrBox.data
-        let exit: Int32? = timedOut || process.terminationReason == .uncaughtSignal ? nil : process.terminationStatus
+
+        let status = statusBox.status
+        let exitedNormally = (status & 0x7f) == 0
+        let exit: Int32? = timedOut || !exitedNormally ? nil : (status >> 8) & 0xff
         let stderr = String(decoding: stderrData.prefix(EventRunner.stderrLimit), as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !stdoutData.isEmpty {
@@ -153,6 +174,44 @@ final class EventRunner: @unchecked Sendable {
             log.info("\(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) stdout: \(head, privacy: .public)")
         }
         return RunRecord(at: started, exit: exit, ms: ms, timedOut: timedOut, stderr: stderr)
+    }
+
+    /// A pipe with both ends close-on-exec; the spawn dup2s the child's end into place.
+    private static func pipe() -> (read: Int32, write: Int32)? {
+        var fds: [Int32] = [0, 0]
+        guard Darwin.pipe(&fds) == 0 else { return nil }
+        for fd in fds { _ = fcntl(fd, F_SETFD, FD_CLOEXEC) }
+        return (fds[0], fds[1])
+    }
+
+    /// posix_spawn into a new process group (the child's pid), with only the three standard
+    /// descriptors open. Returns the pid.
+    private static func spawn(path: String, arguments: [String], environment: [String: String], stdin: Int32, stdout: Int32, stderr: Int32) -> Result<pid_t, NSError> {
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        posix_spawn_file_actions_adddup2(&actions, stdin, 0)
+        posix_spawn_file_actions_adddup2(&actions, stdout, 1)
+        posix_spawn_file_actions_adddup2(&actions, stderr, 2)
+
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_CLOEXEC_DEFAULT))
+        posix_spawnattr_setpgroup(&attributes, 0)
+
+        let argv: [UnsafeMutablePointer<CChar>?] = ([path] + arguments).map { strdup($0) } + [nil]
+        let envp: [UnsafeMutablePointer<CChar>?] = environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer {
+            for p in argv { free(p) }
+            for p in envp { free(p) }
+        }
+        var pid: pid_t = 0
+        let rc = posix_spawn(&pid, path, &actions, &attributes, argv, envp)
+        if rc != 0 {
+            return .failure(NSError(domain: NSPOSIXErrorDomain, code: Int(rc), userInfo: [NSLocalizedDescriptionKey: String(cString: strerror(rc))]))
+        }
+        return .success(pid)
     }
 
     /// The app's environment with the usual user tool folders on PATH. Launched from Login Items
@@ -191,6 +250,11 @@ final class EventRunner: @unchecked Sendable {
 /// Output of one pipe, filled on a global queue, read after the group is done.
 private final class DataBox: @unchecked Sendable {
     var data = Data()
+}
+
+/// The child's wait status, filled by the waiting thread.
+private final class StatusBox: @unchecked Sendable {
+    var status: Int32 = 0
 }
 
 /// Main actor view of the runner: the last run of each hook and adapter, and which ones are
