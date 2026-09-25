@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NextUp cover</title>
+<style>
+  /* 1280 x 640 GitHub social preview. Render with Helium or Chrome headless at device scale 1. */
+  html, body { margin: 0; }
+  body {
+    width: 1280px; height: 640px; overflow: hidden; position: relative;
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: #1c1f2b;
+  }
+  /* Desktop: a soft macOS style wallpaper, cool and quiet so the notch and the name lead. */
+  .desktop {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(900px 520px at 18% 110%, rgba(120, 140, 210, 0.55), transparent 60%),
+      radial-gradient(760px 480px at 86% 20%, rgba(150, 110, 170, 0.45), transparent 60%),
+      linear-gradient(180deg, #2a2f44 0%, #1e2233 55%, #171a27 100%);
+  }
+  /* Menu bar, scaled 1.6x from the real 25pt bar. */
+  .menubar {
+    position: absolute; left: 0; right: 0; top: 0; height: 40px;
+    background: rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.18);
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 21px; font-weight: 500; letter-spacing: -0.2px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 26px 0 30px; box-sizing: border-box;
+  }
+  .menubar .left, .menubar .right { display: flex; align-items: center; gap: 30px; }
+  .menubar .left .apple { width: 22px; height: 26px; margin-right: 2px; }
+  .menubar .left .app { font-weight: 700; }
+  .menubar .right { gap: 22px; }
+  .menubar .right svg { display: block; }
+  .menubar .clock { font-variant-numeric: tabular-nums; }
+
+  /* The open notch, geometry from the app scaled 1.6x: 420 wide, 8pt flares, 24pt bottom radius. */
+  .notch {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 698px; /* 420 + 2 * 8 flares, x1.6 */
+    color: #fff;
+    filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.45));
+  }
+  .notch svg.shape { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .notch .content {
+    position: relative;
+    padding: 46px 26px 24px 26px; /* menu bar + 2pt top, 16pt sides, 14pt bottom, x1.6 */
+    display: flex; flex-direction: column; gap: 10px;
+    box-sizing: border-box;
+  }
+  .row1 { display: flex; align-items: center; gap: 16px; }
+  .row1 .circle { width: 35px; height: 35px; flex: 0 0 35px; margin-top: 1px; }
+  .row1 .title { font-size: 24px; font-weight: 600; letter-spacing: -0.1px; line-height: 1.2; }
+  .next { font-size: 21px; color: rgba(255, 255, 255, 0.55); padding-left: 51px; line-height: 1.3; white-space: nowrap; }
+
+  /* Name block. */
+  .brand {
+    position: absolute; left: 0; right: 0; top: 316px;
+    display: flex; align-items: center; justify-content: center; gap: 34px;
+  }
+  .brand img { width: 192px; height: 192px; display: block; }
+  .brand .text { display: flex; flex-direction: column; gap: 6px; }
+  .brand .name {
+    font-family: -apple-system, "SF Pro Display", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 96px; font-weight: 700; letter-spacing: -3px; line-height: 1; color: #fff;
+  }
+  .brand .tag { font-size: 34px; font-weight: 400; letter-spacing: -0.3px; color: rgba(255, 255, 255, 0.72); }
+</style>
+</head>
+<body>
+  <div class="desktop"></div>
+
+  <div class="menubar">
+    <div class="left">
+      <svg class="apple" viewBox="0 0 17 20" fill="currentColor" aria-hidden="true"><path d="M14.1 10.6c0-2.4 2-3.6 2.1-3.7-1.1-1.7-2.9-1.9-3.5-1.9-1.5-.2-2.9.9-3.7.9-.8 0-1.9-.9-3.2-.8C4.2 5.1 2.7 6 1.9 7.5.1 10.5 1.4 15 3.1 17.5c.8 1.2 1.8 2.6 3.1 2.5 1.3-.1 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.4-2.8-.1 0-2.9-1.1-2.9-4.2zM11.7 3.4c.7-.8 1.2-2 1-3.2-1 0-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.5 2.9-1.3z"/></svg>
+      <span class="app">Finder</span><span>File</span><span>Edit</span><span>View</span><span>Go</span><span>Window</span><span>Help</span>
+    </div>
+    <div class="right">
+      <svg width="26" height="20" viewBox="0 0 26 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 7.5a16 16 0 0 1 22 0"/><path d="M6 11.5a10 10 0 0 1 14 0"/><path d="M10 15.5a4.5 4.5 0 0 1 6 0"/></svg>
+      <svg width="38" height="20" viewBox="0 0 38 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="1.5" y="3" width="30" height="14" rx="4"/><rect x="4" y="5.5" width="21" height="9" rx="2" fill="currentColor" stroke="none"/><path d="M34 8v4" stroke-linecap="round"/></svg>
+      <span class="clock">Thu 25 Sep&nbsp;&nbsp;9:41</span>
+    </div>
+  </div>
+
+  <div class="notch">
+    <svg class="shape" viewBox="0 0 698 232" preserveAspectRatio="none" aria-hidden="true">
+      <!-- Flares 12.8 (8pt x1.6), bottom radius 38.4 (24pt x1.6). -->
+      <path d="M0 0 Q12.8 0 12.8 12.8 L12.8 193.6 A38.4 38.4 0 0 0 51.2 232 L646.8 232 A38.4 38.4 0 0 0 685.2 193.6 L685.2 12.8 Q685.2 0 698 0 Z" fill="#000"/>
+    </svg>
+    <div class="content">
+      <div class="row1">
+        <svg class="circle" viewBox="0 0 22 22" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="9"/></svg>
+        <div class="title">Ship the launch post</div>
+      </div>
+      <div class="next">Reply to the design review</div>
+      <div class="next">Update the changelog</div>
+      <div class="next">Book the offsite room</div>
+    </div>
+  </div>
+
+  <div class="brand">
+    <img src="icon.svg" alt="">
+    <div class="text">
+      <div class="name">NextUp</div>
+      <div class="tag">Your next task, in the notch.</div>
+    </div>
+  </div>
+</body>
+</html>
