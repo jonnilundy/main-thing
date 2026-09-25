@@ -1,68 +1,52 @@
 import CoreGraphics
 import Foundation
 
-/// Sizes of the open card. Pure math over measured title widths and heights; the app measures
-/// with the same fonts the rows draw with and hands the numbers in.
+/// Sizes of the open card. Pure math over measured title widths; the app measures with the same
+/// fonts the rows draw with and hands the numbers in. The lanes themselves are in `Lanes`.
 ///
-/// A row is `[padding 16][title ...][padding 16]`, flush left. The card is as wide as its widest
-/// row, at least 300pt, at most 440pt (or half the screen on a tiny one). A title wider than that
-/// stays on one line and truncates at the tail.
+/// The band keeps task 1 where the collapsed notch had it, plus "1 of N" on the right. Rows 2..N
+/// are 28pt pills below it, flush left in the same lanes. The card is as wide as its widest row,
+/// at least 300pt, at most 440pt (or half the screen on a tiny one), and never narrower than the
+/// band. A title wider than that stays on one line and truncates at the tail.
 public enum OpenLayout {
     public static let minimumWidth: CGFloat = 300
     public static let maximumWidth: CGFloat = 440
     public static let screenWidthShare: CGFloat = 0.5
-    /// One inset for the card content: left, right, bottom, and the gap under the notch row,
-    /// all measured from the visible text edges. Picked against the 24pt bottom radius.
-    public static let inset: CGFloat = 18
-    public static var horizontalPadding: CGFloat { inset }
     /// Titles never wrap.
     public static let maxLines = 1
-    public static let rowSpacing: CGFloat = 6
-    /// The frame bottom sits at the descender, so the bottom padding is the inset itself.
-    public static var bottomPadding: CGFloat { inset }
-
-    /// The top padding that puts the first line's cap top `inset` below the notch row.
-    /// `capTopOffset` is the title font's ascender minus its cap height: the leading above the caps.
-    public static func topPadding(capTopOffset: CGFloat) -> CGFloat {
-        max(inset - capTopOffset, 0)
-    }
     /// A small line under the rows, like "sync failed: openbrain" or "API off on port N".
     public static let noteHeight: CGFloat = 14
+    public static let noteSpacing: CGFloat = 6
+    /// The "No tasks" line of an empty list.
+    public static let emptyHeight: CGFloat = 18
     /// The card may take this share of the screen height before its rows scroll.
     public static let screenHeightShare: CGFloat = 0.6
     /// Room under the settled shape for the open bounce to overshoot into.
     public static let bounceHeadroom: CGFloat = 40
 
-    /// Everything in a row that is not the title.
-    public static var rowChrome: CGFloat { 2 * horizontalPadding }
-
-    /// The other tasks are dimmed to 0.55, or 0.8 when the system asks for more contrast.
-    public static func dimOpacity(increaseContrast: Bool) -> Double {
-        increaseContrast ? 0.8 : 0.55
-    }
-
-    /// 640, or half the screen when that is less.
+    /// 440, or half the screen when that is less.
     public static func widthCap(screenWidth: CGFloat) -> CGFloat {
         min(maximumWidth, (screenWidth * screenWidthShare).rounded(.down))
     }
 
-    /// Card content width, before the flares, from the single line width of every title.
-    public static func width(titleWidths: [CGFloat], screenWidth: CGFloat) -> CGFloat {
-        let widest = (titleWidths.max() ?? 0) + rowChrome
-        return min(max(ceil(widest), minimumWidth), widthCap(screenWidth: screenWidth))
+    /// Card content width, before the flares. The rows follow the widest title of rows 2..N,
+    /// clamped; the band (task 1 plus the count) is never cut, so the card is at least that wide.
+    public static func width(bandWidth: CGFloat, rowTitleWidths: [CGFloat], screenWidth: CGFloat) -> CGFloat {
+        let widest = (rowTitleWidths.max() ?? 0) + Lanes.rowChrome
+        let rows = min(max(ceil(widest), minimumWidth), widthCap(screenWidth: screenWidth))
+        return max(rows, ceil(bandWidth))
     }
 
-    /// The width a title may use inside a card of `contentWidth`.
+    /// The width a row title may use inside a card of `contentWidth`.
     public static func titleWidth(contentWidth: CGFloat) -> CGFloat {
-        max(contentWidth - rowChrome, 1)
+        max(contentWidth - Lanes.rowChrome, 1)
     }
 
-    /// Height of the rows block: rows, spacing, top and bottom padding, and any note lines.
-    public static func contentHeight(rowHeights: [CGFloat], notes: Int = 0, topPadding: CGFloat) -> CGFloat {
-        let rows = rowHeights.isEmpty ? [noteHeight + 4] : rowHeights
-        let lines = rows.count + notes
-        return topPadding + rows.reduce(0, +) + CGFloat(notes) * noteHeight
-            + CGFloat(max(lines - 1, 0)) * rowSpacing + bottomPadding
+    /// Height of the body under the band: the top gap, one 28pt pill per row 2..N (or the
+    /// "No tasks" line), any note lines, and the bottom padding.
+    public static func contentHeight(rows: Int, empty: Bool = false, notes: Int = 0) -> CGFloat {
+        let body = empty ? emptyHeight : CGFloat(max(rows, 0)) * Lanes.rowHeight
+        return Lanes.topGap + body + CGFloat(notes) * (noteSpacing + noteHeight) + Lanes.bottomPadding
     }
 
     /// The panel height that fits the open card plus bounce headroom, capped at 60 percent of the
@@ -73,9 +57,8 @@ public enum OpenLayout {
         if wanted <= cap {
             return (max(ceil(wanted), minimum), nil)
         }
-        // The rows block must fit in the cap with its padding and the headroom. The top padding is
-        // taken as 14, the title font's usual value; a point either way only shifts the scroll edge.
-        let rowsMax = cap - notchHeight - bounceHeadroom - 14 - bottomPadding
+        // The rows block must fit in the cap with the gap above it, the padding below and the headroom.
+        let rowsMax = cap - notchHeight - bounceHeadroom - Lanes.topGap - Lanes.bottomPadding
         return (max(cap, minimum), max(rowsMax, 40))
     }
 }

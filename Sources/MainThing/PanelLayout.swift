@@ -26,15 +26,13 @@ final class PanelLayout {
         shrink = nil
         let geometry = model.geometry
         let rows = store.list.rows
-        let fonts = rows.indices.map { $0 == 0 ? NotchMetrics.titleNSFont : NotchMetrics.rowNSFont }
-        let widths = zip(rows, fonts).map { PanelLayout.width(of: $0.title, font: $1) }
-        let width = OpenLayout.width(titleWidths: widths, screenWidth: geometry.screenFrame.width)
-        let titleWidth = OpenLayout.titleWidth(contentWidth: width)
-        let heights = zip(rows, fonts).map { row, font in
-            PanelLayout.height(of: row.title, font: font, width: titleWidth, lines: OpenLayout.maxLines)
-        }
+        let collapsed = NotchMetrics.width(for: rows.first?.title, minimum: geometry.minimumWidth)
+        let count = rows.isEmpty ? 0 : PanelLayout.width(of: Lanes.countText(rows.count), font: NotchMetrics.countNSFont)
+        let band = Lanes.bandWidth(collapsedWidth: collapsed, countWidth: count)
+        let widths = rows.dropFirst().map { PanelLayout.width(of: $0.title, font: NotchMetrics.rowNSFont) }
+        let width = OpenLayout.width(bandWidth: band, rowTitleWidths: widths, screenWidth: geometry.screenFrame.width)
         let notes = (model.apiBound ? 0 : 1) + store.events.failing.count
-        let content = OpenLayout.contentHeight(rowHeights: heights, notes: notes, topPadding: NotchMetrics.topPadding)
+        let content = OpenLayout.contentHeight(rows: max(rows.count - 1, 0), empty: rows.isEmpty, notes: notes)
         let fit = OpenLayout.panelHeight(
             notchHeight: geometry.notchHeight, contentHeight: content,
             screenHeight: geometry.screenFrame.height, minimum: NotchGeometry.panelSize.height

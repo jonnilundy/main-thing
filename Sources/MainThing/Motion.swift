@@ -75,8 +75,8 @@ enum Motion {
         )
     }
 
-    /// The collapsed title on open and close: a quick fade.
-    static func collapsedTitle(_ reduceMotion: Bool) -> AnyTransition {
+    /// "1 of N" in the band: a quick fade in and out.
+    static func count(_ reduceMotion: Bool) -> AnyTransition {
         .opacity.animation(reduceMotion ? reducedFade : fade)
     }
 

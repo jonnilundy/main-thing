@@ -59,20 +59,26 @@ func runOpenChecks() {
     section("OpenLayout")
     do {
         let screen: CGFloat = 2560
-        check("one inset of 18 on the left, right and bottom", OpenLayout.inset == 18 && OpenLayout.horizontalPadding == 18 && OpenLayout.bottomPadding == 18 && OpenLayout.rowChrome == 36)
-        check("top padding puts the cap top 18 under the notch row", OpenLayout.topPadding(capTopOffset: 3.8) == 14.2 && OpenLayout.topPadding(capTopOffset: 30) == 0)
-        check("short list keeps the 300 minimum", OpenLayout.width(titleWidths: [120, 80, 200], screenWidth: screen) == 300)
-        check("empty list keeps the minimum", OpenLayout.width(titleWidths: [], screenWidth: screen) == 300)
-        check("a long title sets the width", OpenLayout.width(titleWidths: [120, 350.4], screenWidth: screen) == 387)
-        check("the 440 cap holds", OpenLayout.width(titleWidths: [900], screenWidth: screen) == 440)
-        check("half of a tiny screen caps below 440", OpenLayout.width(titleWidths: [900], screenWidth: 800) == 400)
+        check("row chrome is 64: the lanes plus the pill padding and inset", Lanes.rowChrome == 64)
+        check("short rows keep the 300 minimum", OpenLayout.width(bandWidth: 220, rowTitleWidths: [120, 80, 200], screenWidth: screen) == 300)
+        check("no rows keeps the minimum", OpenLayout.width(bandWidth: 220, rowTitleWidths: [], screenWidth: screen) == 300)
+        check("a long row title sets the width", OpenLayout.width(bandWidth: 220, rowTitleWidths: [120, 350.4], screenWidth: screen) == 415)
+        check("the 440 cap holds for rows", OpenLayout.width(bandWidth: 220, rowTitleWidths: [900], screenWidth: screen) == 440)
+        check("the band is never cut: a wide band wins over the cap", OpenLayout.width(bandWidth: 512.5, rowTitleWidths: [900], screenWidth: screen) == 513)
+        check("half of a tiny screen caps below 440", OpenLayout.width(bandWidth: 220, rowTitleWidths: [900], screenWidth: 800) == 400)
         check("width cap is the smaller of 440 and half the screen", OpenLayout.widthCap(screenWidth: 1512) == 440 && OpenLayout.widthCap(screenWidth: 700) == 350)
-        check("title width is the card minus the chrome", OpenLayout.titleWidth(contentWidth: 300) == 264)
+        check("row title width is the card minus the chrome", OpenLayout.titleWidth(contentWidth: 300) == 236)
         check("titles never wrap", OpenLayout.maxLines == 1)
+        check("band width: the collapsed band plus the gap and the count", Lanes.bandWidth(collapsedWidth: 265, countWidth: 30.2) == 265 + 12 + 31)
+        check("band title lane: the card minus the lanes, the count and the padding", Lanes.bandTitleWidth(contentWidth: 400, countWidth: 30) == 400 - 46 - 12 - 30 - 18)
+        check("the band title always fits next to the count", Lanes.bandTitleWidth(contentWidth: Lanes.bandWidth(collapsedWidth: Lanes.collapsedWidth(titleWidth: 200.2, minimum: 169), countWidth: 30), countWidth: 30) == 201)
+        check("count text", Lanes.countText(5) == "1 of 5")
+        check("pill: inset 8, radius 8, 28 high, 10 above the bottom", Lanes.pillWidth(contentWidth: 300) == 284 && Lanes.pillRadius == 8 && Lanes.rowHeight == 28 && Lanes.bottomPadding == 10 && Lanes.topGap == 6)
 
-        check("content height: rows, spacing, padding", OpenLayout.contentHeight(rowHeights: [22, 18, 18], topPadding: 14) == 14 + 58 + 12 + 18)
-        check("content height with two note lines", OpenLayout.contentHeight(rowHeights: [22], topPadding: 14) + 2 * (14 + 6) == OpenLayout.contentHeight(rowHeights: [22], notes: 2, topPadding: 14))
-        check("content height of an empty list is one line", OpenLayout.contentHeight(rowHeights: [], topPadding: 14) == 14 + 18 + 18)
+        check("content height: gap 6, four pills, padding 10", OpenLayout.contentHeight(rows: 4) == 6 + 112 + 10)
+        check("content height with two note lines", OpenLayout.contentHeight(rows: 1) + 2 * (6 + 14) == OpenLayout.contentHeight(rows: 1, notes: 2))
+        check("content height with only task 1 is the gap and the padding", OpenLayout.contentHeight(rows: 0) == 16)
+        check("content height of an empty list is one line", OpenLayout.contentHeight(rows: 0, empty: true) == 6 + 18 + 10)
 
         let small = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 100, screenHeight: 1440, minimum: 260)
         check("a short card keeps the 260 minimum and does not scroll", small.panel == 260 && small.rowsMax == nil)
@@ -80,9 +86,14 @@ func runOpenChecks() {
         check("a taller card grows the panel with 40pt headroom", mid.panel == 470 && mid.rowsMax == nil)
         let tall = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 2000, screenHeight: 1440, minimum: 260)
         check("past 60 percent of the screen the panel caps at 864", tall.panel == 864)
-        check("and the rows scroll inside what is left", tall.rowsMax == 864 - 30 - 40 - 14 - 18)
+        check("and the rows scroll inside what is left", tall.rowsMax == 864 - 30 - 40 - 6 - 10)
         let edge = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 794, screenHeight: 1440, minimum: 260)
         check("exactly at the cap: no scrolling", edge.panel == 864 && edge.rowsMax == nil)
+
+        check("sub tasks: titles 46 percent, numbers 24", Lanes.rowTitleOpacity(hovered: false, increaseContrast: false) == 0.46 && Lanes.numberOpacity(hovered: false, increaseContrast: false) == 0.24)
+        check("hovered row: title 90 percent, number 50, pill 8", Lanes.rowTitleOpacity(hovered: true, increaseContrast: false) == 0.9 && Lanes.numberOpacity(hovered: true, increaseContrast: false) == 0.5 && Lanes.pillOpacity == 0.08)
+        check("increase contrast lifts the dim rows", Lanes.rowTitleOpacity(hovered: false, increaseContrast: true) == 0.8 && Lanes.numberOpacity(hovered: false, increaseContrast: true) == 0.6)
+        check("count is 42 percent", Lanes.countOpacity == 0.42)
     }
 
     section("PenStroke")
@@ -156,6 +167,5 @@ func runOpenChecks() {
         _ = pending.toggle("C#0")
         pending.keep(only: ["C#0"])
         check("keep(only:) drops rows that left the list", !pending.isPending("B#0") && pending.isPending("C#0"))
-        check("dim rows are 0.55, or 0.8 with Increase Contrast", OpenLayout.dimOpacity(increaseContrast: false) == 0.55 && OpenLayout.dimOpacity(increaseContrast: true) == 0.8)
     }
 }

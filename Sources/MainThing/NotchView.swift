@@ -41,10 +41,11 @@ struct NotchBody: View {
     var body: some View {
         let rows = store.list.rows
         let keys = rows.map(\.key)
-        let title = rows.first?.title
         let geometry = model.geometry
-        let collapsedWidth = NotchMetrics.width(for: title, minimum: geometry.minimumWidth)
-        let openWidth = max(collapsedWidth, model.openWidth)
+        let collapsedWidth = NotchMetrics.width(for: rows.first?.title, minimum: geometry.minimumWidth)
+        let countWidth = rows.isEmpty ? 0 : NotchMetrics.countWidth(rows.count)
+        // The band is never cut: the open card is at least the collapsed band plus the count.
+        let openWidth = max(Lanes.bandWidth(collapsedWidth: collapsedWidth, countWidth: countWidth), model.openWidth)
         // The shape width springs between these. Content is laid out at its own final width,
         // never at the animating width, and the clip hides the overflow while the spring settles.
         let width = model.isOpen ? openWidth : collapsedWidth
@@ -53,14 +54,17 @@ struct NotchBody: View {
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
         )
         VStack(spacing: 0) {
-            // The notch row, hanging under the menu bar. Holds the title when collapsed.
-            ZStack {
-                if !model.isOpen {
-                    Band(rows: rows, width: width, height: geometry.notchHeight)
-                        .transition(Motion.collapsedTitle(reduceMotion))
-                }
-            }
-            .frame(width: width, height: geometry.notchHeight)
+            // The band, hanging under the menu bar: the dot and task 1 in both states. Its frame
+            // width is what animates, and the band is leading aligned, so the dot and the title
+            // ride with the card's left edge and never re-align or swap.
+            Band(
+                rows: rows,
+                width: width,
+                height: geometry.notchHeight,
+                isOpen: model.isOpen,
+                struck: rows.first.map { model.pending.isPending($0.key) } ?? false,
+                onToggle: { if let first = rows.first { onToggle(first) } }
+            )
             if model.isOpen {
                 OpenContent(store: store, model: model, onToggle: onToggle, width: openWidth)
                     .transition(Motion.openContent(reduceMotion))
@@ -79,13 +83,18 @@ struct NotchBody: View {
 }
 
 /// The band: the pink dot in the marker lane, then the current task in the text lane, left
-/// aligned at the card padding. One view in both states, so nothing swaps on open. A task change
-/// pushes the new title in; each title keeps its own natural width, so a title that fits never
-/// truncates while the shape width animates around it. Empty list: nothing, the plain notch.
+/// aligned at the card padding. One view in both states, so nothing swaps on open; open, the
+/// count "1 of N" sits right aligned. A task change pushes the new title in; each title keeps its
+/// own natural width, so a title that fits never truncates while the shape width animates around
+/// it. The title is the button that crosses task 1 off. Empty list: nothing, the plain notch.
 struct Band: View {
     let rows: [TaskList.Row]
     let width: CGFloat
     let height: CGFloat
+    let isOpen: Bool
+    let struck: Bool
+    let onToggle: () -> Void
+    @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -94,19 +103,46 @@ struct Band: View {
                 Dot()
                     .frame(width: Lanes.markerSlot, height: Lanes.markerSlot)
                 ZStack(alignment: .leading) {
-                    Text(current.title)
-                        .font(NotchMetrics.font)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
-                        .id(current.key)
-                        .transition(Motion.push(reduceMotion))
+                    Button(action: onToggle) {
+                        Text(current.title)
+                            .font(NotchMetrics.font)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .modifier(Ink(
+                                progress: struck ? 1 : 0,
+                                preview: hovering && isOpen && !struck ? 1 : 0,
+                                key: current.key,
+                                xHeight: NotchMetrics.nsFont.xHeight,
+                                thickness: 3.2,
+                                inkOpacity: 1
+                            ))
+                            .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                            .animation(reduceMotion ? nil : Motion.preview, value: hovering)
+                            .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(RowButtonStyle())
+                    .onHover { hovering = $0 }
+                    .accessibilityLabel(current.title)
+                    .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
+                    .accessibilityAction(named: "Cross off") { onToggle() }
+                    .id(current.key)
+                    .transition(Motion.push(reduceMotion))
                 }
             }
         }
         .padding(.leading, Lanes.slotStart)
         .frame(width: width, height: height, alignment: .leading)
+        .overlay(alignment: .trailing) {
+            if isOpen, !rows.isEmpty {
+                Text(Lanes.countText(rows.count))
+                    .font(NotchMetrics.countFont)
+                    .foregroundStyle(.white.opacity(Lanes.countOpacity))
+                    .padding(.trailing, Lanes.padding)
+                    .transition(Motion.count(reduceMotion))
+            }
+        }
         .animation(Motion.content(reduceMotion), value: rows.map(\.key))
     }
 }
@@ -121,7 +157,8 @@ struct Dot: View {
     }
 }
 
-/// The open card: every row, the current one large. Past 60 percent of the screen the rows scroll.
+/// The body of the open card under the band: rows 2..N as pills in the same lanes, dim so the
+/// main thing stays the focus. Past 60 percent of the screen the rows scroll.
 struct OpenContent: View {
     let store: TaskStore
     let model: NotchModel
@@ -132,19 +169,22 @@ struct OpenContent: View {
     var body: some View {
         let rows = store.list.rows
         let keys = rows.map(\.key)
-        VStack(alignment: .leading, spacing: OpenLayout.rowSpacing) {
+        let others = Array(rows.dropFirst())
+        VStack(alignment: .leading, spacing: 0) {
             if rows.isEmpty {
                 Text("No tasks")
-                    .font(.system(size: 13))
+                    .font(NotchMetrics.rowFont)
                     .foregroundStyle(.white.opacity(0.5))
+                    .frame(height: OpenLayout.emptyHeight)
+                    .padding(.leading, Lanes.textStart - Lanes.pillInset)
                     .transition(.opacity)
             } else {
                 RowsBlock(maxHeight: model.rowsMaxHeight) {
-                    VStack(alignment: .leading, spacing: OpenLayout.rowSpacing) {
-                        ForEach(rows) { row in
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(others.enumerated()), id: \.element.key) { index, row in
                             TaskRow(
                                 row: row,
-                                isCurrent: row.key == keys.first,
+                                number: index + 2,
                                 struck: model.pending.isPending(row.key),
                                 width: width,
                                 action: { onToggle(row) }
@@ -156,26 +196,38 @@ struct OpenContent: View {
                 }
             }
             if !model.apiBound {
-                Text("API off on port " + String(model.apiPort))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.4))
+                Note("API off on port " + String(model.apiPort))
             }
             // A hook or adapter whose last run failed, until it next succeeds.
             ForEach(store.events.failing, id: \.self) { label in
-                Text("sync failed: " + label)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .lineLimit(1)
+                Note("sync failed: " + label)
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, OpenLayout.horizontalPadding)
-        .padding(.top, NotchMetrics.topPadding)
-        .padding(.bottom, OpenLayout.bottomPadding)
+        .padding(.horizontal, Lanes.pillInset)
+        .padding(.top, Lanes.topGap)
+        .padding(.bottom, Lanes.bottomPadding)
         // Laid out at the final open width. The width itself does not animate here.
         .frame(width: width, alignment: .leading)
         .animation(nil, value: width)
         .animation(Motion.content(reduceMotion), value: keys)
+    }
+}
+
+/// A small line under the rows, in the text lane.
+struct Note: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.white.opacity(0.4))
+            .lineLimit(1)
+            .frame(height: OpenLayout.noteHeight)
+            .padding(.top, OpenLayout.noteSpacing)
+            .padding(.leading, Lanes.textStart - Lanes.pillInset)
     }
 }
 
@@ -243,50 +295,59 @@ struct SoundItem: View {
     }
 }
 
-/// One task, flush left, one line: a title wider than the card truncates with an ellipsis and
-/// shows in full as a tooltip. The whole row is the button. Hover shows a faint preview of the
-/// cross off; a click draws it like a pen on paper, and 400ms later the row leaves. A click in
-/// that window erases the ink and keeps the row.
+/// One of rows 2..N: a 28pt pill with the row number in the marker lane and the title in the
+/// text lane, one line; a title wider than the card truncates with an ellipsis and shows in full
+/// as a tooltip. The whole pill is the button. Hover fills the pill, lifts the title and the
+/// number, and shows a faint preview of the cross off; a click draws it like a pen on paper, and
+/// 400ms later the row leaves. A click in that window erases the ink and keeps the row.
 struct TaskRow: View {
     let row: TaskList.Row
-    let isCurrent: Bool
+    let number: Int
     let struck: Bool
-    /// Card content width, for the line count the pen has to cross.
+    /// Card content width, for the pill and the line count the pen has to cross.
     let width: CGFloat
     let action: () -> Void
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let font = isCurrent ? NotchMetrics.titleFont : NotchMetrics.rowFont
-        let nsFont = isCurrent ? NotchMetrics.titleNSFont : NotchMetrics.rowNSFont
-        let dim = OpenLayout.dimOpacity(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
-        let truncated = PanelLayout.width(of: row.title, font: nsFont) > OpenLayout.titleWidth(contentWidth: width)
-        // The row under the cursor lifts, so it is obvious before the click.
-        let textOpacity = isCurrent ? 1 : (hovering ? NotchMetrics.hoverOpacity : dim)
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let titleOpacity = Lanes.rowTitleOpacity(hovered: hovering, increaseContrast: contrast)
+        let numberOpacity = Lanes.numberOpacity(hovered: hovering, increaseContrast: contrast)
+        let truncated = PanelLayout.width(of: row.title, font: NotchMetrics.rowNSFont) > OpenLayout.titleWidth(contentWidth: width)
+        let pill = RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
         Button(action: action) {
-            Text(row.title)
-                .font(font)
-                .foregroundStyle(.white.opacity(textOpacity))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .modifier(Ink(
-                    progress: struck ? 1 : 0,
-                    preview: hovering && !struck ? 1 : 0,
-                    key: row.key,
-                    xHeight: nsFont.xHeight,
-                    thickness: isCurrent ? 3.2 : 2.8,
-                    inkOpacity: isCurrent ? 1 : dim
-                ))
-                // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
-                // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
-                .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
-                .animation(reduceMotion ? nil : Motion.preview, value: hovering)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+            HStack(spacing: Lanes.gap) {
+                Text(String(number))
+                    .font(NotchMetrics.numberFont)
+                    .foregroundStyle(.white.opacity(numberOpacity))
+                    .frame(width: Lanes.markerSlot)
+                Text(row.title)
+                    .font(NotchMetrics.rowFont)
+                    .foregroundStyle(.white.opacity(titleOpacity))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .modifier(Ink(
+                        progress: struck ? 1 : 0,
+                        preview: hovering && !struck ? 1 : 0,
+                        key: row.key,
+                        xHeight: NotchMetrics.rowNSFont.xHeight,
+                        thickness: 2.8,
+                        inkOpacity: Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast)
+                    ))
+                    // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
+                    // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
+                    .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, Lanes.pillPadding)
+            .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
+            .background(pill.fill(.white.opacity(hovering ? Lanes.pillOpacity : 0)))
+            .contentShape(pill)
         }
         .buttonStyle(RowButtonStyle())
         .onHover { hovering = $0 }
+        .animation(reduceMotion ? nil : Motion.preview, value: hovering)
         .help(truncated ? row.title : "")
         .accessibilityLabel(row.title)
         .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
@@ -430,22 +491,16 @@ enum NotchMetrics {
     static let dotSize: CGFloat = 7
     static let dotGlow: CGFloat = 8
     static let dotGlowOpacity: Double = 0.7
-    /// The current task in the open state.
-    static let titleFont = Font.system(size: 15, weight: .semibold)
-    @MainActor static let titleNSFont = NSFont.systemFont(ofSize: 15, weight: .semibold)
-    /// The other tasks in the open state.
+    /// The other tasks in the open state, and their row numbers.
     static let rowFont = Font.system(size: 13)
     @MainActor static let rowNSFont = NSFont.systemFont(ofSize: 13)
+    static let numberFont = Font.system(size: 11, weight: .medium).monospacedDigit()
+    /// "1 of N" in the open band.
+    static let countFont = Font.system(size: 11, weight: .medium)
+    @MainActor static let countNSFont = NSFont.systemFont(ofSize: 11, weight: .medium)
     /// The hover preview of the cross off: thinner and translucent next to the real ink.
     static let previewThickness: CGFloat = 1.6
     static let previewOpacity: Double = 0.55
-    /// A dim row lifts to this while the cursor is on it.
-    static let hoverOpacity: Double = 0.85
-    /// The gap under the notch row so the first title's cap top sits one inset below it.
-    @MainActor static var topPadding: CGFloat { OpenLayout.topPadding(capTopOffset: titleNSFont.ascender - titleNSFont.capHeight) }
-    /// x-heights, for the strike line.
-    @MainActor static let titleXHeight: CGFloat = titleNSFont.xHeight
-    @MainActor static let rowXHeight: CGFloat = rowNSFont.xHeight
     static let flare = NotchGeometry.flare
     static let bottomRadius: CGFloat = 12
     static let openBottomRadius: CGFloat = 24
@@ -461,6 +516,11 @@ enum NotchMetrics {
     /// The band title's own width: its single line width, capped where the collapsed notch caps.
     @MainActor static func titleWidth(for title: String) -> CGFloat {
         min(ceil((title as NSString).size(withAttributes: [.font: nsFont]).width), Lanes.collapsedTitleWidth)
+    }
+
+    /// Single line width of "1 of N".
+    @MainActor static func countWidth(_ count: Int) -> CGFloat {
+        ceil((Lanes.countText(count) as NSString).size(withAttributes: [.font: countNSFont]).width)
     }
 }
 
