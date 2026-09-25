@@ -96,3 +96,7 @@ open build/NextUp.app --args --open   # start with the notch held open, for scre
 ```
 
 Set `NEXTUP_SNAPSHOT_DIR=/some/dir` in the environment to get a PNG of the notch after each change, rendered by the app itself.
+
+## Contributing
+
+Build with the Command Line Tools only, no Xcode: `xcode-select --install`, then `swift run nextup-checks` for the logic checks and `scripts/build-app.sh` for the app bundle. The bundle version comes from `NextUpVersion` in `Sources/NextUpCore/Version.swift`; change it in that one place. MIT licensed, see LICENSE.
