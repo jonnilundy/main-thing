@@ -1,3 +1,4 @@
+import MainThingCore
 import SwiftUI
 
 /// Motion tokens. Snappy with a little bounce. Nothing runs longer than about 300ms to settle,
@@ -60,24 +61,38 @@ enum Motion {
         )
     }
 
-    /// Open content. It does not wait for the shape: opacity fades in over 120ms from the
-    /// start, while it rises 4pt and scales from 0.97 with the open spring. Out: a quick fade.
+    /// A row or the count fading in with a 4pt rise while the card widens.
+    static let rise = Animation.easeOut(duration: 0.18)
+
+    /// The open card body. In: nothing of its own, the rows and the count each rise in on their
+    /// own schedule. Out: a quick calm fade while the shape shrinks.
     static func openContent(_ reduceMotion: Bool) -> AnyTransition {
-        if reduceMotion { return .opacity.animation(reducedFade) }
-        return .asymmetric(
-            insertion: .opacity.animation(fade).combined(
-                with: .modifier(
-                    active: Rise(offset: 4, scale: 0.97),
-                    identity: Rise(offset: 0, scale: 1)
-                ).animation(openSpring)
-            ),
-            removal: .opacity.animation(fade)
+        .asymmetric(
+            insertion: .identity,
+            removal: .opacity.animation(reduceMotion ? reducedFade : fade)
         )
     }
 
-    /// "1 of N" in the band: a quick fade in and out.
-    static func count(_ reduceMotion: Bool) -> AnyTransition {
-        .opacity.animation(reduceMotion ? reducedFade : fade)
+    /// Row `index` of rows 2..N on open: fades in with a 4pt rise, 20ms later per row, at most
+    /// 120ms after the first. Out: the push, rising and blurring away, as when it is crossed off.
+    /// Reduce Motion: opacity only.
+    static func row(_ reduceMotion: Bool, index: Int) -> AnyTransition {
+        if reduceMotion { return .opacity.animation(reducedFade) }
+        return .asymmetric(
+            insertion: .modifier(
+                active: Blend(offset: 4, opacity: 0, blur: 0),
+                identity: Blend(offset: 0, opacity: 1, blur: 0)
+            ).animation(rise.delay(Lanes.rowDelay(index: index))),
+            removal: .modifier(
+                active: Blend(offset: -10, opacity: 0, blur: 3),
+                identity: Blend(offset: 0, opacity: 1, blur: 0)
+            ).animation(pushSpring)
+        )
+    }
+
+    /// "1 of N" in the band: in with the first row, a 4pt rise; out with a quick fade.
+    static func countFade(_ reduceMotion: Bool, opening: Bool) -> Animation {
+        reduceMotion ? reducedFade : (opening ? rise : fade)
     }
 
     static func symbol(_ reduceMotion: Bool) -> ContentTransition {
@@ -96,17 +111,5 @@ struct Blend: ViewModifier {
             .offset(y: offset)
             .opacity(opacity)
             .blur(radius: blur)
-    }
-}
-
-/// Vertical offset and scale from the top edge, for content that rises into place.
-struct Rise: ViewModifier {
-    var offset: CGFloat
-    var scale: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .offset(y: offset)
-            .scaleEffect(scale, anchor: .top)
     }
 }

@@ -95,6 +95,7 @@ struct Band: View {
     let struck: Bool
     let onToggle: () -> Void
     @State private var hovering = false
+    @State private var countShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -118,12 +119,15 @@ struct Band: View {
                                 inkOpacity: 1
                             ))
                             .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
-                            .animation(reduceMotion ? nil : Motion.preview, value: hovering)
                             .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(RowButtonStyle())
-                    .onHover { hovering = $0 }
+                    // An explicit transaction, not `.animation(_:value:)`: that modifier would also
+                    // animate the title's position with the preview timing on the frame the cursor
+                    // lands on it, which is the frame the card starts to widen, and the title would
+                    // run ahead of the dot.
+                    .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside } }
                     .accessibilityLabel(current.title)
                     .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
                     .accessibilityAction(named: "Cross off") { onToggle() }
@@ -135,13 +139,20 @@ struct Band: View {
         .padding(.leading, Lanes.slotStart)
         .frame(width: width, height: height, alignment: .leading)
         .overlay(alignment: .trailing) {
-            if isOpen, !rows.isEmpty {
+            // Always in the tree, so it rides with the animating right edge instead of landing on
+            // the final one; opacity and a 4pt rise come in on their own transaction.
+            if !rows.isEmpty {
                 Text(Lanes.countText(rows.count))
                     .font(NotchMetrics.countFont)
                     .foregroundStyle(.white.opacity(Lanes.countOpacity))
                     .padding(.trailing, Lanes.padding)
-                    .transition(Motion.count(reduceMotion))
+                    .opacity(countShown ? 1 : 0)
+                    .offset(y: countShown || reduceMotion ? 0 : 4)
+                    .accessibilityHidden(!isOpen)
             }
+        }
+        .onChange(of: isOpen, initial: true) { _, open in
+            withAnimation(Motion.countFade(reduceMotion, opening: open)) { countShown = open }
         }
         .animation(Motion.content(reduceMotion), value: rows.map(\.key))
     }
@@ -189,7 +200,7 @@ struct OpenContent: View {
                                 width: width,
                                 action: { onToggle(row) }
                             )
-                            .transition(Motion.push(reduceMotion))
+                            .transition(Motion.row(reduceMotion, index: index))
                         }
                     }
                     .animation(Motion.content(reduceMotion), value: keys)
@@ -346,8 +357,8 @@ struct TaskRow: View {
             .contentShape(pill)
         }
         .buttonStyle(RowButtonStyle())
-        .onHover { hovering = $0 }
-        .animation(reduceMotion ? nil : Motion.preview, value: hovering)
+        // See Band: an explicit transaction keeps the row's position on the list's own animation.
+        .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside } }
         .help(truncated ? row.title : "")
         .accessibilityLabel(row.title)
         .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")

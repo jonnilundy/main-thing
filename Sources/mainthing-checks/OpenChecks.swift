@@ -54,6 +54,8 @@ func runOpenChecks() {
         check("collapsed width keeps the minimum", Lanes.collapsedWidth(titleWidth: 40, minimum: 169) == 169 && Lanes.collapsedWidth(titleWidth: 40, minimum: 204) == 204)
         check("no title: the minimum", Lanes.collapsedWidth(titleWidth: nil, minimum: 169) == 169 && Lanes.collapsedWidth(titleWidth: 0, minimum: 169) == 169)
         check("collapsed width caps at 600", Lanes.collapsedWidth(titleWidth: 900, minimum: 169) == 600 && Lanes.collapsedTitleWidth == 536)
+        check("rows rise in 20ms apart", Lanes.rowDelay(index: 0) == 0 && Lanes.rowDelay(index: 1) == 0.02 && Lanes.rowDelay(index: 3) == 0.06)
+        check("the stagger caps at 120ms", Lanes.rowDelay(index: 6) == 0.12 && Lanes.rowDelay(index: 40) == 0.12 && Lanes.rowDelay(index: -1) == 0)
     }
 
     section("OpenLayout")
