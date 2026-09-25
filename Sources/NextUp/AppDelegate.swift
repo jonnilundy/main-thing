@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated { self?.screensChanged() }
         }
 
-        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hardwareNotchWidth, privacy: .public), api port \(server.port, privacy: .public)")
+        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hasHardwareNotch, privacy: .public), api port \(server.port, privacy: .public)")
     }
 
     /// Geometry for the chosen screen: the one with a hardware notch, else the primary.
@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrame(geometry.panelFrame, display: true)
         model.geometry = geometry
         hover?.refresh()
-        log.notice("display change: panel at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hardwareNotchWidth, privacy: .public)")
+        log.notice("display change: panel at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hasHardwareNotch, privacy: .public)")
     }
 
     /// One instance only. Returns true when this process should stop because another copy runs.

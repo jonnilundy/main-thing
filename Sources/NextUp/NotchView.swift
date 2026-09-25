@@ -51,10 +51,10 @@ struct NotchBody: View {
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
         )
         VStack(spacing: 0) {
-            // The notch row: the menu bar row, or the camera housing plus the title band under it.
-            ZStack(alignment: .bottom) {
+            // The notch row, hanging under the menu bar. Holds the title when collapsed.
+            ZStack {
                 if !model.isOpen {
-                    CollapsedTitle(rows: rows, bandHeight: geometry.titleBandHeight, minimumWidth: geometry.minimumWidth)
+                    CollapsedTitle(rows: rows, height: geometry.notchHeight, minimumWidth: geometry.minimumWidth)
                         .transition(Motion.fadeBlur(reduceMotion))
                 }
             }
@@ -79,12 +79,12 @@ struct NotchBody: View {
 /// fits never truncates while the shape width animates around it.
 struct CollapsedTitle: View {
     let rows: [TaskList.Row]
-    let bandHeight: CGFloat
+    let height: CGFloat
     let minimumWidth: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             if let current = rows.first {
                 Text(current.title)
                     .font(NotchMetrics.font)
@@ -92,7 +92,7 @@ struct CollapsedTitle: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.horizontal, NotchMetrics.textInset)
-                    .frame(width: NotchMetrics.width(for: current.title, minimum: minimumWidth), height: bandHeight)
+                    .frame(width: NotchMetrics.width(for: current.title, minimum: minimumWidth), height: height)
                     .id(current.key)
                     .transition(Motion.push(reduceMotion))
             }
@@ -226,7 +226,7 @@ enum NotchMetrics {
 
     /// Collapsed notch width before the flares. Follows the title, clamped.
     /// `minimum` comes from the geometry: plain 140, or the camera housing width.
-    @MainActor static func width(for title: String?, minimum: CGFloat = NotchGeometry.plainMinimumWidth) -> CGFloat {
+    @MainActor static func width(for title: String?, minimum: CGFloat = NotchGeometry.housingWidth - 2 * NotchGeometry.flare) -> CGFloat {
         guard let title, !title.isEmpty else { return minimum }
         let text = (title as NSString).size(withAttributes: [.font: nsFont]).width
         return min(max(ceil(text) + textInset * 2, minimum), maxWidth)

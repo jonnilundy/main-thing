@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Borderless, non-activating panel that sits above the menu bar on every space.
+/// Borderless, non-activating panel that hangs under the menu bar on every space.
 final class NotchPanel: NSPanel {
     init(contentRect: NSRect) {
         super.init(
@@ -25,13 +25,13 @@ final class NotchPanel: NSPanel {
         level = NotchPanel.level
     }
 
-    /// One above the menu bar, so the notch covers the menu bar row.
+    /// One above the menu bar level, so the notch stays over full screen apps. The frame never overlaps the menu bar.
     static let level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1)
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// AppKit pushes windows below the menu bar. The notch must sit on the screen edge.
+    /// AppKit may nudge frames near the menu bar. The frame is exact by construction.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
     }
