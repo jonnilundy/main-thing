@@ -70,14 +70,17 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
         report(event)
     }
 
+    // Enter and exit events are also synthesized when tracking areas change, for example
+    // when the open content appears, and then their locationInWindow is garbage (points on
+    // the window's top edge with a random x). Only the real cursor position is trusted here.
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        report(event)
+        onMouseMove?(NSEvent.mouseLocation)
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
-        report(event)
+        onMouseMove?(NSEvent.mouseLocation)
     }
 
     required init(rootView: Content) {
