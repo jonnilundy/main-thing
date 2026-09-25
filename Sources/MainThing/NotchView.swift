@@ -361,7 +361,7 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu: Launch at Login, Sound, Show Tasks File, Quit.
+/// Right click menu: Launch at Login, Sound, Show Tasks File, Install Command Line Tool, Quit.
 struct NotchMenu: View {
     let store: TaskStore
     let sounds: Sounds?
@@ -398,6 +398,7 @@ struct NotchMenu: View {
         Button("Show Tasks File") {
             NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
         }
+        Button("Install Command Line Tool") { CommandLineTool.installFromMenu() }
         Divider()
         Button("Quit Main Thing") { NSApp.terminate(nil) }
     }

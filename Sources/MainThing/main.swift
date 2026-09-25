@@ -24,6 +24,18 @@ if let flag = CommandLine.arguments.firstIndex(of: "--login") {
     exit(0)
 }
 
+// `MainThing --install-cli` links ~/.local/bin/mainthing to the command in the bundle and exits.
+// The same thing as Install Command Line Tool in the notch menu, for scripts.
+if CommandLine.arguments.contains("--install-cli") {
+    do {
+        print(try CommandLineTool.install().message)
+        exit(0)
+    } catch {
+        print("install failed: \(error.localizedDescription)")
+        exit(1)
+    }
+}
+
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate

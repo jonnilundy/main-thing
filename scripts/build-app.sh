@@ -1,5 +1,6 @@
 #!/bin/bash
 # Build MainThing in release and assemble build/MainThing.app with an ad hoc signature.
+# The mainthing command goes into the bundle at Contents/Resources/mainthing.
 # The version comes from one place: MainThingVersion in Sources/MainThingCore/Version.swift.
 set -euo pipefail
 
@@ -21,6 +22,8 @@ cp ".build/release/MainThing" "$APP/Contents/MacOS/MainThing"
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/*.wav "$APP/Contents/Resources/"
+cp "bin/mainthing" "$APP/Contents/Resources/mainthing"
+chmod 755 "$APP/Contents/Resources/mainthing"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
