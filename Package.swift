@@ -9,9 +9,15 @@ let package = Package(
         .executable(name: "MainThing", targets: ["MainThing"]),
         .executable(name: "mainthing-checks", targets: ["mainthing-checks"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
+    ],
     targets: [
         .target(name: "MainThingCore"),
-        .executableTarget(name: "MainThing", dependencies: ["MainThingCore"]),
+        .executableTarget(
+            name: "MainThing",
+            dependencies: ["MainThingCore", .product(name: "Sparkle", package: "Sparkle")]
+        ),
         .executableTarget(name: "mainthing-checks", dependencies: ["MainThingCore"]),
     ]
 )

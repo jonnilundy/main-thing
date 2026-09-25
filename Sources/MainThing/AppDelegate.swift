@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var snapshotter: Snapshotter?
     private var reminder: Reminder?
     private var screenObserver: (any NSObjectProtocol)?
+    private var updater: Updater?
 
     /// `MAINTHING_HEADLESS=1`: no notch, no hover, no single instance check. The store and the API
     /// run as usual, so smoke tests can drive a second copy on another port while the real one shows.
@@ -30,6 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard quitIfAnotherInstanceRuns() == false else { return }
+
+        let updater = Updater()
+        updater.start()
+        self.updater = updater
 
         guard let geometry = currentGeometry() else {
             log.error("no screen at launch")
