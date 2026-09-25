@@ -1,6 +1,7 @@
 import AppKit
 import NextUpCore
 import SwiftUI
+import os
 
 /// The notch. Collapsed: a black shape at the top center with the current task inside.
 /// Open: the current task large with a done circle, the next three, and a "+N more" line.
@@ -12,25 +13,22 @@ struct NotchView: View {
     var body: some View {
         VStack(spacing: 0) {
             NotchBody(store: store, model: model, onDone: onDone)
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: ShapeRectKey.self, value: proxy.frame(in: .named("panel")))
-                    }
-                )
+                // The hosting view fills the panel, so the global space is panel space, origin top left.
+                // A GeometryReader preference in the background never delivered the laid out frame here
+                // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
+                .onGeometryChange(for: CGRect.self) { proxy in
+                    proxy.frame(in: .global)
+                } action: { rect in
+                    viewLog.debug("shape rect \(NSStringFromRect(rect), privacy: .public)")
+                    model.shapeRect = rect
+                }
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .coordinateSpace(name: "panel")
-        .onPreferenceChange(ShapeRectKey.self) { rect in
-            MainActor.assumeIsolated { model.shapeRect = rect }
-        }
     }
 }
 
-private struct ShapeRectKey: PreferenceKey {
-    static let defaultValue = CGRect.zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
-}
+private let viewLog = Logger(subsystem: NextUpBundleID, category: "hover")
 
 struct NotchBody: View {
     let store: TaskStore

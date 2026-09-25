@@ -5,6 +5,11 @@ import os
 
 /// Opens and closes the notch from cursor moves, and decides click through.
 /// The rules are in `NotchHover`; this class only wires them to AppKit.
+///
+/// Cursor moves arrive three ways: a global monitor while the panel ignores events,
+/// a tracking area on the hosting view while it accepts them, and a local monitor as
+/// a backstop. Each carries the event's own location, because `NSEvent.mouseLocation`
+/// can still report the old position inside the handler for a warped cursor.
 @MainActor
 final class HoverController {
     private let panel: NSPanel
@@ -13,24 +18,38 @@ final class HoverController {
     private let log = Logger(subsystem: NextUpBundleID, category: "hover")
     private var monitors: [Any] = []
     private var pendingOpen: Task<Void, Never>?
+    /// Last cursor position seen in an event, AppKit screen coordinates.
+    private var lastScreenPoint: CGPoint
 
     init(panel: NSPanel, model: NotchModel, store: TaskStore) {
         self.panel = panel
         self.model = model
         self.store = store
+        self.lastScreenPoint = NSEvent.mouseLocation
     }
 
     func start() {
-        let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] _ in
-            MainActor.assumeIsolated { self?.evaluate() }
+        let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] event in
+            MainActor.assumeIsolated {
+                // No window on a global event, so locationInWindow is already in screen coordinates.
+                self?.evaluate(at: event.locationInWindow, source: "global")
+            }
         })
         let local = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] event in
-            MainActor.assumeIsolated { self?.evaluate() }
+            MainActor.assumeIsolated {
+                self?.evaluate(at: HoverController.screenPoint(of: event), source: "local")
+            }
             return event
         })
         monitors = [global, local].compactMap { $0 }
+        log.notice("monitors installed: global \(global != nil, privacy: .public) local \(local != nil, privacy: .public)")
         observeList()
-        evaluate()
+        evaluate(at: NSEvent.mouseLocation, source: "start")
+    }
+
+    static func screenPoint(of event: NSEvent) -> CGPoint {
+        guard let window = event.window else { return event.locationInWindow }
+        return window.convertPoint(toScreen: event.locationInWindow)
     }
 
     /// A list change moves the shape, so a cursor that did not move can now be inside or outside.
@@ -48,18 +67,22 @@ final class HoverController {
     func refresh() {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(60))
-            self?.evaluate()
+            guard let self else { return }
+            self.evaluate(at: self.lastScreenPoint, source: "refresh")
         }
     }
 
-    /// Runs on every cursor move.
-    func evaluate() {
+    /// Runs on every cursor move, with the position the event carried.
+    func evaluate(at screenPoint: CGPoint, source: String) {
+        lastScreenPoint = screenPoint
         if model.forceOpen {
             if !model.isOpen { setOpen(true) }
             panel.ignoresMouseEvents = false
             return
         }
-        let inside = cursorInside()
+        let point = NotchHover.panelPoint(screenPoint: screenPoint, panelFrame: panel.frame)
+        let inside = NotchHover.inside(point, shape: model.shapeRect, isOpen: model.isOpen)
+        log.debug("\(source, privacy: .public) screen (\(Int(screenPoint.x), privacy: .public),\(Int(screenPoint.y), privacy: .public)) panel (\(Int(point.x), privacy: .public),\(Int(point.y), privacy: .public)) shape \(NSStringFromRect(self.model.shapeRect), privacy: .public) inside \(inside, privacy: .public) open \(self.model.isOpen, privacy: .public)")
         panel.ignoresMouseEvents = !inside
         switch NotchHover.intent(isOpen: model.isOpen, pendingOpen: pendingOpen != nil, inside: inside) {
         case .scheduleOpen:
@@ -80,13 +103,14 @@ final class HoverController {
     }
 
     private func cursorInside() -> Bool {
-        let point = NotchHover.panelPoint(screenPoint: NSEvent.mouseLocation, panelFrame: panel.frame)
+        let point = NotchHover.panelPoint(screenPoint: lastScreenPoint, panelFrame: panel.frame)
         return NotchHover.inside(point, shape: model.shapeRect, isOpen: model.isOpen)
     }
 
     func setOpen(_ open: Bool) {
         guard model.isOpen != open else { return }
         model.isOpen = open
+        log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public))")
         if !open { model.doneArmed = false }
     }
 

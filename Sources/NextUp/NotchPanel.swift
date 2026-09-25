@@ -37,9 +37,48 @@ final class NotchPanel: NSPanel {
     }
 }
 
-/// Hosting view that takes the first click without activating the app.
+/// Hosting view that takes the first click without activating the app, and reports
+/// cursor moves over itself. The panel is never key, so AppKit would not send it
+/// mouseMoved events on its own; the tracking area with `.activeAlways` does.
 final class NotchHostingView<Content: View>: NSHostingView<Content> {
+    /// Called with the cursor position in AppKit screen coordinates.
+    var onMouseMove: ((CGPoint) -> Void)?
+    private var tracking: NSTrackingArea?
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        tracking = area
+    }
+
+    private func report(_ event: NSEvent) {
+        let point = window?.convertPoint(toScreen: event.locationInWindow) ?? event.locationInWindow
+        onMouseMove?(point)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        report(event)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        report(event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        report(event)
+    }
 
     required init(rootView: Content) {
         super.init(rootView: rootView)
