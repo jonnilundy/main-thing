@@ -7,6 +7,9 @@ import os
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let log = Logger(subsystem: NextUpBundleID, category: "app")
     private var panel: NotchPanel?
+    private var store: TaskStore?
+    private var server: APIServer?
+    private var snapshotter: Snapshotter?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard quitIfAnotherInstanceRuns() == false else { return }
@@ -16,14 +19,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let store = TaskStore()
+        let server = APIServer(store: store)
+        server.start()
+        self.store = store
+        self.server = server
+
         let geometry = NotchGeometry(screen: screen)
         let panel = NotchPanel(contentRect: geometry.panelFrame)
-        let root = NotchView(title: "Write the BAA memo", notchHeight: geometry.notchHeight)
+        let root = NotchView(store: store, notchHeight: geometry.notchHeight)
         panel.contentView = NSHostingView(rootView: root)
         panel.orderFrontRegardless()
         self.panel = panel
 
-        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public)")
+        snapshotter = Snapshotter(store: store, notchHeight: geometry.notchHeight)
+        snapshotter?.start()
+
+        log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), api port \(server.port, privacy: .public)")
     }
 
     /// One instance only. Returns true when this process should stop because another copy runs.

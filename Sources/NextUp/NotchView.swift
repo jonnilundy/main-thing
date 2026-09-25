@@ -1,14 +1,15 @@
 import AppKit
 import SwiftUI
 
-/// The collapsed notch: a black shape at the top center with the current title inside.
+/// The collapsed notch: a black shape at the top center with the current task inside.
+/// Reads the store directly, so a change from the API redraws it.
 struct NotchView: View {
-    var title: String?
+    let store: TaskStore
     var notchHeight: CGFloat
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(title: title, height: notchHeight)
+            NotchBody(title: store.current, height: notchHeight)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
