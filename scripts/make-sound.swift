@@ -5,6 +5,7 @@
 // scratch.wav   220 ms, one pen stroke: fast attack, a grainy body, a soft tail, the band pass
 //               sweeping down a little as the pen slows.
 // unscratch.wav 120 ms, lighter and reversed in feel (sweep up), for the undo.
+// silence.wav   500 ms of nothing, looped silently to keep the output device awake.
 import Foundation
 
 let sampleRate = 44_100.0
@@ -76,6 +77,9 @@ func writeWav(_ samples: [Double], to url: URL) throws {
 
 let dir = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Resources", isDirectory: true)
 try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+// Half a second of silence, looped at volume 0 by the app to keep the audio device awake, so the
+// first real sound after launch is not half a second late.
+try writeWav([Double](repeating: 0, count: Int(sampleRate / 2)), to: dir.appendingPathComponent("silence.wav"))
 try writeWav(scratch(seconds: 0.22, attack: 0.006, tail: 0.07, from: 2600, to: 1500, grain: 3, gain: 0.7), to: dir.appendingPathComponent("scratch.wav"))
 try writeWav(scratch(seconds: 0.12, attack: 0.004, tail: 0.05, from: 1600, to: 2400, grain: 5, gain: 0.45), to: dir.appendingPathComponent("unscratch.wav"))
-print("wrote scratch.wav (220 ms) and unscratch.wav (120 ms) in \(dir.path)")
+print("wrote scratch.wav (220 ms), unscratch.wav (120 ms) and silence.wav (500 ms) in \(dir.path)")

@@ -39,6 +39,10 @@ final class Sounds {
     /// Decoded custom sounds, by file name.
     private var custom: [String: AVAudioPlayer] = [:]
     private var playing: AVAudioPlayer?
+    /// Silence on a loop at volume 0: keeps the output device awake, so the first play after launch
+    /// starts at once instead of half a second later.
+    private var keepAwake: AVAudioPlayer?
+    private var defaultsObserver: (any NSObjectProtocol)?
 
     init(configDirectory: URL = EventRunner.defaultConfigDirectory) {
         folder = configDirectory.appendingPathComponent("sounds", isDirectory: true)
@@ -51,6 +55,25 @@ final class Sounds {
         }
         log.notice("custom sounds in \(self.folder.path, privacy: .public): \(self.available().joined(separator: ", "), privacy: .public)")
         prime()
+        if let url = Bundle.main.url(forResource: "silence", withExtension: "wav"), let player = try? AVAudioPlayer(contentsOf: url) {
+            player.volume = 0
+            player.numberOfLoops = -1
+            player.prepareToPlay()
+            player.play()
+            keepAwake = player
+        }
+        preload()
+        // The choice can change from the menu or from `defaults write`: keep the chosen sound warm.
+        defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.preload() }
+        }
+    }
+
+    /// Decode, measure and prepare the chosen custom sound now, not at the first cross off.
+    private func preload() {
+        if case .custom(let file) = choice, custom[file] == nil {
+            _ = player(for: file)
+        }
     }
 
     private static func load(_ name: String, count: Int) -> [AVAudioPlayer] {
