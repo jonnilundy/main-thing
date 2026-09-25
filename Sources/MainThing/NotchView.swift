@@ -4,7 +4,7 @@ import SwiftUI
 import os
 
 /// The notch. Collapsed: a black shape at the top center with the current task inside.
-/// Open: every task, the current one large, each with a done circle on row hover.
+/// Open: every task flush left, the current one large; hover previews a cross off, a click draws it.
 struct NotchView: View {
     let store: TaskStore
     let model: NotchModel
@@ -127,6 +127,7 @@ struct OpenContent: View {
                                 row: row,
                                 isCurrent: row.key == keys.first,
                                 struck: model.pending.isPending(row.key),
+                                width: width,
                                 action: { onToggle(row) }
                             )
                             .transition(Motion.push(reduceMotion))
@@ -199,78 +200,123 @@ struct RowsBlock<Content: View>: View {
     }
 }
 
-/// Press feedback on mouse down: the row dims a touch and the circle, via the environment,
-/// scales to 0.92 and fills. The action fires on mouse up only while the cursor is still on the
-/// row; dragging away cancels, as a Button does.
+/// Press feedback on mouse down: the row dims a touch, the pen touching the paper. The action
+/// fires on mouse up only while the cursor is still on the row; dragging away cancels, as a Button does.
 struct RowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .environment(\.rowPressed, configuration.isPressed)
-            .opacity(configuration.isPressed ? 0.8 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(Motion.press, value: configuration.isPressed)
     }
 }
 
-private struct RowPressedKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var rowPressed: Bool {
-        get { self[RowPressedKey.self] }
-        set { self[RowPressedKey.self] = newValue }
-    }
-}
-
-/// One task. The whole row is the button. The circle appears on row hover; a click strikes the
-/// title through from left to right and dims it, and 250ms later the row leaves.
+/// One task, flush left. The whole row is the button. Hover shows a faint preview of the cross
+/// off; a click draws it like a pen on paper, line by line, and 400ms later the row leaves. A
+/// click in that window erases the ink and keeps the row.
 struct TaskRow: View {
     let row: TaskList.Row
     let isCurrent: Bool
     let struck: Bool
+    /// Card content width, for the line count the pen has to cross.
+    let width: CGFloat
     let action: () -> Void
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let font = isCurrent ? NotchMetrics.titleFont : NotchMetrics.rowFont
-        let halfXHeight = (isCurrent ? NotchMetrics.titleXHeight : NotchMetrics.rowXHeight) / 2
+        let nsFont = isCurrent ? NotchMetrics.titleNSFont : NotchMetrics.rowNSFont
         let dim = OpenLayout.dimOpacity(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
+        let lines = PanelLayout.lineCount(of: row.title, font: nsFont, width: OpenLayout.titleWidth(contentWidth: width))
+        let ink = CrossOffRenderer(
+            progress: struck ? Double(lines) : 0,
+            preview: hovering && !struck ? 1 : 0,
+            key: row.key,
+            xHeight: nsFont.xHeight,
+            thickness: isCurrent ? 2.2 : 1.8,
+            inkOpacity: isCurrent ? 1 : dim
+        )
         Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: OpenLayout.circleGap) {
-                DoneCircle(visible: hovering || struck, filled: struck)
-                    // The circle's center sits on the x-height center of the title's first line,
-                    // so it stays put when the title wraps to two lines.
-                    .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + halfXHeight }
-                Text(row.title)
-                    .font(font)
-                    .foregroundStyle(.white.opacity(isCurrent ? 1 : dim))
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-                    .opacity(struck ? 0.45 : 1)
-                    .overlay {
-                        // The strike line alone, through every line of the title, revealed left to right.
-                        Text(row.title)
-                            .font(font)
-                            .lineLimit(2)
-                            .truncationMode(.tail)
-                            .foregroundStyle(.clear)
-                            .strikethrough(true, color: .white.opacity(0.9))
-                            .mask(alignment: .leading) {
-                                Rectangle().scaleEffect(x: struck ? 1 : 0.001, anchor: .leading)
-                            }
-                            .opacity(struck ? 1 : 0)
-                            .allowsHitTesting(false)
-                    }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            Text(row.title)
+                .font(font)
+                .foregroundStyle(.white.opacity(isCurrent ? 1 : dim))
+                .lineLimit(OpenLayout.maxLines)
+                .truncationMode(.tail)
+                .textRenderer(ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
         }
         .buttonStyle(RowButtonStyle())
         .onHover { hovering = $0 }
-        .animation(reduceMotion ? Motion.reducedFade : (struck ? Motion.strike : Motion.unstrike), value: struck)
+        // The pen: linear across the lines, each line eased inside the renderer. Undo: a fast erase.
+        // Reduce Motion: the ink is just there.
+        .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine * Double(lines)) : Motion.unstrike), value: struck)
+        .animation(reduceMotion ? nil : Motion.preview, value: hovering)
         .accessibilityLabel(row.title)
-        .accessibilityHint(struck ? "Done, leaving. Click again to keep it" : "Mark done")
+        .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
+        .accessibilityAction(named: "Cross off") { action() }
+    }
+}
+
+/// Draws the title and the ink over it. `progress` runs 0...lineCount: line 0 is crossed while it
+/// goes 0 to 1, line 1 while it goes 1 to 2. `preview` fades a thin line in on hover.
+struct CrossOffRenderer: TextRenderer, Animatable {
+    var progress: Double
+    var preview: Double
+    var key: String
+    var xHeight: CGFloat
+    var thickness: CGFloat
+    var inkOpacity: Double
+
+    var animatableData: AnimatablePair<Double, Double> {
+        get { AnimatablePair(progress, preview) }
+        set {
+            progress = newValue.first
+            preview = newValue.second
+        }
+    }
+
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        let lines = Array(layout)
+        for (index, line) in lines.enumerated() {
+            let bounds = line.typographicBounds
+            let t = PenStroke.lineProgress(progress, line: index)
+            // The glyphs, dimming to 45 percent as the ink passes.
+            var glyphs = context
+            glyphs.opacity = 1 - 0.55 * t
+            glyphs.draw(line)
+
+            // The strike line sits on the middle of the x-height of this line.
+            let y = bounds.rect.minY + bounds.ascent - xHeight / 2
+            let from = CGPoint(x: bounds.rect.minX, y: y)
+            let to = CGPoint(x: bounds.rect.maxX, y: y)
+
+            if preview > 0, t == 0 {
+                var path = Path()
+                path.move(to: from)
+                path.addLine(to: to)
+                context.stroke(path, with: .color(.white.opacity(0.25 * preview * inkOpacity)), lineWidth: 1)
+            }
+            if t > 0 {
+                let samples = PenStroke.centerline(
+                    from: from, to: to, line: index,
+                    seed: PenStroke.seed(key: key, line: index), thickness: thickness
+                )
+                let outline = PenStroke.outline(samples, progress: t)
+                if outline.count >= 3 {
+                    var path = Path()
+                    path.move(to: outline[0])
+                    for point in outline.dropFirst() { path.addLine(to: point) }
+                    path.closeSubpath()
+                    context.fill(path, with: .color(.white.opacity(inkOpacity)))
+                }
+                // The blot where the pen lifts at the end of the last line.
+                if index == lines.count - 1, t >= 0.999, let lift = PenStroke.liftPoint(samples) {
+                    let r: CGFloat = 1.4
+                    context.fill(Path(ellipseIn: CGRect(x: lift.x - r, y: lift.y - r, width: 2 * r, height: 2 * r)), with: .color(.white.opacity(inkOpacity)))
+                }
+            }
+        }
     }
 }
 
@@ -299,38 +345,6 @@ struct NotchMenu: View {
         }
         Divider()
         Button("Quit Main Thing") { NSApp.terminate(nil) }
-    }
-}
-
-/// The circle that marks a row done. Shown only while the cursor is on the row; its 22pt space
-/// stays reserved so the title never shifts. Pops in from 0.85, grows to 1.1 under the cursor,
-/// bounces to 1.15 as it fills.
-struct DoneCircle: View {
-    let visible: Bool
-    let filled: Bool
-    @State private var hovering = false
-    @Environment(\.rowPressed) private var pressed
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        // Never from 0. A scale bounce, not symbolEffect(.bounce): that one left the symbol blank in this panel.
-        // Pressed: 0.92 and filled, the instant the mouse goes down.
-        let scale: CGFloat = reduceMotion ? 1 : (!visible ? 0.85 : (pressed ? 0.92 : (filled ? 1.15 : (hovering ? 1.1 : 1))))
-        let showFilled = filled || pressed
-        Image(systemName: showFilled ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
-            .font(.system(size: 18, weight: .regular))
-            .foregroundStyle(.white.opacity(showFilled ? 1 : 0.6))
-            .contentTransition(Motion.symbol(reduceMotion))
-            .frame(width: OpenLayout.circleWidth, height: OpenLayout.circleWidth)
-            .contentShape(Rectangle())
-            .opacity(visible ? 1 : 0)
-            .scaleEffect(scale)
-            .onHover { hovering = $0 }
-            .animation(reduceMotion ? Motion.reducedFade : Motion.popSpring, value: visible)
-            .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: hovering)
-            .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: filled)
-            .animation(reduceMotion ? Motion.reducedFade : Motion.press, value: pressed)
-            .accessibilityHidden(true)
     }
 }
 

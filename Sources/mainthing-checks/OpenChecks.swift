@@ -48,14 +48,15 @@ func runOpenChecks() {
     section("OpenLayout")
     do {
         let screen: CGFloat = 2560
-        check("row chrome is 64", OpenLayout.rowChrome == 64)
-        check("short list keeps the 420 minimum", OpenLayout.width(titleWidths: [120, 80, 200], screenWidth: screen) == 420)
-        check("empty list keeps the minimum", OpenLayout.width(titleWidths: [], screenWidth: screen) == 420)
-        check("a long title sets the width", OpenLayout.width(titleWidths: [120, 500.4], screenWidth: screen) == 565)
-        check("the 640 cap holds", OpenLayout.width(titleWidths: [900], screenWidth: screen) == 640)
-        check("half of a small screen caps below 640", OpenLayout.width(titleWidths: [900], screenWidth: 1000) == 500)
-        check("width cap is the smaller of 640 and half the screen", OpenLayout.widthCap(screenWidth: 1512) == 640 && OpenLayout.widthCap(screenWidth: 1200) == 600)
-        check("title width is the card minus the chrome", OpenLayout.titleWidth(contentWidth: 420) == 356)
+        check("row chrome is the two paddings, 32", OpenLayout.rowChrome == 32)
+        check("short list keeps the 300 minimum", OpenLayout.width(titleWidths: [120, 80, 200], screenWidth: screen) == 300)
+        check("empty list keeps the minimum", OpenLayout.width(titleWidths: [], screenWidth: screen) == 300)
+        check("a long title sets the width", OpenLayout.width(titleWidths: [120, 350.4], screenWidth: screen) == 383)
+        check("the 440 cap holds", OpenLayout.width(titleWidths: [900], screenWidth: screen) == 440)
+        check("half of a tiny screen caps below 440", OpenLayout.width(titleWidths: [900], screenWidth: 800) == 400)
+        check("width cap is the smaller of 440 and half the screen", OpenLayout.widthCap(screenWidth: 1512) == 440 && OpenLayout.widthCap(screenWidth: 700) == 350)
+        check("title width is the card minus the chrome", OpenLayout.titleWidth(contentWidth: 300) == 268)
+        check("titles wrap up to three lines", OpenLayout.maxLines == 3)
 
         check("content height: rows, spacing, padding", OpenLayout.contentHeight(rowHeights: [22, 18, 18]) == 2 + 58 + 12 + 14)
         check("content height with two note lines", OpenLayout.contentHeight(rowHeights: [22]) + 2 * (14 + 6) == OpenLayout.contentHeight(rowHeights: [22], notes: 2))
@@ -70,6 +71,38 @@ func runOpenChecks() {
         check("and the rows scroll inside what is left", tall.rowsMax == 864 - 30 - 40 - 2 - 14)
         let edge = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 794, screenHeight: 1440, minimum: 260)
         check("exactly at the cap: no scrolling", edge.panel == 864 && edge.rowsMax == nil)
+    }
+
+    section("PenStroke")
+    do {
+        let from = CGPoint(x: 10, y: 20), to = CGPoint(x: 210, y: 20)
+        let seed = PenStroke.seed(key: "ref:openbrain:1", line: 0)
+        let a = PenStroke.centerline(from: from, to: to, line: 0, seed: seed, thickness: 2)
+        let b = PenStroke.centerline(from: from, to: to, line: 0, seed: seed, thickness: 2)
+        check("same key and line: the same stroke every time", a == b)
+        check("seed is stable", seed == PenStroke.seed(key: "ref:openbrain:1", line: 0) && seed != PenStroke.seed(key: "ref:openbrain:2", line: 0) && seed != PenStroke.seed(key: "ref:openbrain:1", line: 1))
+        let other = PenStroke.centerline(from: from, to: to, line: 0, seed: PenStroke.seed(key: "B#0", line: 0), thickness: 2)
+        check("another row wobbles differently", a.map(\.point.y) != other.map(\.point.y))
+        check("28 samples", a.count == PenStroke.sampleCount)
+        check("starts 4pt before the first glyph", a.first?.point.x == 6 && a.first?.point.y == 20)
+        check("overshoots 6pt past the last glyph", a.last?.point.x == 216)
+        let tiltEven = a.last!.point.y - a.first!.point.y
+        check("even line tilts down about 1.2 degrees over its length", abs(tiltEven - tan(1.2 * .pi / 180) * 210) < 0.01 && tiltEven > 0)
+        let odd = PenStroke.centerline(from: from, to: to, line: 1, seed: seed, thickness: 2)
+        check("odd line tilts the other way", (odd.last!.point.y - odd.first!.point.y) < 0)
+        let mid = a[a.count / 2].width
+        check("tapered: ends are thinner than the middle", a.first!.width < mid && a.last!.width < mid && a.first!.width == 0.6 && abs(mid - 2) < 0.02)
+        let wobbles = a.enumerated().map { i, s in abs(s.point.y - (a.first!.point.y + tiltEven * CGFloat(i) / CGFloat(a.count - 1))) }
+        check("wobble stays small", wobbles.max()! <= PenStroke.wobble + 0.01 && wobbles.max()! > 0.05)
+        check("no wobble where the pen lands and lifts", wobbles.first! < 0.001 && wobbles.last! < 0.001)
+        check("no ink at progress 0", PenStroke.outline(a, progress: 0).isEmpty)
+        let half = PenStroke.outline(a, progress: 0.5)
+        let full = PenStroke.outline(a, progress: 1)
+        check("half the stroke reaches half way", half.map(\.x).max()! < 112 && half.map(\.x).max()! > 108)
+        check("the full stroke is a closed band of top and bottom edges", full.count == 2 * a.count && full.map(\.x).max()! >= 216)
+        check("eased: fast attack, slow finish", PenStroke.eased(0.25) > 0.5 && PenStroke.eased(0.5) > 0.85 && PenStroke.eased(1) == 1 && PenStroke.eased(0) == 0)
+        check("lines run one after another", PenStroke.lineProgress(0.5, line: 0) > 0 && PenStroke.lineProgress(0.5, line: 1) == 0 && PenStroke.lineProgress(1.5, line: 0) == 1 && PenStroke.lineProgress(2, line: 1) == 1)
+        check("the pen lifts at the last sample", PenStroke.liftPoint(a) == a.last?.point)
     }
 
     section("Pending completions")

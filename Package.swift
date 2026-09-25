@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "mainthing",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .library(name: "MainThingCore", targets: ["MainThingCore"]),
         .executable(name: "MainThing", targets: ["MainThing"]),

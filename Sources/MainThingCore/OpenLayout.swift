@@ -4,16 +4,16 @@ import Foundation
 /// Sizes of the open card. Pure math over measured title widths and heights; the app measures
 /// with the same fonts the rows draw with and hands the numbers in.
 ///
-/// A row is `[padding 16][circle 22][gap 10][title ...][padding 16]`. The card is as wide as its
-/// widest row, at least 420pt, at most 640pt or half the screen, whichever is smaller. A title
-/// wider than that wraps to two lines, then truncates.
+/// A row is `[padding 16][title ...][padding 16]`, flush left. The card is as wide as its widest
+/// row, at least 300pt, at most 440pt (or half the screen on a tiny one). A title wider than that
+/// wraps, up to three lines, then truncates.
 public enum OpenLayout {
-    public static let minimumWidth: CGFloat = 420
-    public static let maximumWidth: CGFloat = 640
+    public static let minimumWidth: CGFloat = 300
+    public static let maximumWidth: CGFloat = 440
     public static let screenWidthShare: CGFloat = 0.5
     public static let horizontalPadding: CGFloat = 16
-    public static let circleWidth: CGFloat = 22
-    public static let circleGap: CGFloat = 10
+    /// A title wraps this many times before it truncates.
+    public static let maxLines = 3
     public static let rowSpacing: CGFloat = 6
     public static let topPadding: CGFloat = 2
     public static let bottomPadding: CGFloat = 14
@@ -25,7 +25,7 @@ public enum OpenLayout {
     public static let bounceHeadroom: CGFloat = 40
 
     /// Everything in a row that is not the title.
-    public static var rowChrome: CGFloat { 2 * horizontalPadding + circleWidth + circleGap }
+    public static var rowChrome: CGFloat { 2 * horizontalPadding }
 
     /// The other tasks are dimmed to 0.55, or 0.8 when the system asks for more contrast.
     public static func dimOpacity(increaseContrast: Bool) -> Double {

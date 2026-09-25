@@ -31,7 +31,7 @@ final class PanelLayout {
         let width = OpenLayout.width(titleWidths: widths, screenWidth: geometry.screenFrame.width)
         let titleWidth = OpenLayout.titleWidth(contentWidth: width)
         let heights = zip(rows, fonts).map { row, font in
-            max(PanelLayout.height(of: row.title, font: font, width: titleWidth, lines: 2), OpenLayout.circleWidth)
+            PanelLayout.height(of: row.title, font: font, width: titleWidth, lines: OpenLayout.maxLines)
         }
         let notes = (model.apiBound ? 0 : 1) + store.events.failing.count
         let content = OpenLayout.contentHeight(rowHeights: heights, notes: notes)
@@ -64,6 +64,13 @@ final class PanelLayout {
     /// Single line width of a title in a font.
     static func width(of title: String, font: NSFont) -> CGFloat {
         ceil((title as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    /// How many lines a title takes at `width`, capped at `OpenLayout.maxLines`.
+    static func lineCount(of title: String, font: NSFont, width: CGFloat) -> Int {
+        let line = ceil(font.ascender - font.descender + font.leading)
+        let height = PanelLayout.height(of: title, font: font, width: width, lines: OpenLayout.maxLines)
+        return max(1, min(OpenLayout.maxLines, Int((height / line).rounded())))
     }
 
     /// Height of a title wrapped at `width`, at most `lines` lines.

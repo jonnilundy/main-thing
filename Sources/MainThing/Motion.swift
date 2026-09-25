@@ -16,8 +16,10 @@ enum Motion {
     static let bounceSpring = Animation.spring(response: 0.25, dampingFraction: 0.5)
     /// The strikethrough drawing left to right, and the text dimming with it.
     static let strike = Animation.easeOut(duration: 0.15)
-    /// A second click erases the strike, a little faster than it drew.
+    /// A second click erases the ink, fast.
     static let unstrike = Animation.easeOut(duration: 0.12)
+    /// The hover preview of the cross off fading in.
+    static let preview = Animation.easeOut(duration: 0.1)
     /// Pressed state on mouse down.
     static let press = Animation.easeOut(duration: 0.08)
     /// Scroll edge fades coming and going.

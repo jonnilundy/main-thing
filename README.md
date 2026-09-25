@@ -4,7 +4,7 @@
 
 Main Thing draws a notch at the top of your Mac screen with the one task you are on right now. Hover to open the whole list. Click a task to mark it done. A local API and a small command set the list, so your scripts and your AI agent can keep it current.
 
-Requires macOS 14 or later.
+Requires macOS 15 or later.
 
 ## Install
 
@@ -21,7 +21,7 @@ The install script builds a release, copies `MainThing.app` to `~/Applications`,
 
 ## Use
 
-The list is ordered. The first task is the one in the notch. Hover over the notch to see all of them; click any one to mark it done. The title is struck through and the row leaves a moment later; click it again in that moment to keep it.
+The list is ordered. The first task is the one in the notch. Hover over the notch to see all of them. Hover a task to preview the cross off, click it to cross it off like a pen on paper; the row leaves a moment later. Click it again in that moment to keep it.
 
 ```sh
 mainthing set "Write the memo" "Review Q3 KPIs" "Call the vendor"
@@ -171,7 +171,7 @@ An adapter or hook does not run: check its permissions. It must be a regular fil
 
 The notch does not open on hover: it only opens over the black shape itself. On a MacBook with a camera housing the shape hangs below the menu bar, under the housing.
 
-The open card is as wide as its longest task, between 420 points and 640 points or half the screen. It grows down to fit every task, up to 60 percent of the screen height; past that the list scrolls inside it.
+The open card is as wide as its longest task, between 300 and 440 points; longer titles wrap up to three lines. It grows down to fit every task, up to 60 percent of the screen height; past that the list scrolls inside it.
 
 ## Uninstall
 
