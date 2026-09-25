@@ -29,6 +29,7 @@ struct NotchView: View {
 }
 
 private let viewLog = Logger(subsystem: MainThingBundleID, category: "hover")
+private let renderLog = Logger(subsystem: MainThingBundleID, category: "render")
 
 struct NotchBody: View {
     let store: TaskStore
@@ -240,7 +241,7 @@ struct TaskRow: View {
                     preview: hovering && !struck ? 1 : 0,
                     key: row.key,
                     xHeight: nsFont.xHeight,
-                    thickness: isCurrent ? 2.2 : 1.8,
+                    thickness: isCurrent ? 3.2 : 2.8,
                     inkOpacity: isCurrent ? 1 : dim
                 ))
                 // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
@@ -297,6 +298,7 @@ struct CrossOffRenderer: TextRenderer {
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         let lines = Array(layout)
+        renderLog.debug("ink draw \(key, privacy: .public)")
         for (index, line) in lines.enumerated() {
             let bounds = line.typographicBounds
             let t = PenStroke.lineProgress(progress, line: index)
