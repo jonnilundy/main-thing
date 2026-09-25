@@ -34,7 +34,7 @@ final class PanelLayout {
             PanelLayout.height(of: row.title, font: font, width: titleWidth, lines: OpenLayout.maxLines)
         }
         let notes = (model.apiBound ? 0 : 1) + store.events.failing.count
-        let content = OpenLayout.contentHeight(rowHeights: heights, notes: notes)
+        let content = OpenLayout.contentHeight(rowHeights: heights, notes: notes, topPadding: NotchMetrics.topPadding)
         let fit = OpenLayout.panelHeight(
             notchHeight: geometry.notchHeight, contentHeight: content,
             screenHeight: geometry.screenFrame.height, minimum: NotchGeometry.panelSize.height

@@ -153,7 +153,7 @@ struct OpenContent: View {
             }
         }
         .padding(.horizontal, OpenLayout.horizontalPadding)
-        .padding(.top, OpenLayout.topPadding)
+        .padding(.top, NotchMetrics.topPadding)
         .padding(.bottom, OpenLayout.bottomPadding)
         // Laid out at the final open width. The width itself does not animate here.
         .frame(width: width, alignment: .leading)
@@ -418,6 +418,8 @@ enum NotchMetrics {
     static let previewOpacity: Double = 0.55
     /// A dim row lifts to this while the cursor is on it.
     static let hoverOpacity: Double = 0.85
+    /// The gap under the notch row so the first title's cap top sits one inset below it.
+    @MainActor static var topPadding: CGFloat { OpenLayout.topPadding(capTopOffset: titleNSFont.ascender - titleNSFont.capHeight) }
     /// x-heights, for the strike line.
     @MainActor static let titleXHeight: CGFloat = titleNSFont.xHeight
     @MainActor static let rowXHeight: CGFloat = rowNSFont.xHeight

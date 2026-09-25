@@ -11,12 +11,21 @@ public enum OpenLayout {
     public static let minimumWidth: CGFloat = 300
     public static let maximumWidth: CGFloat = 440
     public static let screenWidthShare: CGFloat = 0.5
-    public static let horizontalPadding: CGFloat = 16
+    /// One inset for the card content: left, right, bottom, and the gap under the notch row,
+    /// all measured from the visible text edges. Picked against the 24pt bottom radius.
+    public static let inset: CGFloat = 18
+    public static var horizontalPadding: CGFloat { inset }
     /// Titles never wrap.
     public static let maxLines = 1
     public static let rowSpacing: CGFloat = 6
-    public static let topPadding: CGFloat = 2
-    public static let bottomPadding: CGFloat = 14
+    /// The frame bottom sits at the descender, so the bottom padding is the inset itself.
+    public static var bottomPadding: CGFloat { inset }
+
+    /// The top padding that puts the first line's cap top `inset` below the notch row.
+    /// `capTopOffset` is the title font's ascender minus its cap height: the leading above the caps.
+    public static func topPadding(capTopOffset: CGFloat) -> CGFloat {
+        max(inset - capTopOffset, 0)
+    }
     /// A small line under the rows, like "sync failed: openbrain" or "API off on port N".
     public static let noteHeight: CGFloat = 14
     /// The card may take this share of the screen height before its rows scroll.
@@ -49,7 +58,7 @@ public enum OpenLayout {
     }
 
     /// Height of the rows block: rows, spacing, top and bottom padding, and any note lines.
-    public static func contentHeight(rowHeights: [CGFloat], notes: Int = 0) -> CGFloat {
+    public static func contentHeight(rowHeights: [CGFloat], notes: Int = 0, topPadding: CGFloat) -> CGFloat {
         let rows = rowHeights.isEmpty ? [noteHeight + 4] : rowHeights
         let lines = rows.count + notes
         return topPadding + rows.reduce(0, +) + CGFloat(notes) * noteHeight
@@ -64,8 +73,9 @@ public enum OpenLayout {
         if wanted <= cap {
             return (max(ceil(wanted), minimum), nil)
         }
-        // The rows block must fit in the cap with its padding and the headroom.
-        let rowsMax = cap - notchHeight - bounceHeadroom - topPadding - bottomPadding
+        // The rows block must fit in the cap with its padding and the headroom. The top padding is
+        // taken as 14, the title font's usual value; a point either way only shifts the scroll edge.
+        let rowsMax = cap - notchHeight - bounceHeadroom - 14 - bottomPadding
         return (max(cap, minimum), max(rowsMax, 40))
     }
 }

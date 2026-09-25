@@ -48,19 +48,20 @@ func runOpenChecks() {
     section("OpenLayout")
     do {
         let screen: CGFloat = 2560
-        check("row chrome is the two paddings, 32", OpenLayout.rowChrome == 32)
+        check("one inset of 18 on the left, right and bottom", OpenLayout.inset == 18 && OpenLayout.horizontalPadding == 18 && OpenLayout.bottomPadding == 18 && OpenLayout.rowChrome == 36)
+        check("top padding puts the cap top 18 under the notch row", OpenLayout.topPadding(capTopOffset: 3.8) == 14.2 && OpenLayout.topPadding(capTopOffset: 30) == 0)
         check("short list keeps the 300 minimum", OpenLayout.width(titleWidths: [120, 80, 200], screenWidth: screen) == 300)
         check("empty list keeps the minimum", OpenLayout.width(titleWidths: [], screenWidth: screen) == 300)
-        check("a long title sets the width", OpenLayout.width(titleWidths: [120, 350.4], screenWidth: screen) == 383)
+        check("a long title sets the width", OpenLayout.width(titleWidths: [120, 350.4], screenWidth: screen) == 387)
         check("the 440 cap holds", OpenLayout.width(titleWidths: [900], screenWidth: screen) == 440)
         check("half of a tiny screen caps below 440", OpenLayout.width(titleWidths: [900], screenWidth: 800) == 400)
         check("width cap is the smaller of 440 and half the screen", OpenLayout.widthCap(screenWidth: 1512) == 440 && OpenLayout.widthCap(screenWidth: 700) == 350)
-        check("title width is the card minus the chrome", OpenLayout.titleWidth(contentWidth: 300) == 268)
+        check("title width is the card minus the chrome", OpenLayout.titleWidth(contentWidth: 300) == 264)
         check("titles never wrap", OpenLayout.maxLines == 1)
 
-        check("content height: rows, spacing, padding", OpenLayout.contentHeight(rowHeights: [22, 18, 18]) == 2 + 58 + 12 + 14)
-        check("content height with two note lines", OpenLayout.contentHeight(rowHeights: [22]) + 2 * (14 + 6) == OpenLayout.contentHeight(rowHeights: [22], notes: 2))
-        check("content height of an empty list is one line", OpenLayout.contentHeight(rowHeights: []) == 2 + 18 + 14)
+        check("content height: rows, spacing, padding", OpenLayout.contentHeight(rowHeights: [22, 18, 18], topPadding: 14) == 14 + 58 + 12 + 18)
+        check("content height with two note lines", OpenLayout.contentHeight(rowHeights: [22], topPadding: 14) + 2 * (14 + 6) == OpenLayout.contentHeight(rowHeights: [22], notes: 2, topPadding: 14))
+        check("content height of an empty list is one line", OpenLayout.contentHeight(rowHeights: [], topPadding: 14) == 14 + 18 + 18)
 
         let small = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 100, screenHeight: 1440, minimum: 260)
         check("a short card keeps the 260 minimum and does not scroll", small.panel == 260 && small.rowsMax == nil)
@@ -68,7 +69,7 @@ func runOpenChecks() {
         check("a taller card grows the panel with 40pt headroom", mid.panel == 470 && mid.rowsMax == nil)
         let tall = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 2000, screenHeight: 1440, minimum: 260)
         check("past 60 percent of the screen the panel caps at 864", tall.panel == 864)
-        check("and the rows scroll inside what is left", tall.rowsMax == 864 - 30 - 40 - 2 - 14)
+        check("and the rows scroll inside what is left", tall.rowsMax == 864 - 30 - 40 - 14 - 18)
         let edge = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 794, screenHeight: 1440, minimum: 260)
         check("exactly at the cap: no scrolling", edge.panel == 864 && edge.rowsMax == nil)
     }
