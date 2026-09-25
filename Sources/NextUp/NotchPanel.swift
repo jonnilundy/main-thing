@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 /// Borderless, non-activating panel that sits above the menu bar on every space.
 final class NotchPanel: NSPanel {
@@ -16,7 +17,9 @@ final class NotchPanel: NSPanel {
         isMovable = false
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
+        acceptsMouseMovedEvents = true
         // Collapsed: the panel is mostly transparent and must not eat menu bar clicks.
+        // HoverController flips this from the hit test on every cursor move.
         ignoresMouseEvents = true
         // Set last. `isFloatingPanel` and friends rewrite `level`, so nothing may follow this line.
         level = NotchPanel.level
@@ -31,5 +34,19 @@ final class NotchPanel: NSPanel {
     /// AppKit pushes windows below the menu bar. The notch must sit on the screen edge.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
+    }
+}
+
+/// Hosting view that takes the first click without activating the app.
+final class NotchHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+    }
+
+    @available(*, unavailable)
+    @objc required dynamic init?(coder aDecoder: NSCoder) {
+        fatalError("not used")
     }
 }

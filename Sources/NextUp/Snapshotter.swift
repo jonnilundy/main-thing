@@ -11,16 +11,16 @@ import os
 @MainActor
 final class Snapshotter {
     private let store: TaskStore
-    private let notchHeight: CGFloat
+    private let model: NotchModel
     private let directory: URL
     private let log = Logger(subsystem: NextUpBundleID, category: "snapshot")
     private var counter = 0
     private var pending = false
 
-    init?(store: TaskStore, notchHeight: CGFloat, environment: [String: String] = ProcessInfo.processInfo.environment) {
+    init?(store: TaskStore, model: NotchModel, environment: [String: String] = ProcessInfo.processInfo.environment) {
         guard let path = environment["NEXTUP_SNAPSHOT_DIR"], !path.isEmpty else { return nil }
         self.store = store
-        self.notchHeight = notchHeight
+        self.model = model
         self.directory = URL(fileURLWithPath: path, isDirectory: true)
     }
 
@@ -32,6 +32,9 @@ final class Snapshotter {
     private func observe() {
         withObservationTracking {
             _ = store.list
+            _ = model.isOpen
+            _ = model.doneArmed
+            _ = model.notchHeight
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.schedule()
@@ -53,7 +56,7 @@ final class Snapshotter {
 
     private func write() {
         let size = NotchGeometry.panelSize
-        let content = NotchView(store: store, notchHeight: notchHeight)
+        let content = NotchView(store: store, model: model)
             .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: content)
         renderer.scale = 2
@@ -90,6 +93,6 @@ final class Snapshotter {
             CGImageDestinationAddImage(destination, flat, nil)
             CGImageDestinationFinalize(destination)
         }
-        log.info("snapshot \(name, privacy: .public) shows \(self.store.current ?? "(empty)", privacy: .public)")
+        log.info("snapshot \(name, privacy: .public) shows \(self.store.current ?? "(empty)", privacy: .public) open=\(self.model.isOpen, privacy: .public)")
     }
 }

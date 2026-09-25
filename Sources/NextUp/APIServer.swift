@@ -13,6 +13,8 @@ final class APIServer {
     private let log = Logger(subsystem: NextUpBundleID, category: "server")
     private var listeners: [NWListener] = []
     private var connections: [ObjectIdentifier: ClientConnection] = [:]
+    /// Called with true when 127.0.0.1 is bound, false when the bind fails.
+    var onStatus: (@MainActor (Bool) -> Void)?
 
     /// `defaults write com.jonnilundy.nextup port 7799` overrides the port.
     static func configuredPort(_ defaults: UserDefaults = .standard) -> UInt16 {
@@ -50,8 +52,10 @@ final class APIServer {
                 switch state {
                 case .ready:
                     self.log.info("listening on \(label, privacy: .public):\(self.port, privacy: .public)")
+                    if label == "127.0.0.1" { self.onStatus?(true) }
                 case .failed(let error):
                     self.log.error("bind failed on \(label, privacy: .public):\(self.port, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    if label == "127.0.0.1" { self.onStatus?(false) }
                 case .cancelled:
                     self.log.notice("listener on \(label, privacy: .public) cancelled")
                 default:

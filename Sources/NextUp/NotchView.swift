@@ -1,44 +1,146 @@
 import AppKit
+import NextUpCore
 import SwiftUI
 
-/// The collapsed notch: a black shape at the top center with the current task inside.
-/// Reads the store directly, so a change from the API redraws it.
+/// The notch. Collapsed: a black shape at the top center with the current task inside.
+/// Open: the current task large with a done circle, the next three, and a "+N more" line.
 struct NotchView: View {
     let store: TaskStore
-    var notchHeight: CGFloat
+    let model: NotchModel
+    var onDone: () -> Void = {}
+    @Namespace private var titleSpace
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(title: store.current, height: notchHeight)
+            NotchBody(store: store, model: model, onDone: onDone, titleSpace: titleSpace)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: ShapeRectKey.self, value: proxy.frame(in: .named("panel")))
+                    }
+                )
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .coordinateSpace(name: "panel")
+        .onPreferenceChange(ShapeRectKey.self) { rect in
+            MainActor.assumeIsolated { model.shapeRect = rect }
+        }
     }
 }
 
+private struct ShapeRectKey: PreferenceKey {
+    static let defaultValue = CGRect.zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+}
+
 struct NotchBody: View {
-    var title: String?
-    var height: CGFloat
+    let store: TaskStore
+    let model: NotchModel
+    let onDone: () -> Void
+    let titleSpace: Namespace.ID
 
     var body: some View {
-        let width = NotchMetrics.width(for: title)
-        ZStack {
-            if let title, !title.isEmpty {
-                Text(title)
-                    .font(NotchMetrics.font)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, NotchMetrics.textInset)
+        let title = store.current
+        let collapsedWidth = NotchMetrics.width(for: title)
+        let width = model.isOpen ? max(collapsedWidth, NotchMetrics.openWidth) : collapsedWidth
+        VStack(spacing: 0) {
+            ZStack {
+                if !model.isOpen, let title {
+                    Text(title)
+                        .font(NotchMetrics.font)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, NotchMetrics.textInset)
+                        .matchedGeometryEffect(id: "title", in: titleSpace)
+                }
+            }
+            .frame(width: width, height: model.notchHeight)
+            if model.isOpen {
+                OpenContent(store: store, model: model, onDone: onDone, titleSpace: titleSpace)
+                    .frame(width: width)
             }
         }
-        .frame(width: width, height: height)
         .padding(.horizontal, NotchMetrics.flare)
         .background(
-            NotchShape(topRadius: NotchMetrics.flare, bottomRadius: NotchMetrics.bottomRadius)
-                .fill(.black)
+            NotchShape(
+                topRadius: NotchMetrics.flare,
+                bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
+            )
+            .fill(.black)
         )
         .accessibilityLabel(title ?? "No task")
+    }
+}
+
+struct OpenContent: View {
+    let store: TaskStore
+    let model: NotchModel
+    let onDone: () -> Void
+    let titleSpace: Namespace.ID
+
+    var body: some View {
+        let rows = store.list.rows
+        VStack(alignment: .leading, spacing: 6) {
+            if let current = rows.first {
+                HStack(alignment: .top, spacing: 10) {
+                    DoneButton(armed: model.doneArmed, action: onDone)
+                        .padding(.top, 1)
+                    Text(current.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .matchedGeometryEffect(id: "title", in: titleSpace)
+                        .id(current.key)
+                }
+                ForEach(rows.dropFirst().prefix(3)) { row in
+                    Text(row.title)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                        .padding(.leading, NotchMetrics.rowIndent)
+                }
+                if rows.count > 4 {
+                    Text("+\(rows.count - 4) more")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .padding(.leading, NotchMetrics.rowIndent)
+                }
+            } else {
+                Text("No tasks")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            if !model.apiBound {
+                Text("API off on port " + String(model.apiPort))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 2)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The circle that completes the current task.
+struct DoneButton: View {
+    let armed: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: armed ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(.white.opacity(armed ? 1 : 0.6))
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityLabel("Done")
     }
 }
 
@@ -49,10 +151,13 @@ enum NotchMetrics {
     static let textInset: CGFloat = 22
     static let flare: CGFloat = 8
     static let bottomRadius: CGFloat = 12
+    static let openBottomRadius: CGFloat = 24
     static let minWidth: CGFloat = 140
     static let maxWidth: CGFloat = 600
+    static let openWidth: CGFloat = 420
+    static let rowIndent: CGFloat = 32
 
-    /// Notch width before the flares. Follows the title, clamped.
+    /// Collapsed notch width before the flares. Follows the title, clamped.
     @MainActor static func width(for title: String?) -> CGFloat {
         guard let title, !title.isEmpty else { return minWidth }
         let text = (title as NSString).size(withAttributes: [.font: nsFont]).width

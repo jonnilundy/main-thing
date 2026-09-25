@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NotchPanel?
     private var store: TaskStore?
     private var server: APIServer?
+    private var model: NotchModel?
+    private var hover: HoverController?
     private var snapshotter: Snapshotter?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -21,18 +23,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let store = TaskStore()
         let server = APIServer(store: store)
+        let geometry = NotchGeometry(screen: screen)
+        let model = NotchModel(notchHeight: geometry.notchHeight, apiPort: server.port)
+        model.forceOpen = CommandLine.arguments.contains("--open")
+        server.onStatus = { [weak model] bound in model?.apiBound = bound }
         server.start()
         self.store = store
         self.server = server
+        self.model = model
 
-        let geometry = NotchGeometry(screen: screen)
         let panel = NotchPanel(contentRect: geometry.panelFrame)
-        let root = NotchView(store: store, notchHeight: geometry.notchHeight)
-        panel.contentView = NSHostingView(rootView: root)
+        let hover = HoverController(panel: panel, model: model, store: store)
+        let root = NotchView(store: store, model: model, onDone: { [weak hover] in hover?.completeCurrent() })
+        panel.contentView = NotchHostingView(rootView: root)
         panel.orderFrontRegardless()
         self.panel = panel
+        self.hover = hover
+        hover.start()
 
-        snapshotter = Snapshotter(store: store, notchHeight: geometry.notchHeight)
+        snapshotter = Snapshotter(store: store, model: model)
         snapshotter?.start()
 
         log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), api port \(server.port, privacy: .public)")

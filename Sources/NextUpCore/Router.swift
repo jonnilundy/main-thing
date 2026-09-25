@@ -49,12 +49,21 @@ public enum NextUpRouter {
         public var response: HTTPResponse
         public var list: TaskList
         public var changed: Bool
+        public var action: Action
 
-        public init(response: HTTPResponse, list: TaskList, changed: Bool) {
+        public init(response: HTTPResponse, list: TaskList, changed: Bool, action: Action = .none) {
             self.response = response
             self.list = list
             self.changed = changed
+            self.action = action
         }
+    }
+
+    /// What the store must do to reach `list` from the list it was given.
+    public enum Action: Equatable, Sendable {
+        case none
+        case replace([String])
+        case complete
     }
 
     /// `[::1]:7788` -> `[::1]`, `localhost:7788` -> `localhost`. Lowercased.
@@ -101,7 +110,7 @@ public enum NextUpRouter {
                 case .success(let titles):
                     var next = list
                     next.replace(titles)
-                    return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true)
+                    return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true, action: .replace(titles))
                 case .failure(let error):
                     return unchanged(.error(400, error.reason))
                 }
@@ -115,7 +124,7 @@ public enum NextUpRouter {
             }
             var next = list
             let changed = next.complete(expected: nil)
-            return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: changed)
+            return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: changed, action: .complete)
 
         case "/health":
             guard request.method == "GET" else {

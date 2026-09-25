@@ -240,5 +240,6 @@ do {
     check("hostWithoutPort strips a v4 port", NextUpRouter.hostWithoutPort("127.0.0.1:7788") == "127.0.0.1")
 }
 
+runHoverChecks()
 print("\(passes) passed, \(failures) failed")
 exit(failures == 0 ? 0 : 1)

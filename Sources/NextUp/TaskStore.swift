@@ -56,12 +56,14 @@ final class TaskStore {
         return changed
     }
 
-    /// Routes one API request against the current list and adopts the result.
+    /// Routes one API request against the current list and runs the store method it asks for.
+    /// `POST /tasks/done` and the done circle both end in `complete(expected:)`.
     func handle(_ request: HTTPRequest) -> HTTPResponse {
         let outcome = NextUpRouter.handle(request, list: list)
-        if outcome.changed {
-            list = outcome.list
-            save()
+        switch outcome.action {
+        case .replace(let titles): replace(titles)
+        case .complete: complete(expected: nil)
+        case .none: break
         }
         return outcome.response
     }
