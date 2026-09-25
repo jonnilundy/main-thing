@@ -132,11 +132,11 @@ final class HoverController {
     func toggleCompletion(of row: TaskList.Row) {
         switch model.pending.toggle(row.key) {
         case .cancelled:
-            log.notice("cross off cancelled: \(row.title, privacy: .public)")
+            log.notice("cross off cancelled: \(row.title, privacy: .private)")
             sounds.unscratch()
         case .armed:
             NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
-            log.notice("stroke start: \(row.title, privacy: .public)")
+            log.notice("stroke start: \(row.title, privacy: .private)")
             sounds.scratch(lines: 1)
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: HoverController.completionDelay)

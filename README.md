@@ -156,7 +156,7 @@ See what the app is doing:
 /usr/bin/log stream --predicate 'subsystem == "com.jonnilundy.mainthing"' --style compact
 ```
 
-Bind errors, refused requests, save errors, and every hook or adapter run with its exit code and stderr show up there. `mainthing adapters` and `mainthing hooks` show the last run of each without the log.
+Bind errors, refused requests, save errors, and every hook or adapter run with its exit code show up there. Task titles and hook or adapter output are redacted as `<private>` in the log, since anyone who can read the log would see them and adapter stderr can carry tokens. `mainthing adapters` and `mainthing hooks` show the last run of each with its stderr, over the local API only. To see the redacted fields in the log on your own Mac: `sudo log config --subsystem com.jonnilundy.mainthing --mode private_data:on`, and `--mode private_data:off` after.
 
 Port taken, or you want another one:
 

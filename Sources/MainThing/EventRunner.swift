@@ -9,6 +9,7 @@ import os
 /// Hooks live in `~/.config/mainthing/hooks/<event>`, adapters in `~/.config/mainthing/adapters/<name>`.
 /// Each gets the event payload on stdin, 10 seconds to finish, then SIGKILL. The exit code, the
 /// duration and the first 2 KB of stderr go to the log and to `EventStatus`. Nothing is retried.
+/// Child output is logged as private data: it can carry tokens or API error bodies.
 final class EventRunner: @unchecked Sendable {
     static let timeout: TimeInterval = 10
     static let stderrLimit = 2048
@@ -58,9 +59,9 @@ final class EventRunner: @unchecked Sendable {
                     log.error("\(what, privacy: .public) for \(payload.event.rawValue, privacy: .public): exit \(record.exit.map(String.init) ?? "signal", privacy: .public) in \(record.ms, privacy: .public) ms")
                 }
                 if !record.stderr.isEmpty, record.ok {
-                    log.notice("\(what, privacy: .public) stderr: \(record.stderr, privacy: .public)")
+                    log.notice("\(what, privacy: .public) stderr: \(record.stderr, privacy: .private)")
                 } else if !record.stderr.isEmpty {
-                    log.error("\(what, privacy: .public) stderr: \(record.stderr, privacy: .public)")
+                    log.error("\(what, privacy: .public) stderr: \(record.stderr, privacy: .private)")
                 }
                 let onResult = self.onResult
                 DispatchQueue.main.async { onResult(job, record) }
@@ -171,7 +172,7 @@ final class EventRunner: @unchecked Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if !stdoutData.isEmpty {
             let head = String(decoding: stdoutData.prefix(EventRunner.stderrLimit), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            log.info("\(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) stdout: \(head, privacy: .public)")
+            log.info("\(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) stdout: \(head, privacy: .private)")
         }
         return RunRecord(at: started, exit: exit, ms: ms, timedOut: timedOut, stderr: stderr)
     }
