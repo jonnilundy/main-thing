@@ -79,9 +79,13 @@ func runOpenChecks() {
         check("a click arms", pending.toggle("A#0") == .armed && pending.isPending("A#0"))
         check("finish removes it and says to complete", pending.finish("A#0") == true && !pending.isPending("A#0"))
         check("finish on a row that is not pending says no", pending.finish("A#0") == false)
+        check("a second click cancels", pending.toggle("A#0") == .armed && pending.toggle("A#0") == .cancelled && !pending.isPending("A#0"))
+        check("finish after a cancel says no, so nothing is completed", pending.finish("A#0") == false)
+        check("a third click arms again", pending.toggle("A#0") == .armed && pending.finish("A#0") == true)
         _ = pending.toggle("B#0")
         _ = pending.toggle("C#0")
         pending.keep(only: ["C#0"])
         check("keep(only:) drops rows that left the list", !pending.isPending("B#0") && pending.isPending("C#0"))
+        check("dim rows are 0.55, or 0.8 with Increase Contrast", OpenLayout.dimOpacity(increaseContrast: false) == 0.55 && OpenLayout.dimOpacity(increaseContrast: true) == 0.8)
     }
 }

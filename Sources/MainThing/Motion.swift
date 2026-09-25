@@ -3,8 +3,9 @@ import SwiftUI
 /// Motion tokens. Snappy with a little bounce. Nothing runs longer than about 300ms to settle,
 /// except the tail of the open bounce. Reduce Motion: opacity only, ease out, never ease in.
 enum Motion {
-    /// Open: a fast rise, then a visible overshoot near full size and a settle.
-    static let openSpring = Animation.spring(duration: 0.28, bounce: 0.35)
+    /// Open: a fast rise, then a visible overshoot near full size and a settle. Bounce 0.25,
+    /// a touch more than the 0.2 Apple ships for sheets and drawers.
+    static let openSpring = Animation.spring(duration: 0.28, bounce: 0.25)
     /// Close: quicker and calm, no bounce.
     static let closeSpring = Animation.spring(duration: 0.22, bounce: 0)
     /// Task change push.
@@ -15,6 +16,12 @@ enum Motion {
     static let bounceSpring = Animation.spring(response: 0.25, dampingFraction: 0.5)
     /// The strikethrough drawing left to right, and the text dimming with it.
     static let strike = Animation.easeOut(duration: 0.15)
+    /// A second click erases the strike, a little faster than it drew.
+    static let unstrike = Animation.easeOut(duration: 0.12)
+    /// Pressed state on mouse down.
+    static let press = Animation.easeOut(duration: 0.08)
+    /// Scroll edge fades coming and going.
+    static let edgeFade = Animation.easeOut(duration: 0.15)
     /// Quick fade for content that must not wait for the shape.
     static let fade = Animation.easeOut(duration: 0.12)
     /// Reduce Motion fade.

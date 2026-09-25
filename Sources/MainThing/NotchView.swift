@@ -159,21 +159,66 @@ struct OpenContent: View {
     }
 }
 
-/// The rows, plain when they fit, in a scroll view with hidden indicators when they do not.
+/// The rows, plain when they fit, in a scroll view when they do not. The clipped edge gets a
+/// short fade instead of a hard cut: at the bottom while more rows are below, at the top once scrolled.
 struct RowsBlock<Content: View>: View {
+    private let fadeHeight: CGFloat = 18
     let maxHeight: CGFloat?
     @ViewBuilder let content: Content
+    @State private var topClipped = false
+    @State private var bottomClipped = false
 
     var body: some View {
         if let maxHeight {
             ScrollView(.vertical) {
                 content
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named("rows"))
+                    } action: { frame in
+                        topClipped = frame.minY < -1
+                        bottomClipped = frame.maxY > maxHeight + 1
+                    }
             }
+            .coordinateSpace(name: "rows")
             .scrollIndicators(.automatic)
             .frame(maxHeight: maxHeight)
+            .mask {
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: topClipped ? fadeHeight : 0)
+                    Rectangle()
+                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: bottomClipped ? fadeHeight : 0)
+                }
+            }
+            .animation(Motion.edgeFade, value: topClipped)
+            .animation(Motion.edgeFade, value: bottomClipped)
         } else {
             content
         }
+    }
+}
+
+/// Press feedback on mouse down: the row dims a touch and the circle, via the environment,
+/// scales to 0.92 and fills. The action fires on mouse up only while the cursor is still on the
+/// row; dragging away cancels, as a Button does.
+struct RowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .environment(\.rowPressed, configuration.isPressed)
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .animation(Motion.press, value: configuration.isPressed)
+    }
+}
+
+private struct RowPressedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var rowPressed: Bool {
+        get { self[RowPressedKey.self] }
+        set { self[RowPressedKey.self] = newValue }
     }
 }
 
@@ -190,6 +235,7 @@ struct TaskRow: View {
     var body: some View {
         let font = isCurrent ? NotchMetrics.titleFont : NotchMetrics.rowFont
         let halfXHeight = (isCurrent ? NotchMetrics.titleXHeight : NotchMetrics.rowXHeight) / 2
+        let dim = OpenLayout.dimOpacity(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
         Button(action: action) {
             HStack(alignment: .firstTextBaseline, spacing: OpenLayout.circleGap) {
                 DoneCircle(visible: hovering || struck, filled: struck)
@@ -198,7 +244,7 @@ struct TaskRow: View {
                     .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + halfXHeight }
                 Text(row.title)
                     .font(font)
-                    .foregroundStyle(.white.opacity(isCurrent ? 1 : NotchMetrics.dimOpacity))
+                    .foregroundStyle(.white.opacity(isCurrent ? 1 : dim))
                     .lineLimit(2)
                     .truncationMode(.tail)
                     .opacity(struck ? 0.45 : 1)
@@ -220,11 +266,11 @@ struct TaskRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(RowButtonStyle())
         .onHover { hovering = $0 }
-        .animation(reduceMotion ? Motion.reducedFade : Motion.strike, value: struck)
+        .animation(reduceMotion ? Motion.reducedFade : (struck ? Motion.strike : Motion.unstrike), value: struck)
         .accessibilityLabel(row.title)
-        .accessibilityHint(struck ? "Done, leaving" : "Mark done")
+        .accessibilityHint(struck ? "Done, leaving. Click again to keep it" : "Mark done")
     }
 }
 
@@ -263,14 +309,17 @@ struct DoneCircle: View {
     let visible: Bool
     let filled: Bool
     @State private var hovering = false
+    @Environment(\.rowPressed) private var pressed
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // Never from 0. A scale bounce, not symbolEffect(.bounce): that one left the symbol blank in this panel.
-        let scale: CGFloat = reduceMotion ? 1 : (!visible ? 0.85 : (filled ? 1.15 : (hovering ? 1.1 : 1)))
-        Image(systemName: filled ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
+        // Pressed: 0.92 and filled, the instant the mouse goes down.
+        let scale: CGFloat = reduceMotion ? 1 : (!visible ? 0.85 : (pressed ? 0.92 : (filled ? 1.15 : (hovering ? 1.1 : 1))))
+        let showFilled = filled || pressed
+        Image(systemName: showFilled ? "checkmark.circle.fill" : (hovering ? "checkmark.circle" : "circle"))
             .font(.system(size: 18, weight: .regular))
-            .foregroundStyle(.white.opacity(filled ? 1 : 0.6))
+            .foregroundStyle(.white.opacity(showFilled ? 1 : 0.6))
             .contentTransition(Motion.symbol(reduceMotion))
             .frame(width: OpenLayout.circleWidth, height: OpenLayout.circleWidth)
             .contentShape(Rectangle())
@@ -280,6 +329,7 @@ struct DoneCircle: View {
             .animation(reduceMotion ? Motion.reducedFade : Motion.popSpring, value: visible)
             .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: hovering)
             .animation(reduceMotion ? Motion.reducedFade : Motion.bounceSpring, value: filled)
+            .animation(reduceMotion ? Motion.reducedFade : Motion.press, value: pressed)
             .accessibilityHidden(true)
     }
 }
@@ -297,8 +347,6 @@ enum NotchMetrics {
     /// x-heights, for centering the done circle on the first line.
     @MainActor static let titleXHeight: CGFloat = titleNSFont.xHeight
     @MainActor static let rowXHeight: CGFloat = rowNSFont.xHeight
-    /// The other tasks are dimmed to this.
-    static let dimOpacity: Double = 0.55
     static let textInset: CGFloat = 22
     static let flare = NotchGeometry.flare
     static let bottomRadius: CGFloat = 12

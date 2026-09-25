@@ -13,7 +13,11 @@ final class EventRunner: @unchecked Sendable {
     static let timeout: TimeInterval = 10
     static let stderrLimit = 2048
 
+    /// `~/.config/mainthing`, or `$XDG_CONFIG_HOME/mainthing`. `MAINTHING_CONFIG_DIR` overrides both.
     static var defaultConfigDirectory: URL {
+        if let path = ProcessInfo.processInfo.environment["MAINTHING_CONFIG_DIR"], !path.isEmpty {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
         let base = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 }
             ?? NSHomeDirectory() + "/.config"
         return URL(fileURLWithPath: base, isDirectory: true).appendingPathComponent("mainthing", isDirectory: true)

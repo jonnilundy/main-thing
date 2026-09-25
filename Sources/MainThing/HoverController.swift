@@ -124,16 +124,22 @@ final class HoverController {
         if model.isOpen { layout.fitOpen() }
     }
 
-    /// A click on a row. The row is struck through at once; after `completionDelay` it leaves,
-    /// and that removal is the completion: events and the adapter run for that task.
+    /// A click on a row. The row is struck through at once, with a haptic tick; after
+    /// `completionDelay` it leaves, and that removal is the completion: events and the adapter run
+    /// for that task then, not before. A second click inside the window restores the row and
+    /// nothing is sent anywhere.
     func toggleCompletion(of row: TaskList.Row) {
-        guard !model.pending.isPending(row.key) else { return }
-        _ = model.pending.toggle(row.key)
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: HoverController.completionDelay)
-            guard let self, self.model.pending.finish(row.key) else { return }
-            self.store.complete(key: row.key, expected: row.title, source: EventSource.notch)
-            self.refresh()
+        switch model.pending.toggle(row.key) {
+        case .cancelled:
+            log.notice("cross off cancelled: \(row.title, privacy: .public)")
+        case .armed:
+            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: HoverController.completionDelay)
+                guard let self, self.model.pending.finish(row.key) else { return }
+                self.store.complete(key: row.key, expected: row.title, source: EventSource.notch)
+                self.refresh()
+            }
         }
     }
 }

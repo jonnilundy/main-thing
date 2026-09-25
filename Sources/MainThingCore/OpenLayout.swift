@@ -27,6 +27,11 @@ public enum OpenLayout {
     /// Everything in a row that is not the title.
     public static var rowChrome: CGFloat { 2 * horizontalPadding + circleWidth + circleGap }
 
+    /// The other tasks are dimmed to 0.55, or 0.8 when the system asks for more contrast.
+    public static func dimOpacity(increaseContrast: Bool) -> Double {
+        increaseContrast ? 0.8 : 0.55
+    }
+
     /// 640, or half the screen when that is less.
     public static func widthCap(screenWidth: CGFloat) -> CGFloat {
         min(maximumWidth, (screenWidth * screenWidthShare).rounded(.down))

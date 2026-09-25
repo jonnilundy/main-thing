@@ -16,8 +16,12 @@ final class APIServer {
     /// Called with true when 127.0.0.1 is bound, false when the bind fails.
     var onStatus: (@MainActor (Bool) -> Void)?
 
-    /// `defaults write com.jonnilundy.mainthing port 7799` overrides the port.
-    static func configuredPort(_ defaults: UserDefaults = .standard) -> UInt16 {
+    /// `defaults write com.jonnilundy.mainthing port 7799` overrides the port. `MAINTHING_PORT` in
+    /// the environment overrides both, for a second copy in tests.
+    static func configuredPort(_ defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment) -> UInt16 {
+        if let raw = environment["MAINTHING_PORT"], let value = Int(raw), (1...65535).contains(value) {
+            return UInt16(value)
+        }
         let value = defaults.integer(forKey: "port")
         return (1...65535).contains(value) ? UInt16(value) : defaultPort
     }

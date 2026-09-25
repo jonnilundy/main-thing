@@ -20,7 +20,11 @@ final class TaskStore {
     /// The panel uses it to size itself before the shape animates.
     @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
+    /// `MAINTHING_TASKS_FILE` in the environment points a test copy at its own file.
     static var defaultFileURL: URL {
+        if let path = ProcessInfo.processInfo.environment["MAINTHING_TASKS_FILE"], !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
         return base

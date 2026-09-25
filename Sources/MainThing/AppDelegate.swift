@@ -14,7 +14,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var snapshotter: Snapshotter?
     private var screenObserver: (any NSObjectProtocol)?
 
+    /// `MAINTHING_HEADLESS=1`: no notch, no hover, no single instance check. The store and the API
+    /// run as usual, so smoke tests can drive a second copy on another port while the real one shows.
+    static var headless: Bool { ProcessInfo.processInfo.environment["MAINTHING_HEADLESS"] == "1" }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if AppDelegate.headless {
+            let store = TaskStore()
+            let server = APIServer(store: store)
+            server.start()
+            self.store = store
+            self.server = server
+            log.notice("headless: store at \(store.fileURL.path, privacy: .public), api port \(server.port, privacy: .public)")
+            return
+        }
         guard quitIfAnotherInstanceRuns() == false else { return }
 
         guard let geometry = currentGeometry() else {

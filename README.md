@@ -21,7 +21,7 @@ The install script builds a release, copies `MainThing.app` to `~/Applications`,
 
 ## Use
 
-The list is ordered. The first task is the one in the notch. Hover over the notch to see all of them; click any one to mark it done.
+The list is ordered. The first task is the one in the notch. Hover over the notch to see all of them; click any one to mark it done. The title is struck through and the row leaves a moment later; click it again in that moment to keep it.
 
 ```sh
 mainthing set "Write the memo" "Review Q3 KPIs" "Call the vendor"
@@ -191,6 +191,14 @@ open build/MainThing.app --args --open   # start with the notch held open, for s
 ```
 
 Set `MAINTHING_SNAPSHOT_DIR=/some/dir` in the environment to get a PNG of the notch after each change, rendered by the app itself. The bundle version comes from `MainThingVersion` in `Sources/MainThingCore/Version.swift`.
+
+A second copy for tests, with no notch and its own files, next to the one you use:
+
+```sh
+MAINTHING_HEADLESS=1 MAINTHING_PORT=7799 MAINTHING_TASKS_FILE=/tmp/mt/tasks.json MAINTHING_CONFIG_DIR=/tmp/mt/config \
+    build/MainThing.app/Contents/MacOS/MainThing &
+MAINTHING_PORT=7799 scripts/smoke.sh
+```
 
 ## License
 
