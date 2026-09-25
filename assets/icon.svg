@@ -1,19 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#979ca5"/>
-      <stop offset="0.55" stop-color="#666b73"/>
-      <stop offset="1" stop-color="#42464d"/>
-    </linearGradient>
-    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
-      <stop offset="0.12" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#f1f2f4"/>
+      <stop offset="1" stop-color="#dcdee3"/>
     </linearGradient>
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity="0.32"/>
-    </filter>
-    <filter id="glow" x="-30%" y="-200%" width="160%" height="500%">
-      <feGaussianBlur stdDeviation="9"/>
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#000" flood-opacity="0.28"/>
     </filter>
     <clipPath id="tileClip"><path d="M 629.12 100.00 c 103.22 0 154.83 0 194.25 20.09 a 184.30 184.30 0 0 1 80.54 80.54 c 20.09 39.42 20.09 91.03 20.09 194.25 L 924.00 629.12 c 0 103.22 0 154.83 -20.09 194.25 a 184.30 184.30 0 0 1 -80.54 80.54 c -39.42 20.09 -91.03 20.09 -194.25 20.09 L 394.88 924.00 c -103.22 0 -154.83 0 -194.25 -20.09 a 184.30 184.30 0 0 1 -80.54 -80.54 c -20.09 -39.42 -20.09 -91.03 -20.09 -194.25 L 100.00 394.88 c 0 -103.22 0 -154.83 20.09 -194.25 a 184.30 184.30 0 0 1 80.54 -80.54 c 39.42 -20.09 91.03 -20.09 194.25 -20.09 Z"/></clipPath>
   </defs>
@@ -21,15 +14,7 @@
     <path d="M 629.12 100.00 c 103.22 0 154.83 0 194.25 20.09 a 184.30 184.30 0 0 1 80.54 80.54 c 20.09 39.42 20.09 91.03 20.09 194.25 L 924.00 629.12 c 0 103.22 0 154.83 -20.09 194.25 a 184.30 184.30 0 0 1 -80.54 80.54 c -39.42 20.09 -91.03 20.09 -194.25 20.09 L 394.88 924.00 c -103.22 0 -154.83 0 -194.25 -20.09 a 184.30 184.30 0 0 1 -80.54 -80.54 c -20.09 -39.42 -20.09 -91.03 -20.09 -194.25 L 100.00 394.88 c 0 -103.22 0 -154.83 20.09 -194.25 a 184.30 184.30 0 0 1 80.54 -80.54 c 39.42 -20.09 91.03 -20.09 194.25 -20.09 Z" fill="url(#tile)"/>
   </g>
   <g clip-path="url(#tileClip)">
-    <path d="M 629.12 100.00 c 103.22 0 154.83 0 194.25 20.09 a 184.30 184.30 0 0 1 80.54 80.54 c 20.09 39.42 20.09 91.03 20.09 194.25 L 924.00 629.12 c 0 103.22 0 154.83 -20.09 194.25 a 184.30 184.30 0 0 1 -80.54 80.54 c -39.42 20.09 -91.03 20.09 -194.25 20.09 L 394.88 924.00 c -103.22 0 -154.83 0 -194.25 -20.09 a 184.30 184.30 0 0 1 -80.54 -80.54 c -20.09 -39.42 -20.09 -91.03 -20.09 -194.25 L 100.00 394.88 c 0 -103.22 0 -154.83 20.09 -194.25 a 184.30 184.30 0 0 1 80.54 -80.54 c 39.42 -20.09 91.03 -20.09 194.25 -20.09 Z" fill="url(#edge)"/>
-    <path d="M 248.0 100 Q 272.0 100 272.0 124 L 272.0 252 A 64 64 0 0 0 336.0 316 L 688.0 316 A 64 64 0 0 0 752.0 252 L 752.0 124 Q 752.0 100 776.0 100 Z" fill="#000"/>
-    <g opacity="0.55" filter="url(#glow)" stroke="#fff" stroke-linecap="round" fill="none">
-      <circle cx="336" cy="216.0" r="22" stroke-width="9"/>
-      <path d="M 394 216.0 H 688" stroke-width="22"/>
-    </g>
-    <g stroke="#fff" stroke-linecap="round" fill="none">
-      <circle cx="336" cy="216.0" r="22" stroke-width="8" opacity="0.75"/>
-      <path d="M 394 216.0 H 688" stroke-width="20"/>
-    </g>
+    <path d="M 244.8 352.0 Q 264.8 352.0 264.8 372.0 L 264.8 616.0 A 72 72 0 0 0 336.8 688.0 L 687.2 688.0 A 72 72 0 0 0 759.2 616.0 L 759.2 372.0 Q 759.2 352.0 779.2 352.0 Z" fill="#000"/>
+    <rect x="428.0" y="426.0" width="168" height="168" rx="40" fill="#fff"/><path d="M 470 514.0 L 502 546.0 L 558 476.0" fill="none" stroke="#000" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>
