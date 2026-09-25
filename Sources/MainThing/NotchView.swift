@@ -29,7 +29,6 @@ struct NotchView: View {
 }
 
 private let viewLog = Logger(subsystem: MainThingBundleID, category: "hover")
-private let renderLog = Logger(subsystem: MainThingBundleID, category: "render")
 
 struct NotchBody: View {
     let store: TaskStore
@@ -298,7 +297,6 @@ struct CrossOffRenderer: TextRenderer {
 
     func draw(layout: Text.Layout, in context: inout GraphicsContext) {
         let lines = Array(layout)
-        renderLog.debug("ink draw \(key, privacy: .public)")
         for (index, line) in lines.enumerated() {
             let bounds = line.typographicBounds
             let t = PenStroke.lineProgress(progress, line: index)

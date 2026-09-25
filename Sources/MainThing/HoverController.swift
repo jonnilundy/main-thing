@@ -110,10 +110,7 @@ final class HoverController {
     func setOpen(_ open: Bool) {
         guard model.isOpen != open else { return }
         // The panel grows before the shape animates, so nothing is clipped on the way up.
-        if open {
-            layout.fitOpen()
-            sounds.prime()
-        }
+        if open { layout.fitOpen() }
         model.isOpen = open
         log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public))")
         if !open {

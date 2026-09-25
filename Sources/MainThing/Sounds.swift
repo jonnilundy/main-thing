@@ -35,14 +35,8 @@ final class Sounds {
         scratches = Sounds.load("scratch", count: 3)
         unscratches = Sounds.load("unscratch", count: 2)
         if scratches.isEmpty { log.notice("no scratch.wav in the bundle, cross off stays silent") }
-        // Wake the output device now, silently, so the first real scratch is not half a second late.
-        if let player = scratches.first {
-            player.volume = 0
-            player.play()
-            player.stop()
-            player.currentTime = 0
-            player.volume = Sounds.volume
-        }
+        // Prepare off the main thread at launch: the audio device waking must never hold the notch.
+        prime()
     }
 
     private static func load(_ name: String, count: Int) -> [AVAudioPlayer] {
@@ -57,8 +51,8 @@ final class Sounds {
 
     private var allowed: Bool { Sounds.enabled && Sounds.systemAllows }
 
-    /// Called when the notch opens: gets the players ready off the main thread, so a click a moment
-    /// later plays at once and the open itself is not held up by the audio device waking.
+    /// Gets the players ready on a background queue. Called at launch, never on open: the notch
+    /// must not wait for the audio device.
     func prime() {
         let box = PlayerBox(scratches + unscratches)
         DispatchQueue.global(qos: .userInitiated).async {
