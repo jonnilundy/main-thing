@@ -8,11 +8,10 @@ struct NotchView: View {
     let store: TaskStore
     let model: NotchModel
     var onDone: () -> Void = {}
-    @Namespace private var titleSpace
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(store: store, model: model, onDone: onDone, titleSpace: titleSpace)
+            NotchBody(store: store, model: model, onDone: onDone)
                 .background(
                     GeometryReader { proxy in
                         Color.clear.preference(key: ShapeRectKey.self, value: proxy.frame(in: .named("panel")))
@@ -37,7 +36,6 @@ struct NotchBody: View {
     let store: TaskStore
     let model: NotchModel
     let onDone: () -> Void
-    let titleSpace: Namespace.ID
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -46,7 +44,10 @@ struct NotchBody: View {
         let title = rows.first?.title
         let geometry = model.geometry
         let collapsedWidth = NotchMetrics.width(for: title, minimum: geometry.minimumWidth)
-        let width = model.isOpen ? max(collapsedWidth, NotchMetrics.openWidth) : collapsedWidth
+        let openWidth = max(collapsedWidth, NotchMetrics.openWidth)
+        // The shape width springs between these. Content is laid out at its own final width,
+        // never at the animating width, and the clip hides the overflow while the spring settles.
+        let width = model.isOpen ? openWidth : collapsedWidth
         let shape = NotchShape(
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
@@ -54,25 +55,15 @@ struct NotchBody: View {
         VStack(spacing: 0) {
             // The notch row: the menu bar row, or the camera housing plus the title band under it.
             ZStack(alignment: .bottom) {
-                if !model.isOpen, let current = rows.first {
-                    Text(current.title)
-                        .font(NotchMetrics.font)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, NotchMetrics.textInset)
-                        .frame(height: geometry.titleBandHeight)
-                        .matchedGeometryEffect(id: "title", in: titleSpace)
-                        .id(current.key)
-                        .transition(Motion.push(reduceMotion))
+                if !model.isOpen {
+                    CollapsedTitle(rows: rows, bandHeight: geometry.titleBandHeight, minimumWidth: geometry.minimumWidth)
+                        .transition(Motion.fadeBlur(reduceMotion))
                 }
             }
             .frame(width: width, height: geometry.notchHeight)
-            .animation(Motion.content(reduceMotion), value: keys)
             if model.isOpen {
-                OpenContent(store: store, model: model, onDone: onDone, titleSpace: titleSpace)
-                    .frame(width: width)
-                    .transition(.opacity)
+                OpenContent(store: store, model: model, onDone: onDone, width: openWidth)
+                    .transition(Motion.fadeBlur(reduceMotion))
             }
         }
         .padding(.horizontal, NotchMetrics.flare)
@@ -86,31 +77,29 @@ struct NotchBody: View {
     }
 }
 
-/// Right click menu: Launch at Login, Show Tasks File, Quit.
-struct NotchMenu: View {
-    let store: TaskStore
+/// The title in the collapsed notch. Each title has its own fixed width, so a title that
+/// fits never truncates while the shape width animates around it.
+struct CollapsedTitle: View {
+    let rows: [TaskList.Row]
+    let bandHeight: CGFloat
+    let minimumWidth: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        if LaunchAtLogin.needsApproval {
-            Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
-        } else {
-            Toggle("Launch at Login", isOn: Binding(
-                get: { LaunchAtLogin.isEnabled },
-                set: { on in
-                    do {
-                        let status = try LaunchAtLogin.setEnabled(on)
-                        if status == .requiresApproval { LaunchAtLogin.openSettings() }
-                    } catch {
-                        NSSound.beep()
-                    }
-                }
-            ))
+        ZStack(alignment: .bottom) {
+            if let current = rows.first {
+                Text(current.title)
+                    .font(NotchMetrics.font)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, NotchMetrics.textInset)
+                    .frame(width: NotchMetrics.width(for: current.title, minimum: minimumWidth), height: bandHeight)
+                    .id(current.key)
+                    .transition(Motion.push(reduceMotion))
+            }
         }
-        Button("Show Tasks File") {
-            NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
-        }
-        Divider()
-        Button("Quit NextUp") { NSApp.terminate(nil) }
+        .animation(Motion.content(reduceMotion), value: rows.map(\.key))
     }
 }
 
@@ -118,7 +107,7 @@ struct OpenContent: View {
     let store: TaskStore
     let model: NotchModel
     let onDone: () -> Void
-    let titleSpace: Namespace.ID
+    let width: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -133,7 +122,6 @@ struct OpenContent: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(2)
-                        .matchedGeometryEffect(id: "title", in: titleSpace)
                         .id(current.key)
                         .transition(Motion.push(reduceMotion))
                 }
@@ -167,8 +155,38 @@ struct OpenContent: View {
         .padding(.horizontal, 16)
         .padding(.top, 2)
         .padding(.bottom, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Laid out at the final open width. The width itself does not animate here.
+        .frame(width: width, alignment: .leading)
+        .animation(nil, value: width)
         .animation(Motion.content(reduceMotion), value: keys)
+    }
+}
+
+/// Right click menu: Launch at Login, Show Tasks File, Quit.
+struct NotchMenu: View {
+    let store: TaskStore
+
+    var body: some View {
+        if LaunchAtLogin.needsApproval {
+            Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
+        } else {
+            Toggle("Launch at Login", isOn: Binding(
+                get: { LaunchAtLogin.isEnabled },
+                set: { on in
+                    do {
+                        let status = try LaunchAtLogin.setEnabled(on)
+                        if status == .requiresApproval { LaunchAtLogin.openSettings() }
+                    } catch {
+                        NSSound.beep()
+                    }
+                }
+            ))
+        }
+        Button("Show Tasks File") {
+            NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
+        }
+        Divider()
+        Button("Quit NextUp") { NSApp.terminate(nil) }
     }
 }
 
