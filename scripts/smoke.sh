@@ -1,10 +1,12 @@
 #!/bin/bash
-# Exercise every route with curl against the running app. Exits non-zero on any mismatch.
-# The list that was there before the run is put back at the end.
+# Exercise every route with curl and the nextup CLI against the running app.
+# Exits non-zero on any mismatch. The list that was there before the run is put back at the end.
 set -u
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${NEXTUP_PORT:-7788}"
-BASE="http://127.0.0.1:$PORT"
+BASE="http://localhost:$PORT"
+CLI="$ROOT/bin/nextup"
 fails=0
 
 pass() { echo "ok   $1"; }
@@ -32,6 +34,11 @@ expect() {
         return
     fi
     pass "$name -> $status $body"
+}
+
+# same <name> <expected> <actual>
+same() {
+    if [[ "$2" == "$3" ]]; then pass "$1 -> $3"; else fail "$1: got [$3], wanted [$2]"; fi
 }
 
 original=$(curl -s "$BASE/tasks")
@@ -64,11 +71,26 @@ big=$(printf '["%*s"]' 70000 '' | tr ' ' 'a')
 expect "PUT /tasks 70 KB body" 413 '{"error":"body over 64 KB"}' -X PUT --data-binary "$big" "$BASE/tasks"
 
 expect "GET /tasks with Origin" 403 '{"error":"requests with an Origin header are refused"}' \
-    -H "Origin: http://127.0.0.1:$PORT" "$BASE/tasks"
+    -H "Origin: http://localhost:$PORT" "$BASE/tasks"
 expect "PUT /tasks with Origin" 403 '' -X PUT -H 'Origin: null' --data-binary '["x"]' "$BASE/tasks"
 expect "GET /health with a foreign Host" 403 '' -H 'Host: evil.example' "$BASE/health"
+expect "GET /health with Host other.localhost" 403 '' -H "Host: other.localhost:$PORT" "$BASE/health"
+expect "GET /health with Host nextup.localhost" 200 '{"ok":true,"version":"0.1.0"}' -H "Host: nextup.localhost:$PORT" "$BASE/health"
+expect "GET /health at http://nextup.localhost (resolved to loopback)" 200 '{"ok":true,"version":"0.1.0"}' \
+    --resolve "nextup.localhost:$PORT:127.0.0.1" "http://nextup.localhost:$PORT/health"
 expect "GET /health over IPv6" 200 '{"ok":true,"version":"0.1.0"}' -6 "http://[::1]:$PORT/health"
-expect "GET /health via localhost" 200 '{"ok":true,"version":"0.1.0"}' "http://localhost:$PORT/health"
+expect "GET /health via 127.0.0.1" 200 '{"ok":true,"version":"0.1.0"}' "http://127.0.0.1:$PORT/health"
+
+echo "--- nextup CLI"
+same "nextup health" '{"ok":true,"version":"0.1.0"}' "$(NEXTUP_PORT=$PORT "$CLI" health)"
+same "nextup set with quotes and an apostrophe" $'She said "go"\nJonni\'s memo\nTab\\there' \
+    "$(NEXTUP_PORT=$PORT "$CLI" set 'She said "go"' "Jonni's memo" 'Tab\there')"
+same "nextup prints the current task" 'She said "go"' "$(NEXTUP_PORT=$PORT "$CLI")"
+same "nextup list" $'She said "go"\nJonni\'s memo\nTab\\there' "$(NEXTUP_PORT=$PORT "$CLI" list)"
+same "nextup done" $'Jonni\'s memo\nTab\\there' "$(NEXTUP_PORT=$PORT "$CLI" done)"
+same "nextup set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | NEXTUP_PORT=$PORT "$CLI" set -)"
+same "nextup unknown command exits 1" "1" "$(NEXTUP_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
+same "nextup on a dead port says not running" "1" "$(NEXTUP_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
 
 expect "restore the saved list" 200 "$original" -X PUT --data-binary "$original" "$BASE/tasks"
 

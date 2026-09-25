@@ -1,9 +1,10 @@
 #!/bin/bash
-# Build NextUp, quit any running copy, install to ~/Applications and start it.
+# Build NextUp, quit any running copy, install to ~/Applications, link the nextup CLI, start it.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${HOME:?}/Applications/NextUp.app"
+BIN_DIR="${HOME:?}/.local/bin"
 PATTERN="NextUp.app/Contents/MacOS/NextUp"
 
 "$ROOT/scripts/build-app.sh"
@@ -23,5 +24,13 @@ rm -rf "${DEST:?}"
 cp -R "$ROOT/build/NextUp.app" "$DEST"
 open "$DEST"
 
+mkdir -p "$BIN_DIR"
+ln -sf "$ROOT/bin/nextup" "$BIN_DIR/nextup"
+echo "linked $BIN_DIR/nextup -> $ROOT/bin/nextup"
+case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) echo "note: $BIN_DIR is not on your PATH. Add it, for example: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+esac
+
 echo "installed and started $DEST"
-echo "check: curl -s http://127.0.0.1:7788/health"
+echo "check: nextup health"

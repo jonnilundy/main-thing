@@ -1,6 +1,6 @@
 # NextUp
 
-A small Mac app with no Dock icon. It draws a black notch at the top center of the screen and shows your current task in it. Hover to open it: the current task large, a circle to mark it done, and the next three. A local HTTP API sets the ordered list.
+A small Mac app with no Dock icon. It draws a notch at the top center of the screen and shows your current task in it. On a MacBook with a camera housing it hangs below the menu bar under the housing; on a screen without one it sits in the menu bar row. Hover to open it: the current task large, a circle to mark it done, and the next three. A local API sets the ordered list.
 
 Requires macOS 14 or later. Builds with the Command Line Tools alone (Swift 6.2), no Xcode.
 
@@ -10,40 +10,51 @@ Requires macOS 14 or later. Builds with the Command Line Tools alone (Swift 6.2)
 scripts/install.sh
 ```
 
-Builds a release, quits any running copy, copies `NextUp.app` to `~/Applications` and starts it. Launch at Login is in the right click menu on the notch.
+Builds a release, quits any running copy, copies `NextUp.app` to `~/Applications`, links the `nextup` command into `~/.local/bin` and starts the app. Launch at Login is in the right click menu on the notch.
 
 ## Set the list
 
-The list is an ordered JSON array of titles. Index 0 is the current task.
+The list is ordered. The first task is the current one.
 
 ```sh
-# replace the whole list
-curl -X PUT http://127.0.0.1:7788/tasks -d '["Write the BAA memo","Review Q3 KPIs"]'
+nextup set "Write the BAA memo" "Review Q3 KPIs" "Call the KumoMTA team"
+nextup                # prints the current task
+nextup list           # one task per line
+nextup done           # marks the current task done
+nextup health         # is the app up
+```
 
-# same, object form
-curl -X PUT http://127.0.0.1:7788/tasks -d '{"tasks":["Write the BAA memo","Review Q3 KPIs"]}'
+Titles may hold quotes and apostrophes. One task per line from stdin:
 
-# read it
-curl http://127.0.0.1:7788/tasks
+```sh
+printf 'Write the BAA memo\nReview Q3 KPIs\n' | nextup set -
+```
 
-# mark the current task done
-curl -X POST http://127.0.0.1:7788/tasks/done
+`NEXTUP_PORT` changes the port the command talks to. When the app is not running the command says so and exits 1.
 
-# is it up
-curl http://127.0.0.1:7788/health
+## API
+
+The command is a thin wrapper over the local HTTP API on `http://localhost:7788`. Any client works:
+
+```sh
+curl -X PUT http://localhost:7788/tasks -d '["Write the BAA memo","Review Q3 KPIs"]'
+curl -X PUT http://localhost:7788/tasks -d '{"tasks":["Write the BAA memo","Review Q3 KPIs"]}'
+curl http://localhost:7788/tasks
+curl -X POST http://localhost:7788/tasks/done
+curl http://localhost:7788/health
 ```
 
 Titles are trimmed and blank ones are dropped. Every response is `{"tasks":[...]}`, except `/health` which returns `{"ok":true,"version":"0.1.0"}`.
 
-## API rules
+Rules at the boundary:
 
-- Loopback only: `127.0.0.1` and `::1`. Nothing else can reach it.
+- Loopback only. Nothing off the machine can reach it.
+- `Host` must be `localhost`, `nextup.localhost`, `127.0.0.1` or `[::1]`. Browsers resolve `nextup.localhost` to loopback on their own, so `http://nextup.localhost:7788` works there too.
 - Any request with an `Origin` header is refused with 403, so a web page cannot change your list.
-- `Host` must be `127.0.0.1`, `localhost` or `[::1]`.
 - Bad JSON is 400 with a one line reason. Bodies over 64 KB are 413. Unknown routes are 404, wrong methods 405.
 - Content-Type does not matter, so a plain `curl -d` works.
 
-Change the port:
+Change the port the app listens on:
 
 ```sh
 defaults write com.jonnilundy.nextup port 7799
@@ -72,7 +83,7 @@ Bind errors, refused requests and save errors show up there. If the port is take
 Quit from the notch menu, turn Launch at Login off first if it is on, then:
 
 ```sh
-rm -rf ~/Applications/NextUp.app "~/Library/Application Support/NextUp"
+rm -rf ~/Applications/NextUp.app "~/Library/Application Support/NextUp" ~/.local/bin/nextup
 ```
 
 ## Develop
@@ -80,7 +91,7 @@ rm -rf ~/Applications/NextUp.app "~/Library/Application Support/NextUp"
 ```sh
 swift run nextup-checks      # logic checks: parsing, routing, guards, list keys, hover, geometry
 scripts/build-app.sh         # release build into build/NextUp.app
-scripts/smoke.sh             # every route with curl against the running app
+scripts/smoke.sh             # every route with curl and the nextup command, against the running app
 open build/NextUp.app --args --open   # start with the notch held open, for screenshots
 ```
 

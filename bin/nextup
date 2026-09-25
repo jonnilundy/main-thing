@@ -1,0 +1,106 @@
+#!/bin/bash
+# nextup: talk to the NextUp notch over its local API.
+#
+#   nextup                  print the current task
+#   nextup list             one task per line
+#   nextup set "A" "B" ...  replace the list
+#   nextup set -            replace the list with one task per line from stdin
+#   nextup done             mark the current task done
+#   nextup health           is the app up
+#
+# NEXTUP_PORT overrides the port (default 7788).
+set -u
+
+PORT="${NEXTUP_PORT:-7788}"
+BASE="http://localhost:$PORT"
+
+fail() { echo "nextup: $*" >&2; exit 1; }
+
+not_running() {
+    fail "NextUp is not running on port $PORT. Start it from ~/Applications/NextUp.app, or set NEXTUP_PORT."
+}
+
+# GET or PUT or POST; prints the body, exits 1 with a clear message when the app is down.
+call() {
+    local method="$1" path="$2" body="${3-}"
+    local out rc
+    if [[ -n "$body" ]]; then
+        out=$(curl -s -S --max-time 3 -X "$method" --data-binary "$body" -w $'\n%{http_code}' "$BASE$path" 2>&1)
+    else
+        out=$(curl -s -S --max-time 3 -X "$method" -w $'\n%{http_code}' "$BASE$path" 2>&1)
+    fi
+    rc=$?
+    [[ $rc -eq 7 || $rc -eq 28 ]] && not_running
+    [[ $rc -ne 0 ]] && fail "curl failed: $out"
+    local status="${out##*$'\n'}"
+    local payload="${out%$'\n'*}"
+    if [[ "$status" != "200" ]]; then
+        fail "HTTP $status: $payload"
+    fi
+    printf '%s' "$payload"
+}
+
+# JSON string literal for one title. Escapes backslash, quote and control characters.
+json_string() {
+    local s="$1"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '"%s"' "$s"
+}
+
+# JSON array from the arguments.
+json_array() {
+    local out="[" first=1 t
+    for t in "$@"; do
+        [[ $first -eq 1 ]] || out+=","
+        out+=$(json_string "$t")
+        first=0
+    done
+    printf '%s]' "$out"
+}
+
+# Print the titles of a {"tasks":[...]} body, one per line. JavaScript for Automation ships with macOS.
+titles() {
+    osascript -l JavaScript -e '
+        ObjC.import("Foundation");
+        const data = $.NSFileHandle.fileHandleWithStandardInput.readDataToEndOfFile;
+        const text = $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding).js;
+        JSON.parse(text).tasks.join("\n");
+    ' 2>/dev/null
+}
+
+cmd="${1-current}"
+case "$cmd" in
+    current)
+        first=$(call GET /tasks | titles | head -n 1)
+        [[ -n "$first" ]] && echo "$first"
+        ;;
+    list)
+        call GET /tasks | titles
+        ;;
+    set)
+        shift
+        if [[ "${1-}" == "-" ]]; then
+            lines=()
+            while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done
+            set -- "${lines[@]+"${lines[@]}"}"
+        fi
+        call PUT /tasks "$(json_array "$@")" | titles
+        ;;
+    done)
+        call POST /tasks/done | titles
+        ;;
+    health)
+        call GET /health
+        echo
+        ;;
+    -h|--help|help)
+        sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+        ;;
+    *)
+        fail "unknown command '$cmd'. Try: nextup, nextup list, nextup set \"A\" \"B\", nextup set -, nextup done, nextup health"
+        ;;
+esac
