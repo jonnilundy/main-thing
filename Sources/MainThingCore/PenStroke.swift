@@ -11,10 +11,12 @@ public enum PenStroke {
     /// Points before the first glyph and past the last.
     public static let overshootStart: CGFloat = 4
     public static let overshootEnd: CGFloat = 6
-    /// Tilt in degrees. Even lines fall to the right, odd lines rise.
-    public static let tiltDegrees: Double = 1.2
+    /// Tilt in degrees. Even lines fall to the right, odd lines rise. Under a degree, and the
+    /// drop is capped so a long stroke stays inside the middle band of the lowercase letters.
+    public static let tiltDegrees: Double = 0.8
+    public static let maxTilt: CGFloat = 1.5
     /// Wobble amplitude in points.
-    public static let wobble: CGFloat = 0.55
+    public static let wobble: CGFloat = 0.5
     /// Samples along one stroke.
     public static let sampleCount = 28
     /// Width at the ends as a share of the width in the middle.
@@ -52,7 +54,7 @@ public enum PenStroke {
         let end = CGPoint(x: to.x + overshootEnd, y: to.y)
         let length = max(end.x - start.x, 1)
         // Tilt: the far end moves down (even lines) or up (odd lines).
-        let tilt = CGFloat(tan(tiltDegrees * .pi / 180)) * length * (line.isMultiple(of: 2) ? 1 : -1)
+        let tilt = min(CGFloat(tan(tiltDegrees * .pi / 180)) * length, maxTilt) * (line.isMultiple(of: 2) ? 1 : -1)
         // Wobble: a slow wave plus a little grain, both seeded.
         let waves = 1.5 + random.next() * 1.5
         let phase = random.next() * 2 * .pi

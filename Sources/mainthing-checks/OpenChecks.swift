@@ -87,13 +87,16 @@ func runOpenChecks() {
         check("starts 4pt before the first glyph", a.first?.point.x == 6 && a.first?.point.y == 20)
         check("overshoots 6pt past the last glyph", a.last?.point.x == 216)
         let tiltEven = a.last!.point.y - a.first!.point.y
-        check("even line tilts down about 1.2 degrees over its length", abs(tiltEven - tan(1.2 * .pi / 180) * 210) < 0.01 && tiltEven > 0)
+        check("even line tilts down, capped at 1.5pt over a long stroke", tiltEven > 0 && abs(tiltEven - 1.5) < 0.001)
+        let short = PenStroke.centerline(from: from, to: CGPoint(x: 60, y: 20), line: 0, seed: seed, thickness: 2)
+        check("a short stroke tilts 0.8 degrees, under the cap", abs((short.last!.point.y - short.first!.point.y) - tan(0.8 * .pi / 180) * 60) < 0.001)
+        check("the whole stroke stays within 2pt of its start line", a.allSatisfy { abs($0.point.y - a.first!.point.y) <= 2 })
         let odd = PenStroke.centerline(from: from, to: to, line: 1, seed: seed, thickness: 2)
         check("odd line tilts the other way", (odd.last!.point.y - odd.first!.point.y) < 0)
         let mid = a[a.count / 2].width
         check("tapered: ends are thinner than the middle", a.first!.width < mid && a.last!.width < mid && a.first!.width == 0.6 && abs(mid - 2) < 0.02)
         let wobbles = a.enumerated().map { i, s in abs(s.point.y - (a.first!.point.y + tiltEven * CGFloat(i) / CGFloat(a.count - 1))) }
-        check("wobble stays small", wobbles.max()! <= PenStroke.wobble + 0.01 && wobbles.max()! > 0.05)
+        check("wobble stays under 0.6pt", wobbles.max()! <= 0.6 && wobbles.max()! > 0.05)
         check("no wobble where the pen lands and lifts", wobbles.first! < 0.001 && wobbles.last! < 0.001)
         check("no ink at progress 0", PenStroke.outline(a, progress: 0).isEmpty)
         let half = PenStroke.outline(a, progress: 0.5)
