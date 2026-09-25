@@ -2,3 +2,7 @@
 build/
 .swiftpm/
 .DS_Store
+# Custom cross off sounds live in ~/.config/mainthing/sounds, never in the repo.
+sounds/
+*.mp3
+*.m4a

@@ -8,11 +8,12 @@ import os
 struct NotchView: View {
     let store: TaskStore
     let model: NotchModel
+    var sounds: Sounds? = nil
     var onToggle: (TaskList.Row) -> Void = { _ in }
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(store: store, model: model, onToggle: onToggle)
+            NotchBody(store: store, model: model, sounds: sounds, onToggle: onToggle)
                 // The hosting view fills the panel, so the global space is panel space, origin top left.
                 // A GeometryReader preference in the background never delivered the laid out frame here
                 // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
@@ -33,6 +34,7 @@ private let viewLog = Logger(subsystem: MainThingBundleID, category: "hover")
 struct NotchBody: View {
     let store: TaskStore
     let model: NotchModel
+    let sounds: Sounds?
     let onToggle: (TaskList.Row) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -72,7 +74,7 @@ struct NotchBody: View {
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
-        .contextMenu { NotchMenu(store: store) }
+        .contextMenu { NotchMenu(store: store, sounds: sounds) }
     }
 }
 
@@ -210,6 +212,20 @@ struct RowButtonStyle: ButtonStyle {
     }
 }
 
+/// One line of the Sound submenu: a checkmark on the current choice; picking one previews it.
+struct SoundItem: View {
+    let choice: SoundChoice
+    let current: SoundChoice
+    let sounds: Sounds
+
+    var body: some View {
+        Toggle(choice.displayName, isOn: Binding(
+            get: { current == choice },
+            set: { on in if on { sounds.choose(choice) } }
+        ))
+    }
+}
+
 /// One task, flush left, one line: a title wider than the card truncates with an ellipsis and
 /// shows in full as a tooltip. The whole row is the button. Hover shows a faint preview of the
 /// cross off; a click draws it like a pen on paper, and 400ms later the row leaves. A click in
@@ -229,10 +245,12 @@ struct TaskRow: View {
         let nsFont = isCurrent ? NotchMetrics.titleNSFont : NotchMetrics.rowNSFont
         let dim = OpenLayout.dimOpacity(increaseContrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast)
         let truncated = PanelLayout.width(of: row.title, font: nsFont) > OpenLayout.titleWidth(contentWidth: width)
+        // The row under the cursor lifts, so it is obvious before the click.
+        let textOpacity = isCurrent ? 1 : (hovering ? NotchMetrics.hoverOpacity : dim)
         Button(action: action) {
             Text(row.title)
                 .font(font)
-                .foregroundStyle(.white.opacity(isCurrent ? 1 : dim))
+                .foregroundStyle(.white.opacity(textOpacity))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .modifier(Ink(
@@ -311,10 +329,19 @@ struct CrossOffRenderer: TextRenderer {
             let to = CGPoint(x: bounds.rect.maxX, y: y)
 
             if preview > 0, t == 0 {
-                var path = Path()
-                path.move(to: from)
-                path.addLine(to: to)
-                context.stroke(path, with: .color(.white.opacity(0.25 * preview * inkOpacity)), lineWidth: 1)
+                // The same hand drawn path the click will ink, thinner and translucent, whole at once.
+                let samples = PenStroke.centerline(
+                    from: from, to: to, line: index,
+                    seed: PenStroke.seed(key: key, line: index), thickness: NotchMetrics.previewThickness
+                )
+                let outline = PenStroke.outline(samples, progress: 1)
+                if outline.count >= 3 {
+                    var path = Path()
+                    path.move(to: outline[0])
+                    for point in outline.dropFirst() { path.addLine(to: point) }
+                    path.closeSubpath()
+                    context.fill(path, with: .color(.white.opacity(NotchMetrics.previewOpacity * preview)))
+                }
             }
             if t > 0 {
                 let samples = PenStroke.centerline(
@@ -334,9 +361,10 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu: Launch at Login, Sounds, Show Tasks File, Quit.
+/// Right click menu: Launch at Login, Sound, Show Tasks File, Quit.
 struct NotchMenu: View {
     let store: TaskStore
+    let sounds: Sounds?
 
     var body: some View {
         if LaunchAtLogin.needsApproval {
@@ -354,10 +382,19 @@ struct NotchMenu: View {
                 }
             ))
         }
-        Toggle("Sounds", isOn: Binding(
-            get: { Sounds.enabled },
-            set: { Sounds.enabled = $0 }
-        ))
+        if let sounds {
+            // Read fresh every time the menu opens, so a file dropped into the folder shows up.
+            let files = sounds.available()
+            let current = SoundChoice.resolve(stored: Sounds.stored, available: files)
+            Menu("Sound") {
+                SoundItem(choice: .pen, current: current, sounds: sounds)
+                ForEach(files, id: \.self) { file in
+                    SoundItem(choice: .custom(fileName: file), current: current, sounds: sounds)
+                }
+                Divider()
+                SoundItem(choice: .off, current: current, sounds: sounds)
+            }
+        }
         Button("Show Tasks File") {
             NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
         }
@@ -376,7 +413,12 @@ enum NotchMetrics {
     /// The other tasks in the open state.
     static let rowFont = Font.system(size: 13)
     @MainActor static let rowNSFont = NSFont.systemFont(ofSize: 13)
-    /// x-heights, for centering the done circle on the first line.
+    /// The hover preview of the cross off: thinner and translucent next to the real ink.
+    static let previewThickness: CGFloat = 1.6
+    static let previewOpacity: Double = 0.55
+    /// A dim row lifts to this while the cursor is on it.
+    static let hoverOpacity: Double = 0.85
+    /// x-heights, for the strike line.
     @MainActor static let titleXHeight: CGFloat = titleNSFont.xHeight
     @MainActor static let rowXHeight: CGFloat = rowNSFont.xHeight
     static let textInset: CGFloat = 22

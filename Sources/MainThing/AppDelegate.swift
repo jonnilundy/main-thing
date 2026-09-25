@@ -47,9 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let panel = NotchPanel(contentRect: geometry.panelFrame)
         let layout = PanelLayout(panel: panel, model: model, store: store)
-        let hover = HoverController(panel: panel, model: model, store: store, layout: layout)
+        let sounds = Sounds()
+        let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
-        let root = NotchView(store: store, model: model, onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
+        let root = NotchView(store: store, model: model, sounds: sounds, onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
         let hosting = NotchHostingView(rootView: root)
         hosting.onMouseMove = { [weak hover] point in hover?.evaluate(at: point, source: "tracking") }
         panel.contentView = hosting

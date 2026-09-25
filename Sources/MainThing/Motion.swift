@@ -19,7 +19,7 @@ enum Motion {
     /// A second click erases the ink, fast.
     static let unstrike = Animation.easeOut(duration: 0.12)
     /// The hover preview of the cross off fading in.
-    static let preview = Animation.easeOut(duration: 0.1)
+    static let preview = Animation.easeOut(duration: 0.08)
     /// Pressed state on mouse down.
     static let press = Animation.easeOut(duration: 0.08)
     /// Scroll edge fades coming and going.

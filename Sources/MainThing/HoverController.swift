@@ -19,17 +19,18 @@ final class HoverController {
     private let model: NotchModel
     private let store: TaskStore
     private let layout: PanelLayout
-    private let sounds = Sounds()
+    private let sounds: Sounds
     private let log = Logger(subsystem: MainThingBundleID, category: "hover")
     private var monitors: [Any] = []
     /// Last cursor position seen in an event, AppKit screen coordinates.
     private var lastScreenPoint: CGPoint
 
-    init(panel: NSPanel, model: NotchModel, store: TaskStore, layout: PanelLayout) {
+    init(panel: NSPanel, model: NotchModel, store: TaskStore, layout: PanelLayout, sounds: Sounds) {
         self.panel = panel
         self.model = model
         self.store = store
         self.layout = layout
+        self.sounds = sounds
         self.lastScreenPoint = NSEvent.mouseLocation
     }
 

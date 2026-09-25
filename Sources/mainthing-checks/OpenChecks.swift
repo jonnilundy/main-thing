@@ -108,6 +108,28 @@ func runOpenChecks() {
         check("the pen lifts at the last sample", PenStroke.liftPoint(a) == a.last?.point)
     }
 
+    section("Sound choice")
+    do {
+        check("display name: dashes to spaces, title case", SoundChoice.displayName(fileName: "texture-scratch.mp3") == "Texture Scratch")
+        check("display name keeps inner capitals", SoundChoice.displayName(fileName: "yeah-boiii.mp3") == "Yeah Boiii" && SoundChoice.displayName(fileName: "apple_pay.m4a") == "Apple Pay")
+        check("display name of a single word", SoundChoice.displayName(fileName: "ding.wav") == "Ding")
+        check("audio files by extension, case insensitive, no dot files", SoundChoice.isAudioFile("a.MP3") && SoundChoice.isAudioFile("b.caf") && !SoundChoice.isAudioFile("notes.txt") && !SoundChoice.isAudioFile(".DS_Store"))
+        let files = ["texture-scratch.mp3", "apple-pay.mp3"]
+        check("nothing stored: pen", SoundChoice.resolve(stored: nil, available: files) == .pen)
+        check("pen stored", SoundChoice.resolve(stored: "pen", available: files) == .pen)
+        check("off stored", SoundChoice.resolve(stored: "off", available: files) == .off)
+        check("a present file", SoundChoice.resolve(stored: "apple-pay.mp3", available: files) == .custom(fileName: "apple-pay.mp3"))
+        check("a missing file falls back to pen", SoundChoice.resolve(stored: "yeah-boiii.mp3", available: files) == .pen)
+        check("stored values round trip", SoundChoice.custom(fileName: "x.wav").stored == "x.wav" && SoundChoice.off.stored == "off" && SoundChoice.pen.stored == "pen")
+        check("display names of the fixed choices", SoundChoice.pen.displayName == "Pen" && SoundChoice.off.displayName == "Off")
+        let ref = 0.136  // the pen scratch, about -17 dBFS RMS
+        check("same loudness as the pen: the pen's volume", SoundLevel.volume(rms: ref, peak: 0.7, referenceRMS: ref, referenceVolume: 0.25) == 0.25)
+        check("a loud file gets a low volume", SoundLevel.volume(rms: 0.4, peak: 1.0, referenceRMS: ref, referenceVolume: 0.25) == Float(0.25 * ref / 0.4))
+        check("a quiet file is raised, capped at 1", SoundLevel.volume(rms: 0.01, peak: 0.05, referenceRMS: ref, referenceVolume: 0.25) == 1)
+        check("never above what the peak allows", SoundLevel.volume(rms: 0.02, peak: 0.5, referenceRMS: ref, referenceVolume: 0.25) == 1 && SoundLevel.volume(rms: 0.02, peak: 0.9, referenceRMS: ref, referenceVolume: 0.25) == 1)
+        check("silence keeps the reference volume", SoundLevel.volume(rms: 0, peak: 0, referenceRMS: ref, referenceVolume: 0.25) == 0.25)
+    }
+
     section("Pending completions")
     do {
         var pending = PendingCompletions()
