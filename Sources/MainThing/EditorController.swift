@@ -100,6 +100,11 @@ final class EditorController {
         log.notice("opened from the menu at \(NSStringFromRect(frame), privacy: .public)")
     }
 
+    /// The window's size for the list as it is now, before a tear off builds it.
+    func tornSize() -> CGSize {
+        CGSize(width: EditorLayout.width, height: EditorLayout.height(rows: max(store.list.count, 1)))
+    }
+
     /// Builds the window for a tear off, top left at `topLeft` (AppKit screen coordinates), shown
     /// but not key while the mouse is still down. Returns the window size.
     @discardableResult

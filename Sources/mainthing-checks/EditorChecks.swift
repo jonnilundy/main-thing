@@ -123,3 +123,56 @@ func runEditorChecks() {
     check("clamp pulls a window up from below the screen", EditorLayout.clamp(CGRect(x: 100, y: 1400, width: 360, height: 200), into: visible).maxY == 1432)
     check("clamp keeps the size", EditorLayout.clamp(CGRect(x: -500, y: -500, width: 360, height: 200), into: visible).size == CGSize(width: 360, height: 200))
 }
+
+@MainActor
+func runTearOffChecks() {
+    section("TearOff")
+    check("no stretch without travel", TearOff.stretch(travel: 0) == 0 && TearOff.stretch(travel: -30) == 0)
+    check("the band starts at almost 1:1", TearOff.stretch(travel: 2) > 1.9)
+    check("the band resists more and more", TearOff.stretch(travel: 20) - TearOff.stretch(travel: 10) < TearOff.stretch(travel: 10))
+    check("the tear threshold is 40pt of travel", abs(TearOff.threshold - 40) < 0.001)
+    check("the card is 24pt past its edge at the threshold", abs(TearOff.stretch(travel: TearOff.threshold) - 24) < 0.001)
+    check("stretch stays under the band dimension", TearOff.stretch(travel: 10_000) < TearOff.bandDimension)
+
+    do {
+        var drag = TearOffDrag(start: CGPoint(x: 100, y: 50), reduceMotion: false)
+        check("a press is a click", drag.release() == .click && !drag.moved)
+        drag.move(to: CGPoint(x: 103, y: 54))
+        check("a 5pt move is still a click", drag.phase == .press && drag.release() == .click && drag.stretch == 0)
+        drag.move(to: CGPoint(x: 100, y: 56))
+        check("6pt down starts the tear off", drag.phase == .stretch && drag.moved)
+        check("the card stretches with the rubber band", abs(drag.stretch - TearOff.stretch(travel: 6)) < 0.001)
+        check("a release before the threshold springs back", drag.release() == .springBack)
+        drag.move(to: CGPoint(x: 100, y: 50))
+        check("back at the start is no click again", drag.moved && drag.release() == .springBack && drag.stretch == 0)
+        drag.move(to: CGPoint(x: 100, y: 89))
+        check("39pt of travel does not tear", drag.phase == .stretch && drag.stretch < 24)
+        drag.move(to: CGPoint(x: 100, y: 90))
+        check("40pt of travel tears", drag.phase == .torn && drag.stretch == 0)
+        drag.move(to: CGPoint(x: 400, y: 20))
+        check("torn stays torn wherever the cursor goes", drag.phase == .torn && drag.release() == .drop)
+    }
+    do {
+        var drag = TearOffDrag(start: CGPoint(x: 100, y: 50), reduceMotion: false)
+        drag.move(to: CGPoint(x: 140, y: 50))
+        check("a sideways drag is a drag, with no stretch", drag.phase == .stretch && drag.stretch == 0 && drag.release() == .springBack)
+        var up = TearOffDrag(start: CGPoint(x: 100, y: 50), reduceMotion: false)
+        up.move(to: CGPoint(x: 100, y: 10))
+        check("an upward drag never stretches", up.phase == .stretch && up.travel == 0 && up.stretch == 0)
+    }
+    do {
+        var drag = TearOffDrag(start: CGPoint(x: 100, y: 50), reduceMotion: true)
+        drag.move(to: CGPoint(x: 100, y: 70))
+        check("Reduce Motion: no stretch", drag.phase == .stretch && drag.stretch == 0)
+        drag.move(to: CGPoint(x: 100, y: 200))
+        check("Reduce Motion: no tracking past the threshold", drag.phase == .stretch && drag.stretch == 0)
+        check("Reduce Motion: the editor appears on release past the threshold", drag.release() == .appear)
+        drag.move(to: CGPoint(x: 100, y: 80))
+        check("Reduce Motion: back above the threshold springs back", drag.release() == .springBack)
+    }
+    let size = CGSize(width: 360, height: 150)
+    check("a grab inside the editor is kept", TearOff.grab(CGPoint(x: 120, y: 40), in: size) == CGPoint(x: 120, y: 40))
+    check("a grab past the editor's right edge is pulled in", TearOff.grab(CGPoint(x: 430, y: 40), in: size).x == 348)
+    check("a grab below the editor is pulled in", TearOff.grab(CGPoint(x: 120, y: 300), in: size).y == 138)
+    check("a grab in the flare is pulled in", TearOff.grab(CGPoint(x: -4, y: 2), in: size) == CGPoint(x: 12, y: 12))
+}

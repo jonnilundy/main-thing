@@ -92,6 +92,8 @@ final class HoverController {
     /// move inside the shape opens the notch.
     func evaluate(at screenPoint: CGPoint, source: String) {
         lastScreenPoint = screenPoint
+        // A held tear off owns the mouse: the cursor is below the card on purpose.
+        if model.tearing { return }
         if model.editorOpen {
             // The editor holds the list: no opening on hover, no clicks on the notch.
             panel.ignoresMouseEvents = true
@@ -134,7 +136,8 @@ final class HoverController {
 
     /// The editor window came up: collapse now, whatever the cursor is on.
     func editorOpened() {
-        panel.ignoresMouseEvents = true
+        // A tear off still holds the mouse in this panel; the mouse up refreshes this.
+        if !model.tearing { panel.ignoresMouseEvents = true }
         setOpen(false)
     }
 
@@ -150,6 +153,11 @@ final class HoverController {
     /// for that task then, not before. A second click inside the window restores the row and
     /// nothing is sent anywhere.
     func toggleCompletion(of row: TaskList.Row) {
+        // The press became a tear off drag: its mouse up is not a click.
+        if model.dragMoved {
+            log.notice("click after a drag ignored: \(row.title, privacy: .private)")
+            return
+        }
         switch model.pending.toggle(row.key) {
         case .cancelled:
             log.notice("cross off cancelled: \(row.title, privacy: .private)")

@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var snapshotter: Snapshotter?
     private var reminder: Reminder?
     private var editor: EditorController?
+    private var tearOff: TearOffController?
     private var screenObserver: (any NSObjectProtocol)?
 
     /// `MAINTHING_HEADLESS=1`: no notch, no hover, no single instance check. The store and the API
@@ -70,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
         self.hover = hover
         hover.start()
+        let tearOff = TearOffController(model: model, panel: panel, hover: hover, editor: editor)
+        tearOff.start()
+        self.tearOff = tearOff
 
         snapshotter = Snapshotter(store: store, model: model)
         snapshotter?.start()

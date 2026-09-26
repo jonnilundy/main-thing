@@ -36,6 +36,13 @@ final class NotchModel {
     var taskTime = ""
     /// The list editor window is up: the notch stays collapsed and lets every click through.
     var editorOpen = false
+    /// A press on the open card moved past the click slop: its mouse up must not cross anything
+    /// off. Cleared on the next mouse down.
+    var dragMoved = false
+    /// A tear off drag is held: the hover rules leave the notch alone until mouse up.
+    var tearing = false
+    /// How far the open card is stretched past its bottom edge by a tear off drag.
+    var tearStretch: CGFloat = 0
 
     /// Which row the cursor is on and whether the next entry earns a tick.
     @ObservationIgnored private var haptics = RowHaptics()

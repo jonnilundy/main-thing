@@ -79,6 +79,8 @@ struct NotchBody: View {
                     .transition(Motion.openContent(reduceMotion))
             }
         }
+        // A tear off drag pulls the bottom edge down; the content stays where it is.
+        .padding(.bottom, model.isOpen ? model.tearStretch : 0)
         .padding(.horizontal, NotchMetrics.flare)
         // Pure black, no translucency: it must match a hardware notch.
         .background(shape.fill(.black))
