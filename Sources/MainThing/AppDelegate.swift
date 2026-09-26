@@ -57,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let panel = NotchPanel(contentRect: geometry.panelFrame)
         let layout = PanelLayout(panel: panel, model: model, store: store)
         let sounds = Sounds()
+        SettingsWindow.sounds = sounds
+        SettingsWindow.installShortcut()
         let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
         let reminder = Reminder(store: store, model: model)
@@ -73,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         snapshotter?.start()
         self.reminder = reminder
         reminder.start()
+        // `MainThing --settings` opens Settings at launch, for scripts and screenshots.
+        if CommandLine.arguments.contains("--settings") { SettingsWindow.show() }
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
