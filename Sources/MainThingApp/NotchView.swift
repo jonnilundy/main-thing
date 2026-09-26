@@ -75,7 +75,8 @@ struct NotchBody: View {
                 dotColor: model.dotColor,
                 flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
                 taskTime: model.taskTime,
-                onHover: { key, inside in model.rowHover(key, number: 1, inside: inside) },
+                hovered: model.isOpen && model.hover == .task(0),
+                pressed: model.pressed == .task(0),
                 onToggle: { if let first = rows.first { onToggle(first) } }
             )
             if model.isOpen {
@@ -99,10 +100,10 @@ struct NotchBody: View {
 /// aligned at the card padding. One view in both states, so nothing swaps on open; open, the
 /// count "1 of N" sits right aligned. A task change pushes the new title in; each title keeps its
 /// own natural width, so a title that fits never truncates while the shape width animates around
-/// it. Open, task 1 is a row like the others: the button is its pill (`Lanes.bandPill`), inset 8
-/// like the row pills, and hover anywhere on it fills the pill, previews the cross off and ticks
-/// once. The dot, title and count keep their lanes: inset 8 plus padding 10 is the band's 18.
-/// Collapsed, only the title takes clicks and there is no pill. Empty list: nothing, the plain notch.
+/// it. Open, task 1 is a row like the others: its pill (`Lanes.bandPill`), inset 8 like the row
+/// pills, fills on hover and the title previews the cross off. The hover comes from the card's one
+/// tracker (`NotchModel.hover`), the same state for every row. The dot, title and count keep their
+/// lanes: inset 8 plus padding 10 is the band's 18. Empty list: nothing, the plain notch.
 struct Band: View {
     let rows: [TaskList.Row]
     let width: CGFloat
@@ -115,53 +116,35 @@ struct Band: View {
     let dotColor: Color
     let flash: Gradient
     let taskTime: String
-    /// The cursor entered or left task 1's pill while open. The model turns entries into haptic ticks.
-    let onHover: (String, Bool) -> Void
+    /// The pointer is on task 1, open.
+    let hovered: Bool
+    let pressed: Bool
     let onToggle: () -> Void
-    @State private var hoverState = false
     @State private var countShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
-    private var hovering: Bool { hoverState || (pins.hovered != nil && pins.hovered == rows.first?.key) }
+    private var hovering: Bool { hovered || (pins.hovered != nil && pins.hovered == rows.first?.key) }
 
     var body: some View {
         let pill = Lanes.bandPill(width: width, height: height)
         Group {
             if let current = rows.first {
-                Button(action: onToggle) {
-                    content(current, pill: pill)
-                        .background {
-                            // Rides with the animating edge like the count, and fades in on the
-                            // count's schedule, the same rise as the first row. The fill shows on hover.
-                            RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
-                                .fill(.white.opacity(hovering && isOpen ? Lanes.pillOpacity : 0))
-                                .opacity(countShown ? 1 : 0)
-                        }
-                        .contentShape(BandTarget(
-                            isOpen: isOpen,
-                            titleStart: Lanes.textStart - pill.minX,
-                            titleWidth: NotchMetrics.titleWidth(for: current.title),
-                            above: pill.minY,
-                            below: height - pill.maxY + Lanes.topGap / 2
-                        ))
-                }
-                .buttonStyle(RowButtonStyle())
-                // An explicit transaction, not `.animation(_:value:)`: that modifier would also
-                // animate the title's position with the preview timing on the frame the cursor
-                // lands on it, which is the frame the card starts to widen, and the title would
-                // run ahead of the dot.
-                .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hoverState = inside } }
-                .onChange(of: hovering && isOpen) { _, onRow in onHover(current.key, onRow) }
-                .onChange(of: current.key) { old, new in
-                    // Task 1 left and the next one moved up under the cursor: that is a new row.
-                    if hovering && isOpen {
-                        onHover(old, false)
-                        onHover(new, true)
+                content(current, pill: pill)
+                    .background {
+                        // Rides with the animating edge like the count, and fades in on the
+                        // count's schedule, the same rise as the first row. The fill shows on hover.
+                        RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
+                            .fill(.white.opacity(hovering && isOpen ? Lanes.pillOpacity : 0))
+                            .opacity(countShown ? 1 : 0)
                     }
-                }
-                .accessibilityLabel(current.title)
-                .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
-                .accessibilityAction(named: "Cross off") { onToggle() }
+                    .opacity(pressed ? 0.85 : 1)
+                    .animation(Motion.press, value: pressed)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(current.title)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
+                    .accessibilityAction { onToggle() }
+                    .accessibilityAction(named: "Cross off") { onToggle() }
             } else {
                 content(nil, pill: pill)
             }
@@ -223,23 +206,6 @@ struct Band: View {
     }
 }
 
-/// Where the band takes hover and clicks, in the pill's frame. Open: the pill's width, from the
-/// band's top edge down to the middle of the gap above row 2, which takes the other half, so the
-/// cursor never crosses a spot that belongs to no row. Collapsed: the title, as it always was.
-struct BandTarget: Shape {
-    var isOpen: Bool
-    var titleStart: CGFloat
-    var titleWidth: CGFloat
-    /// The band above and below the pill, open.
-    var above: CGFloat = 0
-    var below: CGFloat = 0
-
-    func path(in rect: CGRect) -> Path {
-        if isOpen { return Path(CGRect(x: rect.minX, y: rect.minY - above, width: rect.width, height: rect.height + above + below)) }
-        return Path(CGRect(x: rect.minX + titleStart, y: rect.minY, width: titleWidth, height: rect.height))
-    }
-}
-
 /// The dot: 7pt with a soft glow of its own color, the color clock's color of the moment. On
 /// each reminder sweep it pulses once, scale 1 to 1.25 and back with the glow up; under Reduce
 /// Motion a slower, smaller pulse. The keyframes drive frames only while they run.
@@ -282,6 +248,7 @@ struct OpenContent: View {
     let onToggle: (TaskList.Row) -> Void
     let width: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.previewPins) private var pins
 
     var body: some View {
         let rows = store.list.rows
@@ -296,7 +263,7 @@ struct OpenContent: View {
                     .padding(.leading, Lanes.textStart - Lanes.pillInset)
                     .transition(.opacity)
             } else {
-                RowsBlock(maxHeight: model.rowsMaxHeight) {
+                RowsBlock(maxHeight: model.rowsMaxHeight, onScroll: { model.rowsScroll = $0 }) {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(others.enumerated()), id: \.element.key) { index, row in
                             TaskRow(
@@ -304,9 +271,16 @@ struct OpenContent: View {
                                 number: index + 2,
                                 struck: model.pending.isPending(row.key),
                                 width: width,
-                                onHover: { model.rowHover(row.key, number: index + 2, inside: $0) },
-                                action: { onToggle(row) }
+                                hovered: model.hover == .task(index + 1) || pins.hovered == row.key,
+                                pressed: model.pressed == .task(index + 1)
                             )
+                            .equatable()
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(row.title)
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityHint(model.pending.isPending(row.key) ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
+                            .accessibilityAction { onToggle(row) }
+                            .accessibilityAction(named: "Cross off") { onToggle(row) }
                             .transition(Motion.row(reduceMotion, index: index))
                         }
                     }
@@ -321,6 +295,8 @@ struct OpenContent: View {
                 Note("sync failed: " + label)
                     .transition(.opacity)
             }
+            AddCard(width: width, hovered: model.hover == .add || pins.add, pressed: model.pressed == .add)
+                .equatable()
         }
         .padding(.horizontal, Lanes.pillInset)
         .padding(.top, Lanes.topGap)
@@ -354,6 +330,8 @@ struct Note: View {
 struct RowsBlock<Content: View>: View {
     private let fadeHeight: CGFloat = 18
     let maxHeight: CGFloat?
+    /// How far the rows are scrolled, for the pointer map.
+    var onScroll: (CGFloat) -> Void = { _ in }
     @ViewBuilder let content: Content
     @State private var topClipped = false
     @State private var bottomClipped = false
@@ -370,6 +348,11 @@ struct RowsBlock<Content: View>: View {
                     }
             }
             .coordinateSpace(name: "rows")
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top
+            } action: { _, offset in
+                onScroll(offset)
+            }
             .scrollIndicators(.automatic)
             .frame(maxHeight: maxHeight)
             .mask {
@@ -385,6 +368,7 @@ struct RowsBlock<Content: View>: View {
             .animation(Motion.edgeFade, value: bottomClipped)
         } else {
             content
+                .onAppear { onScroll(0) }
         }
     }
 }
@@ -415,89 +399,114 @@ struct SoundItem: View {
 
 /// One of rows 2..N: a 28pt pill with the row number in the marker lane and the title in the
 /// text lane, one line; a title wider than the card truncates with an ellipsis and shows in full
-/// as a tooltip. The whole pill is the button. Hover fills the pill, lifts the title and the
+/// as a tooltip. Hover (from the card's one tracker) fills the pill, lifts the title and the
 /// number, and shows a faint preview of the cross off; a click draws it like a pen on paper, and
-/// 400ms later the row leaves. A click in that window erases the ink and keeps the row.
-struct TaskRow: View {
+/// 400ms later the row leaves. A click in that window erases the ink and keeps the row. Plain
+/// data and Equatable: a hover change redraws only the two rows it moved between.
+struct TaskRow: View, Equatable {
     let row: TaskList.Row
     let number: Int
     let struck: Bool
     /// Card content width, for the pill and the line count the pen has to cross.
     let width: CGFloat
-    /// The cursor entered or left the pill. The model turns entries into haptic ticks.
-    let onHover: (Bool) -> Void
-    let action: () -> Void
-    @State private var hoverState = false
+    let hovered: Bool
+    let pressed: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
-    private var hovering: Bool { hoverState || pins.hovered == row.key }
+
+    nonisolated static func == (a: TaskRow, b: TaskRow) -> Bool {
+        a.row == b.row && a.number == b.number && a.struck == b.struck && a.width == b.width
+            && a.hovered == b.hovered && a.pressed == b.pressed
+    }
 
     var body: some View {
+        let hovering = hovered
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let titleOpacity = Lanes.rowTitleOpacity(hovered: hovering, increaseContrast: contrast)
         let numberOpacity = Lanes.numberOpacity(hovered: hovering, increaseContrast: contrast)
         let titleWidth = NotchMetrics.rowTitleWidth(row.title)
         let truncated = ceil(titleWidth) > OpenLayout.titleWidth(contentWidth: width)
         let pill = RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
-        Button(action: action) {
-            HStack(spacing: Lanes.gap) {
-                // The hover dims and lifts through opacity, never through the text's own color: an
-                // animated color re-resolves the text and runs TextKit layout again on every frame.
-                Text(String(number))
-                    .font(NotchMetrics.numberFont)
-                    .foregroundStyle(.white)
-                    .opacity(numberOpacity)
-                    .frame(width: Lanes.markerSlot)
-                // A hover change never reaches the renderer: rerunning it lays the text out again
-                // on every frame. Unstruck, the title dims with a plain opacity and the preview is a
-                // shape over it; struck, the renderer dims the glyphs so the ink stays at full strength.
-                Text(row.title)
-                    .font(NotchMetrics.rowFont)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .modifier(Ink(
-                        progress: struck ? pins.ink ?? 1 : 0,
-                        preview: 0,
-                        textOpacity: struck ? titleOpacity : 1,
-                        key: row.key,
-                        xHeight: NotchMetrics.rowNSFont.xHeight,
-                        thickness: 2.8,
-                        inkOpacity: Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast),
-                        shimmer: 0
-                    ))
-                    .opacity(struck ? 1 : titleOpacity)
-                    // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
-                    // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
-                    .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
-                    .overlay(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
-                        PreviewStroke(key: row.key, lineWidth: titleWidth, xHeight: NotchMetrics.rowNSFont.xHeight)
-                            .fill(.white.opacity(NotchMetrics.previewOpacity))
-                            .frame(height: PreviewStroke.height)
-                            .alignmentGuide(.firstTextBaseline) { _ in PreviewStroke.height }
-                            .opacity(hovering && !struck ? 1 : 0)
-                            // The click hides it at once, as the renderer did when the ink started.
-                            .animation(nil, value: struck)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, Lanes.pillPadding)
-            .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
-            .background(pill.fill(.white.opacity(Lanes.pillOpacity)).opacity(hovering ? 1 : 0))
-            // Square, not the pill: rows touch, so the rounded corners would leave dead spots
-            // between them. Row 2 also takes the lower half of the gap under the band.
-            .contentShape(RowTarget(above: number == 2 ? Lanes.topGap / 2 : 0))
+        HStack(spacing: Lanes.gap) {
+            // The hover dims and lifts through opacity, never through the text's own color: an
+            // animated color re-resolves the text and runs TextKit layout again on every frame.
+            Text(String(number))
+                .font(NotchMetrics.numberFont)
+                .foregroundStyle(.white)
+                .opacity(numberOpacity)
+                .frame(width: Lanes.markerSlot)
+            // A hover change never reaches the renderer: rerunning it lays the text out again
+            // on every frame. Unstruck, the title dims with a plain opacity and the preview is a
+            // shape over it; struck, the renderer dims the glyphs so the ink stays at full strength.
+            Text(row.title)
+                .font(NotchMetrics.rowFont)
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .modifier(Ink(
+                    progress: struck ? pins.ink ?? 1 : 0,
+                    preview: 0,
+                    textOpacity: struck ? titleOpacity : 1,
+                    key: row.key,
+                    xHeight: NotchMetrics.rowNSFont.xHeight,
+                    thickness: 2.8,
+                    inkOpacity: Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast),
+                    shimmer: 0
+                ))
+                .opacity(struck ? 1 : titleOpacity)
+                // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
+                // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
+                .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                .overlay(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
+                    PreviewStroke(key: row.key, lineWidth: titleWidth, xHeight: NotchMetrics.rowNSFont.xHeight)
+                        .fill(.white.opacity(NotchMetrics.previewOpacity))
+                        .frame(height: PreviewStroke.height)
+                        .alignmentGuide(.firstTextBaseline) { _ in PreviewStroke.height }
+                        .opacity(hovering && !struck ? 1 : 0)
+                        // The click hides it at once, as the renderer did when the ink started.
+                        .animation(nil, value: struck)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(RowButtonStyle())
-        // See Band: an explicit transaction keeps the row's position on the list's own animation.
-        .onHover { inside in
-            withAnimation(reduceMotion ? nil : Motion.preview) { hoverState = inside }
-            onHover(inside)
-        }
+        .padding(.horizontal, Lanes.pillPadding)
+        .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
+        .background(pill.fill(.white.opacity(Lanes.pillOpacity)).opacity(hovering ? 1 : 0))
+        .opacity(pressed ? 0.85 : 1)
+        .animation(Motion.press, value: pressed)
         .help(truncated ? row.title : "")
-        .accessibilityLabel(row.title)
-        .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
-        .accessibilityAction(named: "Cross off") { action() }
+    }
+}
+
+/// The add card at the very bottom of the open card: nothing until the pointer is on it, then a
+/// row's hover, a plus in the marker lane and "New task" in the text lane.
+struct AddCard: View, Equatable {
+    let width: CGFloat
+    let hovered: Bool
+    let pressed: Bool
+
+    var body: some View {
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        HStack(spacing: Lanes.gap) {
+            Image(systemName: "plus")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+                .opacity(Lanes.numberOpacity(hovered: true, increaseContrast: contrast))
+                .frame(width: Lanes.markerSlot)
+            Text("New task")
+                .font(NotchMetrics.rowFont)
+                .foregroundStyle(.white)
+                .opacity(Lanes.rowTitleOpacity(hovered: false, increaseContrast: contrast))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, Lanes.pillPadding)
+        .frame(width: Lanes.pillWidth(contentWidth: width), height: OpenLayout.addHeight, alignment: .leading)
+        .opacity(hovered ? 1 : 0)
+        .background(RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.white.opacity(Lanes.pillOpacity)).opacity(hovered ? 1 : 0))
+        .opacity(pressed ? 0.85 : 1)
+        .animation(Motion.press, value: pressed)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("New task")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -524,15 +533,6 @@ struct PreviewStroke: Shape {
         for point in outline.dropFirst() { path.addLine(to: point) }
         path.closeSubpath()
         return path
-    }
-}
-
-/// Where a row takes hover and clicks: its frame, reaching `above` higher.
-struct RowTarget: Shape {
-    var above: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        Path(CGRect(x: rect.minX, y: rect.minY - above, width: rect.width, height: rect.height + above))
     }
 }
 

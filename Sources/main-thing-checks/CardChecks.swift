@@ -37,6 +37,8 @@ func runCardChecks() {
     check("the Undo takes its own row", undo.rowItems == 3 && undo.item(atRow: 0) == .task(1) && undo.item(atRow: 1) == .undo && undo.item(atRow: 2) == .task(2))
     check("the Undo row by the pointer", undo.slot(atY: 64 + 14) == .undo && undo.slot(atY: 92 + 14) == .task(2))
     check("task positions skip the Undo", undo.position(ofTask: 1) == 0 && undo.position(ofTask: 2) == 2 && undo.position(ofTask: 0) == nil)
+    check("live centers step over the Undo row", undo.liveCenters == [15, 50, 106] && undo.centerY(of: .undo) == 78)
+    check("without an Undo the live centers are the resting ones", map.liveCenters == map.taskCenters && map.centerY(of: .add) == 134)
     let lastUndo = CardMap(notchHeight: 30, taskCount: 0, undoRow: 3)
     check("the last task discarded: the Undo is the only row", !lastUndo.isEmpty && lastUndo.rowItems == 1 && lastUndo.slot(atY: 40) == .undo)
     check("an Undo past the end is clamped to the last row", CardMap(notchHeight: 30, taskCount: 2, undoRow: 7).item(atRow: 1) == .undo)
@@ -95,8 +97,11 @@ func runCardChecks() {
 
     section("RowMenu")
     let frame = RowMenu.frame(pressX: 150, rowCenterY: 50, cardWidth: 320)
-    check("the menu sits in the row, just left of the press", frame == CGRect(x: 138, y: 39, width: RowMenu.width, height: 22))
-    check("the menu stays inside the pill", RowMenu.frame(pressX: 318, rowCenterY: 50, cardWidth: 320).maxX == 310 && RowMenu.frame(pressX: 0, rowCenterY: 50, cardWidth: 320).minX == 10)
+    check("the menu sits in the row, just right of the press", frame == CGRect(x: 156, y: 39, width: RowMenu.width, height: 22))
+    check("a release where the press was selects nothing", RowMenu.item(at: CGPoint(x: 150, y: 50), in: frame) == nil)
+    let late = RowMenu.frame(pressX: 300, rowCenterY: 50, cardWidth: 320)
+    check("no room on the right: the menu opens left of the press", late.maxX == 294 && RowMenu.item(at: CGPoint(x: 300, y: 50), in: late) == nil)
+    check("the menu stays inside the pill", RowMenu.frame(pressX: 0, rowCenterY: 50, cardWidth: 320).minX == 10 && RowMenu.frame(pressX: 318, rowCenterY: 50, cardWidth: 320).maxX <= 310)
     check("left half is Rename, right half Discard", RowMenu.item(at: CGPoint(x: frame.minX + 10, y: 50), in: frame) == .rename && RowMenu.item(at: CGPoint(x: frame.maxX - 10, y: 50), in: frame) == .discard)
     check("outside the menu is no item", RowMenu.item(at: CGPoint(x: frame.minX - 1, y: 50), in: frame) == nil)
 

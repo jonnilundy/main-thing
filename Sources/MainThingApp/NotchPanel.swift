@@ -28,7 +28,10 @@ final class NotchPanel: NSPanel {
     /// One above the menu bar level, so the notch stays over full screen apps. The frame never overlaps the menu bar.
     static let level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 1)
 
-    override var canBecomeKey: Bool { false }
+    /// Key only while a field in the card takes typing: a rename or a new task. Non-activating,
+    /// so the app in front stays in front.
+    var allowsKey = false
+    override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
 
     /// AppKit may nudge frames near the menu bar. The frame is exact by construction.

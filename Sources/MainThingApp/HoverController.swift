@@ -24,6 +24,8 @@ final class HoverController {
     private var monitors: [Any] = []
     /// Last cursor position seen in an event, AppKit screen coordinates.
     private var lastScreenPoint: CGPoint
+    /// The open card's pointer: every move goes on to it, for the rows' hover.
+    weak var card: CardController?
 
     init(panel: NSPanel, model: NotchModel, store: TaskStore, layout: PanelLayout, sounds: Sounds) {
         self.panel = panel
@@ -106,6 +108,7 @@ final class HoverController {
         case .close: setOpen(false)
         case .none: break
         }
+        card?.pointer(at: inside ? point : nil)
     }
 
     /// Click through on or off, written only when it changes. Every write of `ignoresMouseEvents`,
@@ -133,6 +136,7 @@ final class HoverController {
         log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public)) in \(ms, format: .fixed(precision: 1), privacy: .public) ms")
         if !open {
             model.pending = PendingCompletions()
+            card?.closed()
             layout.fitClosed()
         }
     }

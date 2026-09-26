@@ -11,6 +11,8 @@ struct PreviewPins {
     var ink: Double?
     /// The reminder sweep counter; the fraction is the band's progress across the title.
     var sweep: Double?
+    /// The add card shows as hovered.
+    var add = false
 }
 
 extension EnvironmentValues {

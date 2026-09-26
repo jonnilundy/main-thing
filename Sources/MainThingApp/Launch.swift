@@ -43,9 +43,12 @@ public enum Launch {
         }
 
         // `MainThing --bench-hover [seconds] [closed]` sweeps the rows with synthesized moves and exits.
+        // `MainThing --bench-hover gap [notch|menubar|menubar24]` checks the drawn hover at every height.
         if let flag = CommandLine.arguments.firstIndex(of: "--bench-hover") {
-            let seconds = flag + 1 < CommandLine.arguments.count ? Double(CommandLine.arguments[flag + 1]) ?? 5 : 5
-            HoverBench.run(seconds: seconds, closed: CommandLine.arguments.contains("closed"), gap: CommandLine.arguments.contains("gap"))
+            let arguments = CommandLine.arguments
+            let seconds = flag + 1 < arguments.count ? Double(arguments[flag + 1]) ?? 5 : 5
+            let screen = arguments.first { HoverBench.fixtures[$0] != nil }
+            HoverBench.run(seconds: seconds, closed: arguments.contains("closed"), gap: arguments.contains("gap"), fixture: screen)
         }
 
         let app = NSApplication.shared

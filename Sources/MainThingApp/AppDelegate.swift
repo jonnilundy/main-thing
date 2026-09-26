@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var server: APIServer?
     private var model: NotchModel?
     private var hover: HoverController?
+    private var card: CardController?
     private var snapshotter: Snapshotter?
     private var reminder: Reminder?
     private var screenObserver: (any NSObjectProtocol)?
@@ -74,6 +75,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
         self.panel = panel
         self.hover = hover
+        let card = CardController(model: model, store: store, panel: panel, toggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
+        hover.card = card
+        card.start()
+        self.card = card
         hover.start()
 
         snapshotter = Snapshotter(store: store, model: model)

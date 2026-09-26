@@ -16,12 +16,28 @@ import SwiftUI
 /// `MainThing --bench-hover [seconds] closed`: the notch stays collapsed and the cursor moves beside
 /// it, as anywhere on screen. Only the global monitor's `evaluate` runs, once per move.
 ///
-/// `MainThing --bench-hover gap`: no timing. Steps the cursor down 1pt at a time from the band's
-/// center to row 3's center and prints which row has hover at each height. Exits 5 when some
-/// height between them has no row: a dead zone.
+/// `MainThing --bench-hover gap [notch|menubar|menubar24]`: no timing. Steps the cursor down 1pt at
+/// a time from the band's center to the add card, at the pills' center and 1pt inside their ends,
+/// and at each height renders the hosting view and reads which pills are drawn filled. Exits 5
+/// when some height has no filled pill (a dead zone) or two, or when the drawn one is not the
+/// hover state. The fixtures are a 14 inch MacBook Pro (a hardware notch, the band hangs below the
+/// menu bar), a Studio Display (no notch, the band is the 30pt menu bar row) and a 24pt menu bar;
+/// without one the probe uses the main screen's own geometry.
 @MainActor
 enum HoverBench {
-    static func run(seconds: Double, closed: Bool = false, gap: Bool = false) {
+    static let fixtures: [String: ScreenInfo] = [
+        "notch": ScreenInfo(
+            frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 950),
+            safeAreaTop: 32,
+            auxiliaryTopLeft: CGRect(x: 0, y: 950, width: 663.5, height: 32),
+            auxiliaryTopRight: CGRect(x: 848.5, y: 950, width: 663.5, height: 32)
+        ),
+        "menubar": ScreenInfo(frame: CGRect(x: 0, y: 0, width: 2560, height: 1440), visibleFrame: CGRect(x: 0, y: 0, width: 2560, height: 1410)),
+        "menubar24": ScreenInfo(frame: CGRect(x: 0, y: 0, width: 1440, height: 900), visibleFrame: CGRect(x: 0, y: 0, width: 1440, height: 876)),
+    ]
+
+    static func run(seconds: Double, closed: Bool = false, gap: Bool = false, fixture: String? = nil) {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         guard let screen = NSScreen.main else {
@@ -30,13 +46,15 @@ enum HoverBench {
         }
         let environment = ProcessInfo.processInfo.environment
         let delay = Env.value("BENCH_DELAY", in: environment).flatMap(Double.init) ?? 1
-        let geometry = NotchGeometry(screen: ScreenInfo(screen))
+        let geometry = NotchGeometry(screen: fixture.flatMap { fixtures[$0] } ?? ScreenInfo(screen))
         let store = TaskStore(previewTitles: [
             "Ship the launch post", "Reply to the design review", "Update the changelog",
             "Book the offsite room", "Draft the Q4 plan", "Send the invoices",
             "Review the hiring plan", "Write the weekly update",
         ])
         let model = NotchModel(geometry: geometry, apiPort: APIPort.preferred)
+        // The probe reads the drawn state at once, without the hover fade.
+        model.hoverAnimates = !gap
         let haptics = CountingPerformer()
         model.performer = haptics
         model.isOpen = !closed
@@ -59,6 +77,8 @@ enum HoverBench {
             panel: standIn, model: model, store: store,
             layout: PanelLayout(panel: standIn, model: model, store: store), sounds: Sounds(configDirectory: silent)
         )
+        let card = CardController(model: model, store: store, panel: panel, toggle: { row in hover.toggleCompletion(of: row) })
+        hover.card = card
 
         // Row centers from the top of the panel: the band, then rows 2..N.
         var centers = [geometry.notchHeight / 2]
@@ -85,37 +105,7 @@ enum HoverBench {
             // Wired after the enter: an enter reports the real cursor, which is somewhere else.
             if !closed { hosting.onMouseMove = { point in hover.evaluate(at: point, source: "tracking") } }
             if gap {
-                // Top of the panel is y 0 here; the band's center down to row 3's center, at the
-                // pills' center and 1pt inside their left and right ends.
-                let left = x - model.openWidth / 2 + Lanes.pillInset + 1
-                let right = left + Lanes.pillWidth(contentWidth: model.openWidth) - 2
-                var dead = false
-                for column in [x, left, right] {
-                var owner: [(y: CGFloat, key: String?)] = []
-                var probe = top
-                while probe <= centers[2] {
-                    let point = CGPoint(x: column, y: size.height - probe)
-                    if let event = NSEvent.mouseEvent(
-                        with: .mouseMoved, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-                        windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0
-                    ) {
-                        hover.evaluate(at: panel.convertPoint(toScreen: point), source: "local")
-                        hosting.mouseMoved(with: event)
-                    }
-                    try? await Task.sleep(for: .milliseconds(10))
-                    owner.append((probe, model.hoveredRow))
-                    probe += 1
-                }
-                let names = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.key, "row \($0 + 1)") })
-                var start = 0
-                for index in owner.indices where index == owner.count - 1 || owner[index + 1].key != owner[index].key {
-                    let name = owner[index].key.map { names[$0] ?? "?" } ?? "NOTHING"
-                    if owner[index].key == nil { dead = true }
-                    print(String(format: "bench gap: x %.0f, y %.1f to %.1f: %@", column, owner[start].y, owner[index].y, name))
-                    start = index + 1
-                }
-                }
-                print("bench gap: " + (dead ? "dead zone found" : "no dead zone") + String(format: " (band %.0fpt tall, rows %.0fpt from y %.0f)", geometry.notchHeight, Lanes.rowHeight, geometry.notchHeight + Lanes.topGap))
+                let dead = await probeGap(panel: panel, hosting: hosting, hover: hover, model: model, rows: rows, x: x, height: size.height, fixture: fixture ?? "screen")
                 exit(dead ? 5 : 0)
             }
             let locked = Reminder.screenLocked
@@ -162,6 +152,79 @@ enum HoverBench {
         }
         app.run()
     }
+}
+
+extension HoverBench {
+    /// See `run`: steps down the card, renders the hosting view at each height and reads which
+    /// pills are filled. True when some height has none, two, or not the hovered one.
+    static func probeGap(panel: NSPanel, hosting: NSView, hover: HoverController, model: NotchModel, rows: [TaskList.Row], x: CGFloat, height: CGFloat, fixture: String) async -> Bool {
+        let geometry = model.geometry
+        let card = model.shapeRect
+        let map = CardMap(notchHeight: geometry.notchHeight, taskCount: rows.count)
+        let bodyLeft = card.minX + NotchGeometry.flare
+        // Where a filled pill shows and nothing else draws: 3pt inside its left end, at its middle.
+        let sampleX = bodyLeft + Lanes.pillInset + 3
+        var sampled: [(name: String, y: CGFloat)] = [("row 1", geometry.notchHeight / 2)]
+        for index in 1..<rows.count { sampled.append(("row \(index + 1)", map.center(ofTask: index))) }
+        sampled.append(("add card", map.addTop + OpenLayout.addHeight / 2))
+        let left = bodyLeft + Lanes.pillInset + 1
+        let right = bodyLeft + Lanes.pillWidth(contentWidth: model.openWidth) + Lanes.pillInset - 1
+        var failed = false
+        print(String(format: "bench gap: %@, %@, band %.0fpt tall, rows 28pt from y %.0f, add card from y %.0f, card %.0fpt wide",
+                     fixture, geometry.hasHardwareNotch ? "hardware notch" : "in the menu bar row", geometry.notchHeight, map.rowsTop, map.addTop, model.openWidth))
+        for column in [x, left, right] {
+            var owner: [(y: CGFloat, drawn: String)] = []
+            var probe = geometry.notchHeight / 2
+            let end = map.addTop + OpenLayout.addHeight / 2
+            while probe <= end {
+                let point = CGPoint(x: column, y: height - probe)
+                if let event = NSEvent.mouseEvent(
+                    with: .mouseMoved, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0
+                ) {
+                    hover.evaluate(at: panel.convertPoint(toScreen: point), source: "local")
+                    (hosting as? NSHostingView<NotchView>)?.mouseMoved(with: event)
+                }
+                try? await Task.sleep(for: .milliseconds(1))
+                // What the screen would show: the hosting view drawn into a bitmap.
+                hosting.layoutSubtreeIfNeeded()
+                var lit: [String] = []
+                // A 4pt strip down the card through the sample points is enough, and fast.
+                let strip = CGRect(x: sampleX - 2, y: 0, width: 4, height: hosting.bounds.height)
+                if let rep = hosting.bitmapImageRepForCachingDisplay(in: strip) {
+                    hosting.cacheDisplay(in: strip, to: rep)
+                    let scale = CGFloat(rep.pixelsWide) / strip.width
+                    for sample in sampled {
+                        let color = rep.colorAt(x: Int(2 * scale), y: Int((card.minY + sample.y) * scale))
+                        if (color?.whiteComponentValue ?? 0) > 0.03 { lit.append(sample.name) }
+                    }
+                }
+                let logical = sampled.first { name in
+                    switch model.hover {
+                    case .task(let index): return name.name == "row \(index + 1)"
+                    case .add: return name.name == "add card"
+                    default: return false
+                    }
+                }?.name
+                let drawn = lit.count == 1 ? lit[0] : (lit.isEmpty ? "NOTHING" : lit.joined(separator: " and "))
+                if lit.count != 1 || lit.first != logical { failed = true }
+                owner.append((probe, drawn + (lit.count == 1 && lit.first != logical ? " (hover state says \(logical ?? "nothing"))" : "")))
+                probe += 1
+            }
+            var start = 0
+            for index in owner.indices where index == owner.count - 1 || owner[index + 1].drawn != owner[index].drawn {
+                print(String(format: "bench gap: x %.0f, y %.1f to %.1f: %@ drawn", column, owner[start].y, owner[index].y, owner[index].drawn))
+                start = index + 1
+            }
+        }
+        print("bench gap: " + (failed ? "dead zone found" : "no dead zone") + ", " + fixture + String(format: " (band %.0fpt tall, rows 28pt from y %.0f)", geometry.notchHeight, map.rowsTop))
+        return failed
+    }
+}
+
+extension NSColor {
+    /// Brightness as gray, for a sampled pixel.
+    var whiteComponentValue: CGFloat { usingColorSpace(.deviceGray)?.whiteComponent ?? 0 }
 }
 
 /// Stands in for the trackpad: counts the ticks, performs nothing.

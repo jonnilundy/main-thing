@@ -114,6 +114,22 @@ public struct CardMap: Equatable, Sendable {
 
     public var taskCenters: [CGFloat] { (0..<taskCount).map(center(ofTask:)) }
 
+    /// The vertical center of a slot as laid out now, the Undo row included.
+    public func centerY(of slot: CardSlot) -> CGFloat {
+        let row: Int
+        switch slot {
+        case .task(0): return notchHeight / 2
+        case .task(let index): guard let p = position(ofTask: index) else { return notchHeight / 2 }; row = p
+        case .undo: guard let p = undoPosition else { return rowsTop }; row = p
+        case .add: return addTop + OpenLayout.addHeight / 2
+        case .none: return rowsTop
+        }
+        return rowsTop + (CGFloat(row) + 0.5) * Lanes.rowHeight - scroll
+    }
+
+    /// Every task's center as laid out now: the reorder targets. An Undo row keeps its place.
+    public var liveCenters: [CGFloat] { (0..<taskCount).map { centerY(of: .task($0)) } }
+
     /// The drag handle lane: the dot's and the numbers' lane, with the gutter left of it and half
     /// the gap to the title. A press there and a drag reorders; anywhere else it does not.
     public static func inHandle(x: CGFloat) -> Bool {
@@ -220,13 +236,17 @@ public enum RowMenu {
     public static let padding: CGFloat = 2
     public static var width: CGFloat { CGFloat(Item.allCases.count) * itemWidth + 2 * padding }
 
-    /// The menu's frame, card coordinates: its left edge just left of the press, centered on the
-    /// row, kept inside the row's pill.
+    /// Space between the press and the menu, so the release where the press was selects nothing.
+    public static let offset: CGFloat = 6
+
+    /// The menu's frame, card coordinates: centered on the row, just right of the press, or just
+    /// left of it where the pill has no room on the right, and kept inside the row's pill.
     public static func frame(pressX: CGFloat, rowCenterY: CGFloat, cardWidth: CGFloat) -> CGRect {
         let low = Lanes.pillInset + 2
         let high = max(cardWidth - Lanes.pillInset - 2 - width, low)
-        let x = min(max(pressX - 12, low), high)
-        return CGRect(x: x.rounded(), y: (rowCenterY - height / 2).rounded(), width: width, height: height)
+        let right = pressX + offset
+        let x = right <= high ? right : pressX - offset - width
+        return CGRect(x: min(max(x, low), high).rounded(), y: (rowCenterY - height / 2).rounded(), width: width, height: height)
     }
 
     /// The item under a point, card coordinates.
