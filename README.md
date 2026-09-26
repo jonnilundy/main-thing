@@ -44,6 +44,9 @@ In the notch:
 
 - Hover to open it. The current task stays on top, the rest follow in order.
 - Click a task to cross it off with a pen stroke. Click it again right away to keep it.
+- Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
+- Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
+- Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 4 seconds.
 - Right click for the menu: Sound, Reminder, Launch at Login, Check for Updates, Settings.
 
 <img src="docs/demo.gif" alt="Hovering the notch opens the list. A click crosses off the third task with a pen stroke and it leaves" width="100%">
@@ -52,7 +55,7 @@ In the notch:
 
 - **Reminder flash.** Every few minutes a colored band sweeps across the current task. The color steps through 10 hues, so the same color coming back tells you how long you have been on the task. Hover the dot to read the time.
 - **Refs.** A task can carry its id in another tool, written `<adapter>:<id>`, for example `openbrain:qh75pbc`. `main-thing set --json -` and `main-thing list --json` keep refs.
-- **Adapters.** Crossing off a task with a ref closes it in the tool it came from. 
+- **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Discarding a task only deletes it from the list.
 - **Hooks.** An executable in `~/.config/main-thing/hooks/` runs on every change, with the event as JSON on stdin.
 - **Sounds.** Pick a sound in the menu, or drop your own audio files into `~/.config/main-thing/sounds/`.
 - **Updates.** Main Thing checks once a day, downloads in the background, and installs when you quit or pick Install Update from the menu. It never pops up a window on its own, and it only installs updates signed with the project's key.
@@ -116,7 +119,9 @@ rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/A
 
 ## Contributing
 
-`scripts/test.sh` runs the checks and a smoke test against a throwaway copy of the app in about 5 seconds. `scripts/test.sh --checks-only` runs the checks alone. `scripts/render-previews.sh <dir>` renders every notch state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
+`scripts/test.sh` runs the checks, the hover and card probes, and a smoke test against a throwaway copy of the app in about 30 seconds. `scripts/test.sh --checks-only` skips the smoke test. `scripts/render-previews.sh <dir>` renders every notch state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
+
+The probes run the real notch view in an invisible panel of their own, on a list in memory, and never move the cursor. `MainThing --bench-hover gap [notch|menubar|menubar24]` steps down the open card 1pt at a time and reads back from the rendered view which row is drawn hovered, for a hardware notch, a Studio Display menu bar row or a 24pt menu bar. `MainThing --probe-card` clicks, drags, long presses, renames, discards and adds with events sent inside the app, and checks the list after each.
 
 Hover performance: `MainThing --bench-hover [seconds] [closed]` sweeps the open rows (or moves beside the collapsed notch) with synthesized moves in its own invisible panel and prints the main thread time per move; the cursor never moves. `scripts/bench-trace.sh <out.trace>` records a SwiftUI Instruments trace of the bench, `scripts/sweep-trace.sh <out.trace>` records one of the installed app while you sweep the rows by hand, and `scripts/trace-summary.py <file.trace>` prints hitches, commits, body updates and main thread hot spots of either.
 
