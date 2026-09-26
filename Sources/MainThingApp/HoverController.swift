@@ -105,7 +105,8 @@ final class HoverController {
         setClickThrough(!inside)
         switch NotchHover.intent(isOpen: model.isOpen, inside: inside) {
         case .open: setOpen(true)
-        case .close: setOpen(false)
+        // A held task, a rename, or a new task with text keeps the card open off the shape.
+        case .close: if !model.holdsOpen { setOpen(false) }
         case .none: break
         }
         card?.pointer(at: inside ? point : nil)
@@ -144,6 +145,7 @@ final class HoverController {
     /// The list changed while open: rows that left are no longer pending, and the card refits.
     func listChanged() {
         model.pending.keep(only: Set(store.list.rows.map(\.key)))
+        card?.listChanged()
         model.rowsAnimate()
         if model.isOpen { layout.fitOpen() }
     }
@@ -158,7 +160,7 @@ final class HoverController {
             log.notice("cross off cancelled: \(row.title, privacy: .private)")
             sounds.unscratch()
         case .armed:
-            NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+            model.performer.perform(.levelChange, performanceTime: .now)
             log.notice("stroke start: \(row.title, privacy: .private)")
             sounds.scratch(lines: 1)
             Task { @MainActor [weak self] in

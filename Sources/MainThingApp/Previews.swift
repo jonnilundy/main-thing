@@ -13,6 +13,8 @@ struct PreviewPins {
     var sweep: Double?
     /// The add card shows as hovered.
     var add = false
+    /// The Undo row shows as hovered.
+    var undo = false
 }
 
 extension EnvironmentValues {

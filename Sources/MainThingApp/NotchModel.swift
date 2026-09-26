@@ -124,3 +124,14 @@ final class NotchModel {
         haptics.listAnimates(at: Date.timeIntervalSinceReferenceDate)
     }
 }
+
+extension NotchModel {
+    /// How far task `index` shows from its resting place while a task is held: the held one
+    /// follows the pointer, the ones it passed move one place toward where it came from.
+    /// `centers` are the tasks' resting centers.
+    func shift(ofTask index: Int, centers: [CGFloat]) -> CGFloat {
+        guard let drag, centers.indices.contains(index), centers.indices.contains(drag.target) else { return 0 }
+        if index == drag.from { return drag.offset }
+        return centers[Reorder.place(of: index, from: drag.from, to: drag.target)] - centers[index]
+    }
+}

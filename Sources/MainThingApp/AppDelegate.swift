@@ -65,9 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
         let reminder = Reminder(store: store, model: model)
+        let card = CardController(model: model, store: store, panel: panel, toggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
+        hover.card = card
         let root = NotchView(
             store: store, model: model, sounds: sounds, reminder: reminder,
-            onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) }
+            onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) },
+            card: card
         )
         let hosting = NotchHostingView(rootView: root)
         hosting.onMouseMove = { [weak hover] point in hover?.evaluate(at: point, source: "tracking") }
@@ -75,8 +78,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
         self.panel = panel
         self.hover = hover
-        let card = CardController(model: model, store: store, panel: panel, toggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
-        hover.card = card
         card.start()
         self.card = card
         hover.start()

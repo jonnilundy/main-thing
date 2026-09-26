@@ -11,10 +11,12 @@ struct NotchView: View {
     var sounds: Sounds? = nil
     var reminder: Reminder? = nil
     var onToggle: (TaskList.Row) -> Void = { _ in }
+    /// Rename, discard, add and undo from the fields, the menu and VoiceOver. Nil in previews.
+    var card: CardController? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: onToggle)
+            NotchBody(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: onToggle, card: card)
                 // The hosting view fills the panel, so the global space is panel space, origin top left.
                 // A GeometryReader preference in the background never delivered the laid out frame here
                 // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
@@ -44,6 +46,7 @@ struct NotchBody: View {
     let sounds: Sounds?
     let reminder: Reminder?
     let onToggle: (TaskList.Row) -> Void
+    var card: CardController? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -61,6 +64,9 @@ struct NotchBody: View {
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
         )
+        let centers = CardMap(model: model, store: store).liveCenters
+        let first = rows.first
+        let held = first != nil && model.drag?.key == first?.key
         VStack(spacing: 0) {
             // The band, hanging under the menu bar: the dot and task 1 in both states. Its frame
             // width is what animates, and the band is leading aligned, so the dot and the title
@@ -70,18 +76,33 @@ struct NotchBody: View {
                 width: width,
                 height: geometry.notchHeight,
                 isOpen: model.isOpen,
-                struck: rows.first.map { model.pending.isPending($0.key) } ?? false,
+                struck: first.map { model.pending.isPending($0.key) } ?? false,
                 sweep: model.sweep,
                 dotColor: model.dotColor,
                 flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
                 taskTime: model.taskTime,
                 hovered: model.isOpen && model.hover == .task(0),
                 pressed: model.pressed == .task(0),
-                onToggle: { if let first = rows.first { onToggle(first) } }
+                lift: model.shift(ofTask: 0, centers: centers),
+                held: held,
+                quiet: model.quietRows,
+                rename: model.isOpen && first != nil && model.renaming == first?.key ? Bindable(model).renameText : nil,
+                card: card,
+                onToggle: { if let first { onToggle(first) } }
             )
+            // Held, task 1 rides over the rows.
+            .zIndex(held ? 1 : 0)
             if model.isOpen {
-                OpenContent(store: store, model: model, onToggle: onToggle, width: openWidth)
+                OpenContent(store: store, model: model, onToggle: onToggle, width: openWidth, card: card)
                     .transition(Motion.openContent(reduceMotion))
+            }
+        }
+        // The long press menu, on its row, card coordinates.
+        .overlay(alignment: .topLeading) {
+            if model.isOpen, let menu = model.menu {
+                RowMenuView(menu: menu, card: card)
+                    .offset(x: menu.frame.minX, y: menu.frame.minY)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .leading)))
             }
         }
         .padding(.horizontal, NotchMetrics.flare)
@@ -103,7 +124,8 @@ struct NotchBody: View {
 /// it. Open, task 1 is a row like the others: its pill (`Lanes.bandPill`), inset 8 like the row
 /// pills, fills on hover and the title previews the cross off. The hover comes from the card's one
 /// tracker (`NotchModel.hover`), the same state for every row. The dot, title and count keep their
-/// lanes: inset 8 plus padding 10 is the band's 18. Empty list: nothing, the plain notch.
+/// lanes: inset 8 plus padding 10 is the band's 18. Held by its dot, the pill, the dot and the
+/// title follow the pointer and the count stays. Empty list: nothing, the plain notch.
 struct Band: View {
     let rows: [TaskList.Row]
     let width: CGFloat
@@ -119,76 +141,54 @@ struct Band: View {
     /// The pointer is on task 1, open.
     let hovered: Bool
     let pressed: Bool
+    /// How far task 1 shows from its place while a task is held.
+    var lift: CGFloat = 0
+    /// Task 1 is the held one: lifted, on black, no animation of its own.
+    var held = false
+    /// A reorder or rename just landed: the new title is just there, no push.
+    var quiet = false
+    /// The rename field's text while task 1 is being renamed.
+    var rename: Binding<String>? = nil
+    var card: CardController? = nil
     let onToggle: () -> Void
     @State private var countShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
-    private var hovering: Bool { hovered || (pins.hovered != nil && pins.hovered == rows.first?.key) }
+    private var hovering: Bool { hovered || held || rename != nil || (pins.hovered != nil && pins.hovered == rows.first?.key) }
 
     var body: some View {
         let pill = Lanes.bandPill(width: width, height: height)
-        Group {
+        ZStack(alignment: .leading) {
             if let current = rows.first {
                 content(current, pill: pill)
                     .background {
                         // Rides with the animating edge like the count, and fades in on the
-                        // count's schedule, the same rise as the first row. The fill shows on hover.
-                        RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
-                            .fill(.white.opacity(hovering && isOpen ? Lanes.pillOpacity : 0))
-                            .opacity(countShown ? 1 : 0)
+                        // count's schedule, the same rise as the first row. The fill shows on
+                        // hover; held, it sits on black so the rows under it do not show through.
+                        ZStack {
+                            if held {
+                                RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.black)
+                            }
+                            RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
+                                .fill(.white.opacity(hovering && isOpen ? Lanes.pillOpacity : 0))
+                        }
+                        .opacity(countShown ? 1 : 0)
                     }
                     .opacity(pressed ? 0.85 : 1)
                     .animation(Motion.press, value: pressed)
+                    .offset(y: lift)
+                    // Held: exactly under the pointer, never behind it on a spring.
+                    .transaction { if held { $0.animation = nil } }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(current.title)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
                     .accessibilityAction { onToggle() }
                     .accessibilityAction(named: "Cross off") { onToggle() }
-            } else {
-                content(nil, pill: pill)
+                    .accessibilityAction(named: "Rename") { card?.startRename(current.key) }
+                    .accessibilityAction(named: "Discard") { card?.discard(current.key) }
             }
         }
-        .padding(.leading, pill.minX)
-        .frame(width: width, height: height, alignment: .leading)
-        .onChange(of: isOpen, initial: true) { _, open in
-            withAnimation(Motion.countFade(reduceMotion, opening: open)) { countShown = open }
-        }
-        .animation(Motion.content(reduceMotion), value: rows.map(\.key))
-    }
-
-    /// The dot, the title and the count, laid out in the pill's frame.
-    private func content(_ current: TaskList.Row?, pill: CGRect) -> some View {
-        HStack(spacing: Lanes.gap) {
-            if let current {
-                Dot(sweep: sweep, color: dotColor)
-                    .frame(width: Lanes.markerSlot, height: Lanes.markerSlot)
-                    .help(taskTime)
-                ZStack(alignment: .leading) {
-                    Text(current.title)
-                        .font(NotchMetrics.font)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .modifier(Ink(
-                            progress: struck ? pins.ink ?? 1 : 0,
-                            preview: hovering && isOpen && !struck ? 1 : 0,
-                            key: current.key,
-                            xHeight: NotchMetrics.nsFont.xHeight,
-                            thickness: 3.2,
-                            inkOpacity: 1,
-                            // Reduce Motion: the dot pulses, the title stays still.
-                            shimmer: reduceMotion ? 0 : pins.sweep ?? Double(sweep),
-                            flash: flash
-                        ))
-                        .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
-                        .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
-                        .id(current.key)
-                        .transition(Motion.push(reduceMotion))
-                }
-            }
-        }
-        .padding(.leading, Lanes.slotStart - pill.minX)
         .frame(width: pill.width, height: pill.height, alignment: .leading)
         .overlay(alignment: .trailing) {
             // Always in the tree, so it rides with the animating right edge instead of landing on
@@ -203,6 +203,51 @@ struct Band: View {
                     .accessibilityHidden(!isOpen)
             }
         }
+        .padding(.leading, pill.minX)
+        .frame(width: width, height: height, alignment: .leading)
+        .onChange(of: isOpen, initial: true) { _, open in
+            withAnimation(Motion.countFade(reduceMotion, opening: open)) { countShown = open }
+        }
+        .animation(Motion.content(reduceMotion), value: rows.map(\.key))
+    }
+
+    /// The dot and the title (or its rename field), laid out in the pill's frame.
+    private func content(_ current: TaskList.Row, pill: CGRect) -> some View {
+        HStack(spacing: Lanes.gap) {
+            Dot(sweep: sweep, color: dotColor)
+                .frame(width: Lanes.markerSlot, height: Lanes.markerSlot)
+                .help(taskTime)
+            if let rename {
+                InlineField(text: rename, font: NotchMetrics.font, prompt: current.title, keepsFocus: false,
+                            onSubmit: { card?.submitRename() }, onCancel: { card?.cancelRename() })
+                    .frame(width: Lanes.bandTitleWidth(contentWidth: width, countWidth: NotchMetrics.countWidth(rows.count)), alignment: .leading)
+            } else {
+                ZStack(alignment: .leading) {
+                    Text(current.title)
+                        .font(NotchMetrics.font)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .modifier(Ink(
+                            progress: struck ? pins.ink ?? 1 : 0,
+                            preview: hovered && isOpen && !struck && !held ? 1 : 0,
+                            key: current.key,
+                            xHeight: NotchMetrics.nsFont.xHeight,
+                            thickness: 3.2,
+                            inkOpacity: 1,
+                            // Reduce Motion: the dot pulses, the title stays still.
+                            shimmer: reduceMotion ? 0 : pins.sweep ?? Double(sweep),
+                            flash: flash
+                        ))
+                        .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                        .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
+                        .id(current.key)
+                        .transition(quiet ? .identity : Motion.push(reduceMotion))
+                }
+            }
+        }
+        .padding(.leading, Lanes.slotStart - pill.minX)
+        .frame(width: pill.width, height: pill.height, alignment: .leading)
     }
 }
 
@@ -241,21 +286,24 @@ struct Dot: View {
 }
 
 /// The body of the open card under the band: rows 2..N as pills in the same lanes, dim so the
-/// main thing stays the focus. Past 60 percent of the screen the rows scroll.
+/// main thing stays the focus, an Undo row where a task was just discarded, and the add card at
+/// the very bottom. Past 60 percent of the screen the rows scroll.
 struct OpenContent: View {
     let store: TaskStore
     let model: NotchModel
     let onToggle: (TaskList.Row) -> Void
     let width: CGFloat
+    var card: CardController? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
 
     var body: some View {
         let rows = store.list.rows
         let keys = rows.map(\.key)
-        let others = Array(rows.dropFirst())
+        let map = CardMap(model: model, store: store)
+        let centers = map.liveCenters
         VStack(alignment: .leading, spacing: 0) {
-            if rows.isEmpty {
+            if map.isEmpty {
                 Text("No tasks")
                     .font(NotchMetrics.rowFont)
                     .foregroundStyle(.white.opacity(0.5))
@@ -265,23 +313,9 @@ struct OpenContent: View {
             } else {
                 RowsBlock(maxHeight: model.rowsMaxHeight, onScroll: { model.rowsScroll = $0 }) {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(others.enumerated()), id: \.element.key) { index, row in
-                            TaskRow(
-                                row: row,
-                                number: index + 2,
-                                struck: model.pending.isPending(row.key),
-                                width: width,
-                                hovered: model.hover == .task(index + 1) || pins.hovered == row.key,
-                                pressed: model.pressed == .task(index + 1)
-                            )
-                            .equatable()
-                            .accessibilityElement(children: .combine)
-                            .accessibilityLabel(row.title)
-                            .accessibilityAddTraits(.isButton)
-                            .accessibilityHint(model.pending.isPending(row.key) ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
-                            .accessibilityAction { onToggle(row) }
-                            .accessibilityAction(named: "Cross off") { onToggle(row) }
-                            .transition(Motion.row(reduceMotion, index: index))
+                        // By key, so a row that moves or leaves keeps its identity and the rest slide.
+                        ForEach(RowItem.items(map: map, rows: rows)) { entry in
+                            item(entry.slot, position: entry.position, rows: rows, centers: centers)
                         }
                     }
                     .animation(Motion.content(reduceMotion), value: keys)
@@ -295,8 +329,15 @@ struct OpenContent: View {
                 Note("sync failed: " + label)
                     .transition(.opacity)
             }
-            AddCard(width: width, hovered: model.hover == .add || pins.add, pressed: model.pressed == .add)
-                .equatable()
+            if model.adding {
+                FieldRow(marker: .plus, text: Bindable(model).addText, prompt: "New task", keepsFocus: true,
+                         onSubmit: { card?.submitAdd() }, onCancel: { card?.closeAdd() }, width: width)
+                    .transition(.opacity)
+            } else {
+                AddCard(width: width, hovered: model.hover == .add || pins.add, pressed: model.pressed == .add)
+                    .equatable()
+                    .accessibilityAction { card?.openAdd() }
+            }
         }
         .padding(.horizontal, Lanes.pillInset)
         .padding(.top, Lanes.topGap)
@@ -305,6 +346,72 @@ struct OpenContent: View {
         .frame(width: width, alignment: .leading)
         .animation(nil, value: width)
         .animation(Motion.content(reduceMotion), value: keys)
+    }
+
+    /// One row under the band: a task, its rename field, or the Undo.
+    @ViewBuilder
+    private func item(_ slot: CardSlot, position: Int, rows: [TaskList.Row], centers: [CGFloat]) -> some View {
+        switch slot {
+        case .task(let index) where rows.indices.contains(index):
+            let row = rows[index]
+            let held = model.drag?.key == row.key
+            Group {
+                if model.renaming == row.key {
+                    FieldRow(marker: .number(index + 1), text: Bindable(model).renameText, prompt: row.title, keepsFocus: false,
+                             onSubmit: { card?.submitRename() }, onCancel: { card?.cancelRename() }, width: width)
+                } else {
+                    TaskRow(
+                        row: row,
+                        number: index + 1,
+                        struck: model.pending.isPending(row.key),
+                        width: width,
+                        hovered: model.hover == .task(index) || pins.hovered == row.key,
+                        pressed: model.pressed == .task(index),
+                        held: held
+                    )
+                    .equatable()
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(row.title)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint(model.pending.isPending(row.key) ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
+                    .accessibilityAction { onToggle(row) }
+                    .accessibilityAction(named: "Cross off") { onToggle(row) }
+                    .accessibilityAction(named: "Rename") { card?.startRename(row.key) }
+                    .accessibilityAction(named: "Discard") { card?.discard(row.key) }
+                }
+            }
+            .offset(y: model.shift(ofTask: index, centers: centers))
+            // Held: exactly under the pointer, never behind it on a spring.
+            .transaction { if held { $0.animation = nil } }
+            .zIndex(held ? 1 : 0)
+            .transition(model.quietRows ? .identity : Motion.row(reduceMotion, index: position))
+        case .undo:
+            if let gone = model.discarded {
+                UndoRow(title: gone.task.title, width: width, hovered: model.hover == .undo || pins.undo, pressed: model.pressed == .undo)
+                    .equatable()
+                    .accessibilityAction { card?.undo() }
+                    .transition(.opacity.animation(reduceMotion ? Motion.reducedFade : Motion.fade))
+            }
+        default:
+            EmptyView()
+        }
+    }
+}
+
+/// One row under the band, keyed by its task (or "undo"), with its position.
+struct RowItem: Identifiable {
+    let id: String
+    let slot: CardSlot
+    let position: Int
+
+    static func items(map: CardMap, rows: [TaskList.Row]) -> [RowItem] {
+        (0..<map.rowItems).map { position in
+            let slot = map.item(atRow: position)
+            if case .task(let index) = slot, rows.indices.contains(index) {
+                return RowItem(id: rows[index].key, slot: slot, position: position)
+            }
+            return RowItem(id: "undo", slot: slot, position: position)
+        }
     }
 }
 
@@ -411,16 +518,18 @@ struct TaskRow: View, Equatable {
     let width: CGFloat
     let hovered: Bool
     let pressed: Bool
+    /// Held by its number: lifted, on black, following the pointer.
+    var held = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
 
     nonisolated static func == (a: TaskRow, b: TaskRow) -> Bool {
         a.row == b.row && a.number == b.number && a.struck == b.struck && a.width == b.width
-            && a.hovered == b.hovered && a.pressed == b.pressed
+            && a.hovered == b.hovered && a.pressed == b.pressed && a.held == b.held
     }
 
     var body: some View {
-        let hovering = hovered
+        let hovering = hovered || held
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let titleOpacity = Lanes.rowTitleOpacity(hovered: hovering, increaseContrast: contrast)
         let numberOpacity = Lanes.numberOpacity(hovered: hovering, increaseContrast: contrast)
@@ -462,7 +571,7 @@ struct TaskRow: View, Equatable {
                         .fill(.white.opacity(NotchMetrics.previewOpacity))
                         .frame(height: PreviewStroke.height)
                         .alignmentGuide(.firstTextBaseline) { _ in PreviewStroke.height }
-                        .opacity(hovering && !struck ? 1 : 0)
+                        .opacity(hovered && !held && !struck ? 1 : 0)
                         // The click hides it at once, as the renderer did when the ink started.
                         .animation(nil, value: struck)
                 }
@@ -470,10 +579,146 @@ struct TaskRow: View, Equatable {
         }
         .padding(.horizontal, Lanes.pillPadding)
         .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
-        .background(pill.fill(.white.opacity(Lanes.pillOpacity)).opacity(hovering ? 1 : 0))
+        .background {
+            // Held, the fill sits on black so the rows under it do not show through.
+            ZStack {
+                if held { pill.fill(.black) }
+                pill.fill(.white.opacity(Lanes.pillOpacity)).opacity(hovering ? 1 : 0)
+            }
+        }
         .opacity(pressed ? 0.85 : 1)
         .animation(Motion.press, value: pressed)
         .help(truncated ? row.title : "")
+    }
+}
+
+/// A row whose title is a text field: a rename in place, or the add card opened. The marker lane
+/// keeps the row number, or shows the plus. Return and Escape go to the card.
+struct FieldRow: View {
+    enum Marker { case number(Int), plus }
+
+    let marker: Marker
+    @Binding var text: String
+    let prompt: String
+    /// Return keeps the field focused, for another task.
+    let keepsFocus: Bool
+    let onSubmit: () -> Void
+    let onCancel: () -> Void
+    let width: CGFloat
+
+    var body: some View {
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        HStack(spacing: Lanes.gap) {
+            Group {
+                switch marker {
+                case .number(let number):
+                    Text(String(number)).font(NotchMetrics.numberFont)
+                case .plus:
+                    Image(systemName: "plus").font(.system(size: 10, weight: .semibold))
+                }
+            }
+            .foregroundStyle(.white)
+            .opacity(Lanes.numberOpacity(hovered: true, increaseContrast: contrast))
+            .frame(width: Lanes.markerSlot)
+            InlineField(text: $text, font: NotchMetrics.rowFont, prompt: prompt, keepsFocus: keepsFocus, onSubmit: onSubmit, onCancel: onCancel)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, Lanes.pillPadding)
+        .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.white.opacity(Lanes.pillOpacity)))
+    }
+}
+
+/// A plain one line text field on the black card: white text, a white caret, the prompt dim. It
+/// takes focus as it appears; the panel is key by then.
+struct InlineField: View {
+    @Binding var text: String
+    let font: Font
+    let prompt: String
+    let keepsFocus: Bool
+    let onSubmit: () -> Void
+    let onCancel: () -> Void
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("", text: $text, prompt: Text(prompt).foregroundStyle(.white.opacity(0.3)))
+            .textFieldStyle(.plain)
+            .font(font)
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .focused($focused)
+            .onSubmit {
+                onSubmit()
+                if keepsFocus { focused = true }
+            }
+            .onExitCommand(perform: onCancel)
+            // A dark field: a white caret and a light selection on black.
+            .environment(\.colorScheme, .dark)
+            .onAppear { Task { @MainActor in focused = true } }
+    }
+}
+
+/// Where a discarded task was, for 4 seconds: its title faint and struck through by nothing,
+/// and Undo. A click anywhere on the row puts the task back.
+struct UndoRow: View, Equatable {
+    let title: String
+    let width: CGFloat
+    let hovered: Bool
+    let pressed: Bool
+
+    var body: some View {
+        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        HStack(spacing: Lanes.gap) {
+            Color.clear.frame(width: Lanes.markerSlot)
+            Text(title)
+                .font(NotchMetrics.rowFont)
+                .foregroundStyle(.white)
+                .opacity(Lanes.numberOpacity(hovered: false, increaseContrast: contrast))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Undo")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .opacity(Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast))
+        }
+        .padding(.horizontal, Lanes.pillPadding)
+        .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.white.opacity(Lanes.pillOpacity)).opacity(hovered ? 1 : 0))
+        .opacity(pressed ? 0.85 : 1)
+        .animation(Motion.press, value: pressed)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Undo discard of " + title)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// The long press menu: Rename and Discard side by side on black, a hairline edge, the item
+/// under the pointer lit. The card's pointer picks the item; the views only draw.
+struct RowMenuView: View {
+    let menu: CardMenu
+    var card: CardController? = nil
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        HStack(spacing: 0) {
+            ForEach(RowMenu.Item.allCases, id: \.self) { item in
+                Text(item.rawValue)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                    .opacity(menu.hovered == item ? 1 : 0.75)
+                    .frame(width: RowMenu.itemWidth, height: RowMenu.height - 2 * RowMenu.padding)
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(.white.opacity(menu.hovered == item ? 0.14 : 0)))
+                    .accessibilityElement()
+                    .accessibilityLabel(item.rawValue)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { card?.choose(item, on: menu.key) }
+            }
+        }
+        .padding(RowMenu.padding)
+        .frame(width: RowMenu.width, height: RowMenu.height)
+        .background(shape.fill(.black))
+        .overlay(shape.strokeBorder(.white.opacity(0.14), lineWidth: 1))
     }
 }
 

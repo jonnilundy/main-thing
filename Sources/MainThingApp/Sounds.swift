@@ -30,6 +30,8 @@ final class Sounds {
 
     private let log = Logger(subsystem: MainThingBundleID, category: "sound")
     let folder: URL
+    /// Plays nothing: the bench and the card probe cross tasks off without a sound.
+    var muted = false
     /// A few players per built in sound, so the lines of one title can overlap their tails.
     private var scratches: [AVAudioPlayer] = []
     private var unscratches: [AVAudioPlayer] = []
@@ -180,7 +182,7 @@ final class Sounds {
 
     /// A cross off starts. Pen: one scratch per line on the pen's timing. Custom: once, to the end.
     func scratch(lines: Int) {
-        guard Sounds.systemAllows else { return }
+        guard Sounds.systemAllows, !muted else { return }
         let choice = self.choice
         switch choice {
         case .off:
@@ -202,7 +204,7 @@ final class Sounds {
 
     /// The undo: the lighter pen scratch. Custom sounds have no undo sound.
     func unscratch() {
-        guard Sounds.systemAllows, choice == .pen else { return }
+        guard Sounds.systemAllows, !muted, choice == .pen else { return }
         guard let player = unscratches.first(where: { !$0.isPlaying }) ?? unscratches.first else { return }
         player.currentTime = 0
         player.play()

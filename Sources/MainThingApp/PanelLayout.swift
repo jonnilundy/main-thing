@@ -28,7 +28,9 @@ final class PanelLayout {
         let rows = store.list.rows
         let width = PanelLayout.openWidth(rows: rows, geometry: geometry)
         let notes = (model.apiBound ? 0 : 1) + store.events.failing.count
-        let content = OpenLayout.contentHeight(rows: max(rows.count - 1, 0), empty: rows.isEmpty, notes: notes)
+        // The rows under the band, an Undo row included.
+        let map = CardMap(model: model, store: store)
+        let content = OpenLayout.contentHeight(rows: map.rowItems, empty: map.isEmpty, notes: notes)
         let fit = OpenLayout.panelHeight(
             notchHeight: geometry.notchHeight, contentHeight: content,
             screenHeight: geometry.screenFrame.height, minimum: NotchGeometry.panelSize.height
