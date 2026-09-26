@@ -339,34 +339,14 @@ final class CardController {
         panel.makeKey()
     }
 
-    /// No field left: the keyboard goes back to the app in front. Ordering the key panel out and in
-    /// is what hands key focus back, and it hides the card for a frame, so while the card is open
-    /// that waits until it has closed.
+    /// No field left: the keyboard goes back to the app in front. `resignKey` hands the key focus
+    /// back without hiding the panel. Ordering it out and in did too, but left the notch off the
+    /// screen for about 250ms.
     private func releaseKeyboard() {
         guard model.renaming == nil, !model.adding else { return }
         (panel as? NotchPanel)?.allowsKey = false
         guard panel.isKeyWindow else { return }
-        if model.isOpen { handBackWhenClosed() } else { handBack() }
-    }
-
-    private func handBackWhenClosed() {
-        withObservationTracking {
-            _ = model.isOpen
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                if self.model.isOpen { self.handBackWhenClosed(); return }
-                // After the close animation, so the collapse is never cut short.
-                try? await Task.sleep(for: .milliseconds(350))
-                self.handBack()
-            }
-        }
-    }
-
-    private func handBack() {
-        guard panel.isKeyWindow, !model.isOpen, model.renaming == nil, !model.adding else { return }
-        panel.orderOut(nil)
-        panel.orderFrontRegardless()
+        panel.resignKey()
         log.notice("keyboard handed back")
     }
 
