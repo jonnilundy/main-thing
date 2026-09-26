@@ -13,12 +13,12 @@
 # Refuses to run while SUPublicEDKey in Resources/Info.plist is the placeholder, when the key in
 # 1Password is missing, or when that key does not match SUPublicEDKey.
 #
-# The key, once, before the first release (OpenSSL 3, for example Homebrew's, for Ed25519):
-#   op item create --vault "Private" --category password --title "Main Thing Sparkle EdDSA key" \
-#       "password=$(openssl genpkey -algorithm ed25519 | openssl pkey -outform DER | tail -c 32 | base64)"
-#   op read "op://Private/Main Thing Sparkle EdDSA key/password" | swift scripts/ed-public-key.swift
-# The second line prints the public key: put it in Resources/Info.plist as SUPublicEDKey and commit.
-# Keep a backup of the item. A lost key means no app can ever update again.
+# The key lives in the maintainer's own 1Password (account KEY_ACCOUNT, vault Private), read with
+# the desktop app's Touch ID prompt, never with a service account. It was created once with OpenSSL 3:
+#   seed=$(openssl genpkey -algorithm ed25519 | openssl pkey -outform DER | tail -c 32 | base64)
+# and stored as the item's password field. The matching public key is SUPublicEDKey in
+# Resources/Info.plist; `op read ... | swift scripts/ed-public-key.swift` prints it.
+# A lost key means no installed app can update again until it is reinstalled by hand.
 #
 # Tests only: MAINTHING_SPARKLE_KEY_FILE reads a throwaway key from a file instead of 1Password,
 # MAINTHING_DOWNLOAD_BASE points the enclosure at a local server, and build-app.sh's test
@@ -28,6 +28,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+KEY_ACCOUNT="${MAINTHING_KEY_ACCOUNT}"
 KEY_REF="op://Private/Main Thing Sparkle EdDSA key/password"
 REPO="jonnilundy/main-thing"
 PLACEHOLDER="REPLACE-WITH-PUBLIC-KEY"
@@ -102,10 +103,10 @@ if [[ -n "${MAINTHING_SPARKLE_KEY_FILE:-}" ]]; then
 else
     command -v op >/dev/null || fail "the 1Password CLI (op) is not installed"
     OP_ERR=$(mktemp)
-    if ! PRIVATE_KEY=$(op read "$KEY_REF" 2>"$OP_ERR"); then
+    if ! PRIVATE_KEY=$(env -u OP_SERVICE_ACCOUNT_TOKEN op read --account "$KEY_ACCOUNT" "$KEY_REF" 2>"$OP_ERR"); then
         echo "release: could not read the Sparkle signing key from 1Password at $KEY_REF" >&2
         echo "release: op said: $(tr '\n' ' ' < "$OP_ERR")" >&2
-        echo "release: create the item (vault Private, item Main Thing Sparkle EdDSA key, field password), or sign in to op, then run again" >&2
+        echo "release: approve the 1Password prompt (account $KEY_ACCOUNT, vault Private, item Main Thing Sparkle EdDSA key), then run again" >&2
         rm -f "$OP_ERR"
         exit 1
     fi
