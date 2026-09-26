@@ -85,6 +85,7 @@ struct NotchBody: View {
                 pressed: model.pressed == .task(0),
                 lift: model.shift(ofTask: 0, centers: centers),
                 held: held,
+                menuOpen: first != nil && model.menu?.key == first?.key,
                 quiet: model.quietRows,
                 rename: model.isOpen && first != nil && model.renaming == first?.key ? Bindable(model).renameText : nil,
                 card: card,
@@ -145,6 +146,8 @@ struct Band: View {
     var lift: CGFloat = 0
     /// Task 1 is the held one: lifted, on black, no animation of its own.
     var held = false
+    /// The long press menu is on task 1: lifted, no cross off preview.
+    var menuOpen = false
     /// A reorder or rename just landed: the new title is just there, no push.
     var quiet = false
     /// The rename field's text while task 1 is being renamed.
@@ -230,7 +233,7 @@ struct Band: View {
                         .truncationMode(.tail)
                         .modifier(Ink(
                             progress: struck ? pins.ink ?? 1 : 0,
-                            preview: hovered && isOpen && !struck && !held ? 1 : 0,
+                            preview: hovered && isOpen && !struck && !held && !menuOpen ? 1 : 0,
                             key: current.key,
                             xHeight: NotchMetrics.nsFont.xHeight,
                             thickness: 3.2,
@@ -355,6 +358,8 @@ struct OpenContent: View {
         case .task(let index) where rows.indices.contains(index):
             let row = rows[index]
             let held = model.drag?.key == row.key
+            // Lifted, with no cross off preview: held, or the long press menu is on it.
+            let lifted = held || model.menu?.key == row.key
             Group {
                 if model.renaming == row.key {
                     FieldRow(marker: .number(index + 1), text: Bindable(model).renameText, prompt: row.title, keepsFocus: false,
@@ -367,7 +372,7 @@ struct OpenContent: View {
                         width: width,
                         hovered: model.hover == .task(index) || pins.hovered == row.key,
                         pressed: model.pressed == .task(index),
-                        held: held
+                        held: lifted
                     )
                     .equatable()
                     .accessibilityElement(children: .combine)

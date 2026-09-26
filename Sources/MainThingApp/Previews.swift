@@ -53,7 +53,8 @@ private func notch(
     hovered: Int? = nil,
     ink: Double? = nil,
     sweep: Double? = nil,
-    height: CGFloat
+    height: CGFloat,
+    edit: (NotchModel, TaskStore) -> Void = { _, _ in }
 ) -> some View {
     let store = TaskStore(previewTitles: titles)
     let geometry = NotchGeometry(screen: previewScreen)
@@ -64,6 +65,7 @@ private func notch(
     model.openWidth = PanelLayout.openWidth(rows: rows, geometry: geometry)
     for index in pending { _ = model.pending.toggle(rows[index].key) }
     let pins = PreviewPins(hovered: hovered.map { rows[$0].key }, ink: ink, sweep: sweep)
+    edit(model, store)
     return NotchView(store: store, model: model)
         .environment(\.previewPins, pins)
         // The snapshot is taken at once: states set on appear land without their animation.
@@ -81,18 +83,66 @@ private func notch(
 }
 
 #Preview("Open", traits: .sizeThatFitsLayout) {
-    notch(open: true, height: 180)
+    notch(open: true, height: 210)
 }
 
 #Preview("Open hovered row", traits: .sizeThatFitsLayout) {
-    notch(open: true, hovered: 2, height: 180)
+    notch(open: true, hovered: 2, height: 210)
 }
 
 #Preview("Open mid cross off", traits: .sizeThatFitsLayout) {
     // The pen eases out: this far into the stroke the ink is 60 percent across the title.
-    notch(open: true, pending: [2], hovered: 2, ink: 1 - cbrt(0.4), height: 180)
+    notch(open: true, pending: [2], hovered: 2, ink: 1 - cbrt(0.4), height: 210)
 }
 
 #Preview("Reminder shimmer", traits: .sizeThatFitsLayout) {
     notch(open: false, sweep: 0.5, height: 64)
+}
+
+#Preview("Drag in progress", traits: .sizeThatFitsLayout) {
+    // Row 4 held by its number, dragged up past row 3 and nearly to row 2: rows 2 and 3 have
+    // moved down to make room.
+    notch(open: true, height: 210) { model, store in
+        let map = CardMap(model: model, store: store)
+        let key = store.list.rows[3].key
+        model.drag = CardDrag(key: key, from: 3, target: 1, offset: map.center(ofTask: 1) - map.center(ofTask: 3) + 6)
+    }
+}
+
+#Preview("Add card hover", traits: .sizeThatFitsLayout) {
+    notch(open: true, height: 210) { model, _ in model.hover = .add }
+}
+
+#Preview("Add field open", traits: .sizeThatFitsLayout) {
+    notch(open: true, height: 210) { model, _ in
+        model.adding = true
+        model.addText = "Book the flights"
+    }
+}
+
+#Preview("Long press menu", traits: .sizeThatFitsLayout) {
+    notch(open: true, height: 210) { model, store in
+        let map = CardMap(model: model, store: store)
+        model.hover = .task(2)
+        model.menu = CardMenu(
+            key: store.list.rows[2].key,
+            frame: RowMenu.frame(pressX: 150, rowCenterY: map.centerY(of: .task(2)), cardWidth: model.openWidth),
+            hovered: .rename
+        )
+    }
+}
+
+#Preview("Rename field", traits: .sizeThatFitsLayout) {
+    notch(open: true, height: 210) { model, store in
+        model.renaming = store.list.rows[1].key
+        model.renameText = "Reply to the design review today"
+    }
+}
+
+#Preview("Discard undo", traits: .sizeThatFitsLayout) {
+    // Task 3 discarded a moment ago: its Undo shows where it was, the pointer on it.
+    notch(open: true, titles: sampleTitles.enumerated().filter { $0.offset != 2 }.map(\.element), height: 210) { model, _ in
+        model.discarded = Discarded(task: TaskItem(sampleTitles[2]), index: 2, at: 0)
+        model.hover = .undo
+    }
 }
