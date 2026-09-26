@@ -508,16 +508,6 @@ struct RowsBlock<Content: View>: View {
     }
 }
 
-/// Press feedback on mouse down: the row dims a touch, the pen touching the paper. The action
-/// fires on mouse up only while the cursor is still on the row; dragging away cancels, as a Button does.
-struct RowButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(Motion.press, value: configuration.isPressed)
-    }
-}
-
 /// One line of the Sound submenu: a checkmark on the current choice; picking one previews it.
 struct SoundItem: View {
     let choice: SoundChoice

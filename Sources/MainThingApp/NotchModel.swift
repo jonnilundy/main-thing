@@ -116,9 +116,6 @@ final class NotchModel {
         drag != nil || renaming != nil || (adding && !addText.trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
-    /// The row the cursor is on, band included: the last entry not followed by its exit.
-    var hoveredRow: String? { haptics.current }
-
     /// The rows are about to move: no ticks for the rows that slide under a still cursor.
     func rowsAnimate() {
         haptics.listAnimates(at: Date.timeIntervalSinceReferenceDate)
