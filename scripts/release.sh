@@ -13,7 +13,8 @@
 # Refuses to run while SUPublicEDKey in Resources/Info.plist is the placeholder, when the key in
 # 1Password is missing, or when that key does not match SUPublicEDKey.
 #
-# The key lives in the maintainer's own 1Password (account KEY_ACCOUNT, vault Private), read with
+# The key lives in the maintainer's own 1Password (vault Private; set MAINTHING_KEY_ACCOUNT to pick
+# the account when op knows more than one), read with
 # the desktop app's Touch ID prompt, never with a service account. It was created once with OpenSSL 3:
 #   seed=$(openssl genpkey -algorithm ed25519 | openssl pkey -outform DER | tail -c 32 | base64)
 # and stored as the item's password field. The matching public key is SUPublicEDKey in
@@ -28,7 +29,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-KEY_ACCOUNT="${MAINTHING_KEY_ACCOUNT}"
+KEY_ACCOUNT="${MAINTHING_KEY_ACCOUNT:-}"
 KEY_REF="op://Private/Main Thing Sparkle EdDSA key/password"
 REPO="jonnilundy/main-thing"
 PLACEHOLDER="REPLACE-WITH-PUBLIC-KEY"
@@ -103,10 +104,10 @@ if [[ -n "${MAINTHING_SPARKLE_KEY_FILE:-}" ]]; then
 else
     command -v op >/dev/null || fail "the 1Password CLI (op) is not installed"
     OP_ERR=$(mktemp)
-    if ! PRIVATE_KEY=$(env -u OP_SERVICE_ACCOUNT_TOKEN op read --account "$KEY_ACCOUNT" "$KEY_REF" 2>"$OP_ERR"); then
+    if ! PRIVATE_KEY=$(env -u OP_SERVICE_ACCOUNT_TOKEN op read ${KEY_ACCOUNT:+--account "$KEY_ACCOUNT"} "$KEY_REF" 2>"$OP_ERR"); then
         echo "release: could not read the Sparkle signing key from 1Password at $KEY_REF" >&2
         echo "release: op said: $(tr '\n' ' ' < "$OP_ERR")" >&2
-        echo "release: approve the 1Password prompt (account $KEY_ACCOUNT, vault Private, item Main Thing Sparkle EdDSA key), then run again" >&2
+        echo "release: approve the 1Password prompt (vault Private, item Main Thing Sparkle EdDSA key; MAINTHING_KEY_ACCOUNT picks the account), then run again" >&2
         rm -f "$OP_ERR"
         exit 1
     fi
