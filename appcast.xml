@@ -6,6 +6,31 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.3.0</title>
+            <pubDate>Sat, 26 Sep 2026 15:32:32 +0000</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.3.0</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.3.0 renames the command and the API to `main-thing`.
+
+## Changed
+
+- **The command is now `main-thing`.** The old `mainthing` command still works in this release and prints a note to switch. It goes away in 0.4.
+- **The API answers at `main-thing.localhost`.** The old `mainthing.localhost` host still works in this release.
+- **The config folder is now `~/.config/main-thing`.** Your adapters, hooks and sounds move on the first launch, and the old path becomes a link to the new one.
+- **Environment variables start with `MAIN_THING_`.** The old `MAINTHING_` names still work until 0.4.
+
+Your list and your settings stay as they are.
+
+## Install
+
+Download `MainThing-0.3.0.dmg`, drag it to Applications, then right click Main Thing and choose Open the first time (the app is not signed with an Apple developer certificate). If you have 0.2.0, the update installs on its own.
+
+Requires macOS 15 or later.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.3.0/MainThing-0.3.0.zip" length="2443102" type="application/octet-stream" sparkle:edSignature="SP7JfwDESp3OatjmGCRerQsdk7slUyO84nVhL0lLEz/5faZqrEBHubHpaHe0gmiuWbJwaMWvqjCplM53+Ad0Bg=="/>
+        </item>
+        <item>
             <title>Version 0.2.0</title>
             <pubDate>Sat, 26 Sep 2026 14:49:58 +0000</pubDate>
             <sparkle:version>2</sparkle:version>
