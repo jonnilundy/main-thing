@@ -38,4 +38,14 @@ func runPathChecks() {
     check("empty is not set", Env.value("PORT", in: ["MAIN_THING_PORT": ""]) == nil)
     check("nothing set", Env.value("PORT", in: none) == nil)
     check("the old MAINTHING_ name is not read", Env.value("PORT", in: ["MAINTHING_PORT": "2"]) == nil)
+
+    section("PanelLevel")
+    let raise = ["MAIN_THING_PANEL_LEVEL_OFFSET": "3"]
+    check("one above the menu bar by default", PanelLevel.offset(environment: none, bundleID: test) == 1)
+    check("a test copy goes higher", PanelLevel.offset(environment: raise, bundleID: test) == 4)
+    check("the release app ignores it", PanelLevel.offset(environment: raise, bundleID: MainThingBundleID) == 1)
+    check("swift run (no bundle) ignores it", PanelLevel.offset(environment: raise, bundleID: nil) == 1)
+    check("out of range is ignored", PanelLevel.offset(environment: ["MAIN_THING_PANEL_LEVEL_OFFSET": "21"], bundleID: test) == 1)
+    check("zero and negative are ignored", PanelLevel.offset(environment: ["MAIN_THING_PANEL_LEVEL_OFFSET": "-2"], bundleID: test) == 1)
+    check("not a number is ignored", PanelLevel.offset(environment: ["MAIN_THING_PANEL_LEVEL_OFFSET": "up"], bundleID: test) == 1)
 }
