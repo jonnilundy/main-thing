@@ -118,6 +118,8 @@ final class HoverController {
 
     func setOpen(_ open: Bool) {
         guard model.isOpen != open else { return }
+        let started = ContinuousClock.now
+        model.openStartedAt = open ? started : nil
         // The panel grows before the shape animates, so nothing is clipped on the way up.
         if open {
             layout.fitOpen()
@@ -127,7 +129,9 @@ final class HoverController {
         }
         model.isOpen = open
         model.rowsAnimate()
-        log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public))")
+        let took = (ContinuousClock.now - started).components
+        let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
+        log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public)) in \(ms, format: .fixed(precision: 1), privacy: .public) ms")
         if !open {
             model.pending = PendingCompletions()
             layout.fitClosed()

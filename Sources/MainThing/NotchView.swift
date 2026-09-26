@@ -24,6 +24,12 @@ struct NotchView: View {
                 } action: { rect in
                     viewLog.debug("shape rect \(NSStringFromRect(rect), privacy: .public)")
                     model.shapeRect = rect
+                    if let started = model.openStartedAt, rect.height > model.geometry.notchHeight + 1 {
+                        model.openStartedAt = nil
+                        let took = (ContinuousClock.now - started).components
+                        let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
+                        viewLog.notice("open layout \(ms, format: .fixed(precision: 1), privacy: .public) ms after the open started")
+                    }
                 }
             Spacer(minLength: 0)
         }

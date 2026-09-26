@@ -43,6 +43,8 @@ final class NotchModel {
     var tearing = false
     /// How far the open card is stretched past its bottom edge by a tear off drag.
     var tearStretch: CGFloat = 0
+    /// When the last open started, until the open layout is reported: the open latency log.
+    @ObservationIgnored var openStartedAt: ContinuousClock.Instant?
 
     /// Which row the cursor is on and whether the next entry earns a tick.
     @ObservationIgnored private var haptics = RowHaptics()

@@ -43,6 +43,10 @@ final class Sounds {
     /// cross off's sound starts at once instead of half a second later. Not always on: an active
     /// output holds a system sleep assertion, so it rests a few seconds after the notch closes.
     private var keepAwake: AVAudioPlayer?
+    /// Starting the silent loop blocks the calling thread for about half a second once the output
+    /// has been idle for a while (460ms measured after 2 minutes, 2ms when warm), so it starts and
+    /// stops on this queue, never on the main thread: the notch opens without waiting for audio.
+    private let audioQueue = DispatchQueue(label: "com.jonnilundy.mainthing.audio", qos: .userInitiated)
     private var restTask: Task<Void, Never>?
     private var defaultsObserver: (any NSObjectProtocol)?
 
@@ -74,9 +78,16 @@ final class Sounds {
     func wake() {
         restTask?.cancel()
         restTask = nil
-        guard let keepAwake, !keepAwake.isPlaying else { return }
-        keepAwake.play()
-        log.debug("audio awake")
+        guard let keepAwake else { return }
+        let box = PlayerBox([keepAwake])
+        let log = self.log
+        audioQueue.async {
+            guard let player = box.players.first, !player.isPlaying else { return }
+            let start = DispatchTime.now().uptimeNanoseconds
+            player.play()
+            let ms = (DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+            log.debug("audio awake in \(ms, privacy: .public) ms")
+        }
     }
 
     /// The notch closed: stop the silent loop 3 seconds later, or 3 seconds after the last sound
@@ -90,7 +101,10 @@ final class Sounds {
                 let busy = (playing?.isPlaying ?? false)
                     || scratches.contains { $0.isPlaying } || unscratches.contains { $0.isPlaying }
                 if !busy {
-                    keepAwake?.pause()
+                    if let keepAwake {
+                        let box = PlayerBox([keepAwake])
+                        audioQueue.async { box.players.first?.pause() }
+                    }
                     log.debug("audio at rest")
                     return
                 }
