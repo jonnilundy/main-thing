@@ -29,6 +29,8 @@ final class UpdateState {
     var running = false
     var checking = false
     var lastCheck: Date?
+    /// The newest version in the feed at the last check, "0.3.0". Nil until a check this launch.
+    var latest: String?
     /// "Up to date", "Found 0.2.1", "Failed: ...". Kept across relaunches.
     var lastResult: String = UserDefaults.standard.string(forKey: UpdateState.resultKey) ?? "" {
         didSet { UserDefaults.standard.set(lastResult, forKey: UpdateState.resultKey) }
@@ -126,6 +128,16 @@ final class Updater: NSObject {
         controller.checkForUpdates(nil)
     }
 
+    /// Opening Settings: a background check, so the Updates section compares the running version
+    /// with the feed. Like a scheduled check it never shows a window, and with automatic downloads
+    /// on a found update downloads and becomes ready to install.
+    func checkQuietly() {
+        guard state.running, updater.canCheckForUpdates, !updater.sessionInProgress else { return }
+        log.notice("quiet update check (settings opened)")
+        state.checking = true
+        updater.checkForUpdatesInBackground()
+    }
+
     /// Install Update… from the menu. A downloaded update installs and relaunches now; one that is
     /// only found comes up in Sparkle's window for the user to confirm.
     func installUpdate() {
@@ -215,12 +227,15 @@ extension Updater: SPUUpdaterDelegate {
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
         log.notice("found \(item.displayVersionString, privacy: .public) build \(item.versionString, privacy: .public)")
         found(item, ready: installNow != nil && state.available?.build == item.versionString)
+        state.latest = item.displayVersionString
         state.lastResult = "Found \(item.displayVersionString)"
     }
 
     func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: any Error) {
         log.notice("no update: \((error as NSError).localizedDescription, privacy: .public)")
         if installNow == nil { state.available = nil }
+        let latest = (error as NSError).userInfo[SPULatestAppcastItemFoundKey] as? SUAppcastItem
+        state.latest = latest?.displayVersionString ?? state.latest
         state.lastResult = "Up to date"
     }
 

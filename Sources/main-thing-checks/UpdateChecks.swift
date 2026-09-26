@@ -18,5 +18,6 @@ func runUpdateChecks() {
     let now = Date(timeIntervalSince1970: 1_790_000_000)
     check("never checked", UpdateRules.lastCheckLabel(date: nil, result: "", now: now) == "Never checked")
     check("checked just now", UpdateRules.lastCheckLabel(date: now.addingTimeInterval(-5), result: "Up to date", now: now) == "Checked just now: Up to date")
+    check("checking shows while a check runs", UpdateRules.lastCheckLabel(date: nil, result: "Up to date", checking: true, now: now) == "Checking for updates…")
     check("checked hours ago", UpdateRules.lastCheckLabel(date: now.addingTimeInterval(-7200), result: "Up to date", now: now).hasPrefix("Checked 2 hours ago"))
 }

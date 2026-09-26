@@ -22,6 +22,7 @@ enum SettingsWindow {
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
         log.notice("settings shown")
+        Updater.shared?.checkQuietly()
     }
 
     /// Cmd comma opens Settings whenever one of the app's windows has the keyboard.

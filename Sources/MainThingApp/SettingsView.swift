@@ -93,6 +93,9 @@ struct SettingsView: View {
         LabeledContent("Version", value: UpdateRules.versionLabel(version: version, build: build))
         if let updater, updater.state.running {
             let state = updater.state
+            if let latest = state.latest {
+                LabeledContent("Latest", value: latest)
+            }
             if let available = state.available {
                 LabeledContent("Available") {
                     Button(UpdateRules.installTitle(version: available.version, ready: available.ready)) {
@@ -108,7 +111,7 @@ struct SettingsView: View {
                 Button("Check Now") { updater.checkForUpdates() }
                     .disabled(state.checking)
             } label: {
-                Text(UpdateRules.lastCheckLabel(date: state.lastCheck, result: state.lastResult))
+                Text(UpdateRules.lastCheckLabel(date: state.lastCheck, result: state.lastResult, checking: state.checking))
                     .foregroundStyle(.secondary)
             }
         } else {

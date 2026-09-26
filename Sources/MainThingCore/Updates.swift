@@ -27,7 +27,8 @@ public enum UpdateRules {
     }
 
     /// The last check line in Settings.
-    public static func lastCheckLabel(date: Date?, result: String, now: Date = Date()) -> String {
+    public static func lastCheckLabel(date: Date?, result: String, checking: Bool = false, now: Date = Date()) -> String {
+        if checking { return "Checking for updates…" }
         guard let date else { return "Never checked" }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
