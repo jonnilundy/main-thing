@@ -1,5 +1,7 @@
 <p align="center"><img src="assets/cover-2026-09.png" alt="Main Thing showing the current task in a black notch at the top of a Mac screen, with the rest of the list below it" width="720"></p>
 
+<p align="center"><img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task with a pen stroke, and the notch closes again" width="340"></p>
+
 # Main Thing
 
 Main Thing keeps the one task you are on in your Mac's notch.
