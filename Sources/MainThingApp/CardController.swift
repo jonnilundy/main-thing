@@ -182,7 +182,7 @@ final class CardController {
         case .longPressed:
             // Press, hold, slide onto an item: it lights, and the release picks it.
             if var menu = model.menu {
-                let item = RowMenu.item(at: p, in: menu.frame)
+                let item = RowMenu.releaseItem(at: p, pressedAt: press.start, in: menu.frame)
                 if item != menu.hovered {
                     menu.hovered = item
                     withAnimation(reduceMotion ? nil : Motion.preview) { model.menu = menu }
@@ -211,7 +211,7 @@ final class CardController {
             endDrag()
         case .longPressed:
             // Released on an item after sliding onto it: that item. Else the menu stays for a click.
-            if let menu = model.menu, let item = RowMenu.item(at: p, in: menu.frame) {
+            if let menu = model.menu, let item = RowMenu.releaseItem(at: p, pressedAt: press.start, in: menu.frame) {
                 choose(item, on: menu.key)
             }
         case .moved:
@@ -240,7 +240,7 @@ final class CardController {
         guard var press, press.held(), case .task(let index) = press.slot, let key = store.list.key(at: index) else { return }
         self.press = press
         model.pressed = .none
-        let frame = RowMenu.frame(pressX: press.start.x, rowCenterY: map.centerY(of: .task(index)), cardWidth: model.openWidth)
+        let frame = RowMenu.frame(rowCenterY: map.centerY(of: .task(index)), cardWidth: model.openWidth)
         withAnimation(reduceMotion ? Motion.reducedFade : Motion.popSpring) {
             model.menu = CardMenu(key: key, frame: frame, hovered: nil)
         }

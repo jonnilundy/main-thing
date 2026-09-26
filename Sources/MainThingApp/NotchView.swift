@@ -224,7 +224,7 @@ struct Band: View {
                     .font(NotchMetrics.countFont)
                     .foregroundStyle(.white.opacity(Lanes.countOpacity))
                     .padding(.trailing, Lanes.trailingPadding - pill.minX)
-                    .opacity(countShown ? 1 : 0)
+                    .opacity(countShown && !menuOpen ? 1 : 0)
                     .offset(y: countShown || reduceMotion ? 0 : 4)
                     .accessibilityHidden(!isOpen)
             }
@@ -266,7 +266,7 @@ struct Band: View {
                             flash: flash
                         ))
                         .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
-                        .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
+                        .frame(width: menuOpen ? min(NotchMetrics.titleWidth(for: current.title), RowMenu.titleLimit(cardWidth: width)) : NotchMetrics.titleWidth(for: current.title), alignment: .leading)
                         .id(current.key)
                         .transition(quiet ? .identity : Motion.push(reduceMotion))
                 }
@@ -400,7 +400,8 @@ struct OpenContent: View {
                         width: width,
                         hovered: model.hover == .task(index) || pins.hovered == row.key,
                         pressed: model.pressed == .task(index),
-                        held: lifted
+                        held: lifted,
+                        menuOpen: model.menu?.key == row.key
                     )
                     .equatable()
                     .accessibilityElement(children: .combine)
@@ -543,12 +544,14 @@ struct TaskRow: View, Equatable {
     let pressed: Bool
     /// Held by its number: lifted, on black, following the pointer.
     var held = false
+    /// The long press menu is open on this row: the title ends before it.
+    var menuOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
 
     nonisolated static func == (a: TaskRow, b: TaskRow) -> Bool {
         a.row == b.row && a.number == b.number && a.struck == b.struck && a.width == b.width
-            && a.hovered == b.hovered && a.pressed == b.pressed && a.held == b.held
+            && a.hovered == b.hovered && a.pressed == b.pressed && a.held == b.held && a.menuOpen == b.menuOpen
     }
 
     var body: some View {
@@ -586,6 +589,7 @@ struct TaskRow: View, Equatable {
                     shimmer: 0
                 ))
                 .opacity(struck ? 1 : titleOpacity)
+                .frame(maxWidth: menuOpen ? RowMenu.titleLimit(cardWidth: width) : .infinity, alignment: .leading)
                 // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
                 // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
                 .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)

@@ -242,17 +242,28 @@ public enum RowMenu {
     public static let padding: CGFloat = 2
     public static var width: CGFloat { CGFloat(Item.allCases.count) * itemWidth + 2 * padding }
 
-    /// Space between the press and the menu, so the release where the press was selects nothing.
-    public static let offset: CGFloat = 6
+    /// Space between the menu and the title it cuts short.
+    public static let titleGap: CGFloat = 8
 
-    /// The menu's frame, card coordinates: centered on the row, just right of the press, or just
-    /// left of it where the pill has no room on the right, and kept inside the row's pill.
-    public static func frame(pressX: CGFloat, rowCenterY: CGFloat, cardWidth: CGFloat) -> CGRect {
-        let low = Lanes.pillInset + 2
-        let high = max(cardWidth - Lanes.pillInset - 2 - width, low)
-        let right = pressX + offset
-        let x = right <= high ? right : pressX - offset - width
-        return CGRect(x: min(max(x, low), high).rounded(), y: (rowCenterY - height / 2).rounded(), width: width, height: height)
+    /// The menu's frame, card coordinates: at the right end of the row's pill, centered on the row,
+    /// wherever the press was. The title ends before it (`titleLimit`).
+    public static func frame(rowCenterY: CGFloat, cardWidth: CGFloat) -> CGRect {
+        let x = max(cardWidth - Lanes.pillInset - 2 - width, Lanes.pillInset + 2)
+        return CGRect(x: x.rounded(), y: (rowCenterY - height / 2).rounded(), width: width, height: height)
+    }
+
+    /// The widest a title may be while the menu is open on its row: from the text lane to the gap
+    /// before the menu. The same for the band and a row, since both titles start at the text lane.
+    public static func titleLimit(cardWidth: CGFloat) -> CGFloat {
+        max(frame(rowCenterY: 0, cardWidth: cardWidth).minX - titleGap - Lanes.textStart, 0)
+    }
+
+    /// The item a release picks after a long press: the one under the pointer, but only when the
+    /// pointer slid onto it. The menu can open under a press near the right end; letting go there
+    /// without moving picks nothing.
+    public static func releaseItem(at point: CGPoint, pressedAt start: CGPoint, in frame: CGRect) -> Item? {
+        guard let item = item(at: point, in: frame), item != self.item(at: start, in: frame) else { return nil }
+        return item
     }
 
     /// The item under a point, card coordinates.

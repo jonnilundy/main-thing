@@ -126,7 +126,7 @@ private func notch(
         model.hover = .task(2)
         model.menu = CardMenu(
             key: store.list.rows[2].key,
-            frame: RowMenu.frame(pressX: 150, rowCenterY: map.centerY(of: .task(2)), cardWidth: model.openWidth),
+            frame: RowMenu.frame(rowCenterY: map.centerY(of: .task(2)), cardWidth: model.openWidth),
             hovered: .rename
         )
     }
