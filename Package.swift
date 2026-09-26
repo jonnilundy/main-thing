@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "MainThingCore", targets: ["MainThingCore"]),
+        .library(name: "MainThingApp", targets: ["MainThingApp"]),
         .executable(name: "MainThing", targets: ["MainThing"]),
         .executable(name: "mainthing-checks", targets: ["mainthing-checks"]),
     ],
@@ -14,10 +15,12 @@ let package = Package(
     ],
     targets: [
         .target(name: "MainThingCore"),
-        .executableTarget(
-            name: "MainThing",
+        // The app itself, a library so Xcode can render its previews. The executable only calls in.
+        .target(
+            name: "MainThingApp",
             dependencies: ["MainThingCore", .product(name: "Sparkle", package: "Sparkle")]
         ),
+        .executableTarget(name: "MainThing", dependencies: ["MainThingApp"]),
         .executableTarget(name: "mainthing-checks", dependencies: ["MainThingCore"]),
     ]
 )

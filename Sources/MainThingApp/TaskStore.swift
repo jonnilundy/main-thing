@@ -53,6 +53,13 @@ final class TaskStore {
         }
     }
 
+    /// Previews: the list in memory. Reads and writes no file, and runs no hook or adapter.
+    init(previewTitles titles: [String]) {
+        fileURL = URL(fileURLWithPath: "/dev/null")
+        list = TaskList(titles)
+        runner = EventRunner(configDirectory: URL(fileURLWithPath: "/var/empty")) { _, _ in }
+    }
+
     /// First launch after the rename: copy NextUp's list when Main Thing has none. The old file stays.
     static func copyLegacyFileIfNeeded(to fileURL: URL) {
         guard AppPaths.copiesLegacyList(bundleID: Bundle.main.bundleIdentifier) else { return }

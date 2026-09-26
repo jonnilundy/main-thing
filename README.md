@@ -117,7 +117,7 @@ rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/A
 
 ## Contributing
 
-`scripts/test.sh` runs the checks and a smoke test against a throwaway copy of the app in about 5 seconds. `scripts/test.sh --checks-only` runs the checks alone. `scripts/package.sh` builds the DMG.
+`scripts/test.sh` runs the checks and a smoke test against a throwaway copy of the app in about 5 seconds. `scripts/test.sh --checks-only` runs the checks alone. `scripts/render-previews.sh <dir>` renders every notch and editor state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
 
 ## License
 

@@ -2,13 +2,32 @@ import AppKit
 import MainThingCore
 import SwiftUI
 
+/// What the editor's views ask of the controller. `EditorController` in the app; previews pass
+/// one that does nothing.
+@MainActor
+protocol EditorActions {
+    func rename(_ id: UUID, _ title: String)
+    func remove(_ id: UUID)
+    func dragRow(_ id: UUID, translation: CGFloat)
+    func endDragRow()
+    func moveWindow()
+    func endMoveWindow()
+    func caretToEnd()
+    func reload()
+    func overwrite()
+    func cancel()
+    func save()
+}
+
+extension EditorController: EditorActions {}
+
 /// The list editor: the open card's look (black, radius 24, the same lanes and fonts) with a text
 /// field on every row. Task 1 is the main thing: full white and the dot. The rest are dim until
 /// hovered or focused. Hover shows a drag handle in the marker lane and a remove button on the right.
 struct EditorView: View {
     let editor: EditorModel
     let notch: NotchModel
-    let controller: EditorController
+    let controller: any EditorActions
 
     var body: some View {
         GeometryReader { proxy in
@@ -51,7 +70,7 @@ struct EditorView: View {
 struct EditorRows: View {
     let editor: EditorModel
     let notch: NotchModel
-    let controller: EditorController
+    let controller: any EditorActions
     @FocusState private var focus: UUID?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -110,7 +129,7 @@ struct EditorRow: View {
     let dragging: Bool
     let dragOffset: CGFloat
     var focus: FocusState<UUID?>.Binding
-    let controller: EditorController
+    let controller: any EditorActions
     @State private var hovering = false
 
     var body: some View {
@@ -190,7 +209,7 @@ struct EditorRow: View {
 /// Cancel and Save, or, after a Save that found the list changed, the message with Reload and Overwrite.
 struct EditorFooter: View {
     let editor: EditorModel
-    let controller: EditorController
+    let controller: any EditorActions
 
     var body: some View {
         VStack(alignment: .leading, spacing: EditorLayout.messageGap) {

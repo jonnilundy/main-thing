@@ -26,11 +26,7 @@ final class PanelLayout {
         shrink = nil
         let geometry = model.geometry
         let rows = store.list.rows
-        let collapsed = NotchMetrics.width(for: rows.first?.title, minimum: geometry.minimumWidth)
-        let count = rows.isEmpty ? 0 : PanelLayout.width(of: Lanes.countText(rows.count), font: NotchMetrics.countNSFont)
-        let band = Lanes.bandWidth(collapsedWidth: collapsed, countWidth: count)
-        let widths = rows.dropFirst().map { PanelLayout.width(of: $0.title, font: NotchMetrics.rowNSFont) }
-        let width = OpenLayout.width(bandWidth: band, rowTitleWidths: widths, screenWidth: geometry.screenFrame.width)
+        let width = PanelLayout.openWidth(rows: rows, geometry: geometry)
         let notes = (model.apiBound ? 0 : 1) + store.events.failing.count
         let content = OpenLayout.contentHeight(rows: max(rows.count - 1, 0), empty: rows.isEmpty, notes: notes)
         let fit = OpenLayout.panelHeight(
@@ -57,6 +53,15 @@ final class PanelLayout {
             let frame = model.geometry.panelFrame
             if panel.frame != frame { panel.setFrame(frame, display: false) }
         }
+    }
+
+    /// Open card content width for `rows`: the band, or the widest row title, capped by the screen.
+    static func openWidth(rows: [TaskList.Row], geometry: NotchGeometry) -> CGFloat {
+        let collapsed = NotchMetrics.width(for: rows.first?.title, minimum: geometry.minimumWidth)
+        let count = rows.isEmpty ? 0 : PanelLayout.width(of: Lanes.countText(rows.count), font: NotchMetrics.countNSFont)
+        let band = Lanes.bandWidth(collapsedWidth: collapsed, countWidth: count)
+        let widths = rows.dropFirst().map { PanelLayout.width(of: $0.title, font: NotchMetrics.rowNSFont) }
+        return OpenLayout.width(bandWidth: band, rowTitleWidths: widths, screenWidth: geometry.screenFrame.width)
     }
 
     /// Single line width of a title in a font.

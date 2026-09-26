@@ -122,9 +122,11 @@ struct Band: View {
     /// The cursor entered or left task 1's pill while open. The model turns entries into haptic ticks.
     let onHover: (String, Bool) -> Void
     let onToggle: () -> Void
-    @State private var hovering = false
+    @State private var hoverState = false
     @State private var countShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.previewPins) private var pins
+    private var hovering: Bool { hoverState || (pins.hovered != nil && pins.hovered == rows.first?.key) }
 
     var body: some View {
         let pill = Lanes.bandPill(width: width, height: height)
@@ -150,7 +152,7 @@ struct Band: View {
                 // animate the title's position with the preview timing on the frame the cursor
                 // lands on it, which is the frame the card starts to widen, and the title would
                 // run ahead of the dot.
-                .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside } }
+                .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hoverState = inside } }
                 .onChange(of: hovering && isOpen) { _, onRow in onHover(current.key, onRow) }
                 .onChange(of: current.key) { old, new in
                     // Task 1 left and the next one moved up under the cursor: that is a new row.
@@ -188,14 +190,14 @@ struct Band: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .modifier(Ink(
-                            progress: struck ? 1 : 0,
+                            progress: struck ? pins.ink ?? 1 : 0,
                             preview: hovering && isOpen && !struck ? 1 : 0,
                             key: current.key,
                             xHeight: NotchMetrics.nsFont.xHeight,
                             thickness: 3.2,
                             inkOpacity: 1,
                             // Reduce Motion: the dot pulses, the title stays still.
-                            shimmer: reduceMotion ? 0 : Double(sweep),
+                            shimmer: reduceMotion ? 0 : pins.sweep ?? Double(sweep),
                             flash: flash
                         ))
                         .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
@@ -423,8 +425,10 @@ struct TaskRow: View {
     /// The cursor entered or left the pill. The model turns entries into haptic ticks.
     let onHover: (Bool) -> Void
     let action: () -> Void
-    @State private var hovering = false
+    @State private var hoverState = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.previewPins) private var pins
+    private var hovering: Bool { hoverState || pins.hovered == row.key }
 
     var body: some View {
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
@@ -444,7 +448,7 @@ struct TaskRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .modifier(Ink(
-                        progress: struck ? 1 : 0,
+                        progress: struck ? pins.ink ?? 1 : 0,
                         preview: hovering && !struck ? 1 : 0,
                         key: row.key,
                         xHeight: NotchMetrics.rowNSFont.xHeight,
@@ -465,7 +469,7 @@ struct TaskRow: View {
         .buttonStyle(RowButtonStyle())
         // See Band: an explicit transaction keeps the row's position on the list's own animation.
         .onHover { inside in
-            withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside }
+            withAnimation(reduceMotion ? nil : Motion.preview) { hoverState = inside }
             onHover(inside)
         }
         .help(truncated ? row.title : "")
