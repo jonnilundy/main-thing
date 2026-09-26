@@ -87,6 +87,10 @@ struct EditorRows: View {
                 Task { @MainActor in
                     focus = id
                     if let id, scrolls { withAnimation(Motion.fade) { reader.scrollTo(id) } }
+                    // Focus selects the whole title, so the first key would replace it: put the
+                    // caret at the end instead, once the field editor is in place.
+                    await Task.yield()
+                    controller.caretToEnd()
                 }
             }
             .onChange(of: focus) { _, id in

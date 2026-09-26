@@ -193,6 +193,12 @@ final class EditorController {
         editor.dragOffset = translation - CGFloat(target - editor.dragStart) * EditorLayout.rowHeight
     }
 
+    /// The focused field keeps its text: caret at the end, nothing selected.
+    func caretToEnd() {
+        guard let field = panel?.firstResponder as? NSTextView else { return }
+        field.setSelectedRange(NSRange(location: (field.string as NSString).length, length: 0))
+    }
+
     func endDragRow() {
         guard let editor else { return }
         withAnimation(reduceMotion ? nil : Motion.openSpring) { editor.dragOffset = 0 }
