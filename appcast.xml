@@ -6,6 +6,35 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.4.0</title>
+            <pubDate>Sat, 26 Sep 2026 19:41:14 +0000</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.4.0</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.4.0 lets you edit the list right in the notch.
+
+## New
+
+- **Reorder.** Drag a task by its number, or the main task by its dot, to any place. Drop one at the top and it becomes the main thing.
+- **Add.** Move the pointer to the bottom edge of the open card. A New task row unfolds. Click it, type, and press Return. The field stays open for the next task.
+- **Rename and Discard.** Press and hold a task for a menu, with a firm trackpad tick. Rename edits the title in place. Discard removes the task, and Undo shows in its place for 4 seconds.
+- **Settings checks for updates when it opens** and shows the latest version next to yours.
+
+## Changed
+
+- The separate editor window, the tear off drag and Edit List are gone. All editing happens in the card.
+- Hovering the open list costs about 40 percent less work, and there is no dead strip between the main task and task 2.
+- The right side of the card has the same padding as the left.
+
+## Install
+
+Download `MainThing-0.4.0.dmg`, drag it to Applications, then right click Main Thing and choose Open the first time (the app is not signed with an Apple developer certificate). If you have 0.2.0 or later, the update installs on its own.
+
+Requires macOS 15 or later.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.4.0/MainThing-0.4.0.zip" length="2492457" type="application/octet-stream" sparkle:edSignature="Y93yif9VYf8g95ZBXIloV1MKrLzgWPZwvggoB1+YzkzFCSk5Po8gYr+Bp4/K+LL+Q/vuux1sY+OVKVuX54mgCg=="/>
+        </item>
+        <item>
             <title>Version 0.3.0</title>
             <pubDate>Sat, 26 Sep 2026 15:32:32 +0000</pubDate>
             <sparkle:version>3</sparkle:version>
