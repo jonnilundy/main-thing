@@ -438,18 +438,22 @@ struct TaskRow: View {
         let pill = RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
         Button(action: action) {
             HStack(spacing: Lanes.gap) {
+                // The hover dims and lifts through opacity, never through the text's own color: an
+                // animated color re-resolves the text and runs TextKit layout again on every frame.
                 Text(String(number))
                     .font(NotchMetrics.numberFont)
-                    .foregroundStyle(.white.opacity(numberOpacity))
+                    .foregroundStyle(.white)
+                    .opacity(numberOpacity)
                     .frame(width: Lanes.markerSlot)
                 Text(row.title)
                     .font(NotchMetrics.rowFont)
-                    .foregroundStyle(.white.opacity(titleOpacity))
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .modifier(Ink(
                         progress: struck ? pins.ink ?? 1 : 0,
                         preview: hovering && !struck ? 1 : 0,
+                        textOpacity: titleOpacity,
                         key: row.key,
                         xHeight: NotchMetrics.rowNSFont.xHeight,
                         thickness: 2.8,
@@ -484,6 +488,8 @@ struct TaskRow: View {
 struct Ink: ViewModifier, @preconcurrency Animatable {
     var progress: Double
     var preview: Double
+    /// The glyphs' opacity. It animates here, in the renderer, instead of in the text's color.
+    var textOpacity: Double = 1
     var key: String
     var xHeight: CGFloat
     var thickness: CGFloat
@@ -493,18 +499,19 @@ struct Ink: ViewModifier, @preconcurrency Animatable {
     /// The band: clear ends, the step's lighter edge, its core.
     var flash: Gradient = Gradient(stops: NotchMetrics.shimmerStops(core: NotchMetrics.pink, edge: NotchMetrics.pinkEdge))
 
-    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, Double> {
-        get { AnimatablePair(AnimatablePair(progress, preview), shimmer) }
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
+        get { AnimatablePair(AnimatablePair(progress, preview), AnimatablePair(shimmer, textOpacity)) }
         set {
             progress = newValue.first.first
             preview = newValue.first.second
-            shimmer = newValue.second
+            shimmer = newValue.second.first
+            textOpacity = newValue.second.second
         }
     }
 
     func body(content: Content) -> some View {
         content.textRenderer(CrossOffRenderer(
-            progress: progress, preview: preview, key: key, xHeight: xHeight, thickness: thickness, inkOpacity: inkOpacity,
+            progress: progress, preview: preview, textOpacity: textOpacity, key: key, xHeight: xHeight, thickness: thickness, inkOpacity: inkOpacity,
             shimmer: ReminderSchedule.phase(of: shimmer), flash: flash
         ))
     }
@@ -517,6 +524,7 @@ struct Ink: ViewModifier, @preconcurrency Animatable {
 struct CrossOffRenderer: TextRenderer {
     var progress: Double
     var preview: Double
+    var textOpacity: Double = 1
     var key: String
     var xHeight: CGFloat
     var thickness: CGFloat
@@ -530,7 +538,7 @@ struct CrossOffRenderer: TextRenderer {
             let bounds = line.typographicBounds
             let t = PenStroke.lineProgress(progress, line: index)
             // The glyphs, dimming to 45 percent as the ink passes.
-            let glyphOpacity = 1 - 0.55 * t
+            let glyphOpacity = textOpacity * (1 - 0.55 * t)
             if shimmer > 0 {
                 // The band, kept to the glyphs: draw them in a layer, then paint the gradient
                 // source atop. Clear ends leave the white; the middle is pink with a lighter edge.

@@ -96,24 +96,31 @@ final class HoverController {
         if model.tearing { return }
         if model.editorOpen {
             // The editor holds the list: no opening on hover, no clicks on the notch.
-            panel.ignoresMouseEvents = true
+            setClickThrough(true)
             if model.isOpen { setOpen(false) }
             return
         }
         if model.forceOpen {
             if !model.isOpen { setOpen(true) }
-            panel.ignoresMouseEvents = false
+            setClickThrough(false)
             return
         }
         let point = NotchHover.panelPoint(screenPoint: screenPoint, panelFrame: panel.frame)
         let inside = NotchHover.inside(point, shape: model.shapeRect, isOpen: model.isOpen)
         log.debug("\(source, privacy: .public) screen (\(Int(screenPoint.x), privacy: .public),\(Int(screenPoint.y), privacy: .public)) panel (\(Int(point.x), privacy: .public),\(Int(point.y), privacy: .public)) shape \(NSStringFromRect(self.model.shapeRect), privacy: .public) inside \(inside, privacy: .public) open \(self.model.isOpen, privacy: .public)")
-        panel.ignoresMouseEvents = !inside
+        setClickThrough(!inside)
         switch NotchHover.intent(isOpen: model.isOpen, inside: inside) {
         case .open: setOpen(true)
         case .close: setOpen(false)
         case .none: break
         }
+    }
+
+    /// Click through on or off, written only when it changes. Every write of `ignoresMouseEvents`,
+    /// even of the value it already has, is a WindowServer event mask transaction plus a Core
+    /// Animation commit: about 0.6ms of main thread per cursor move, twice per move while open.
+    private func setClickThrough(_ ignores: Bool) {
+        if panel.ignoresMouseEvents != ignores { panel.ignoresMouseEvents = ignores }
     }
 
     func setOpen(_ open: Bool) {

@@ -1,0 +1,173 @@
+import AppKit
+import MainThingCore
+import SwiftUI
+
+/// `MainThing --bench-hover [seconds]`: a fast up and down sweep over the open rows, without the
+/// real cursor, and the main thread time it costs.
+///
+/// The real notch view and the real hover rules run in the bench's own panel: invisible (alpha 0),
+/// click through, in the bottom left corner of the main screen. Synthesized mouse moves go straight
+/// into the hosting view, and to `HoverController.evaluate` twice per move, as the tracking area and
+/// the local monitor do in the app. No CGEvent is posted and the cursor never moves. A counter
+/// stands in for the haptic performer, so no real trackpad ticks. The list is in memory: no tasks
+/// file is read or written. `MAIN_THING_BENCH_DELAY=<seconds>` waits before the sweep, for
+/// attaching Instruments (`scripts/bench-trace.sh`).
+///
+/// `MainThing --bench-hover [seconds] closed`: the notch stays collapsed and the cursor moves beside
+/// it, as anywhere on screen. Only the global monitor's `evaluate` runs, once per move.
+@MainActor
+enum HoverBench {
+    static func run(seconds: Double, closed: Bool = false) {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.accessory)
+        guard let screen = NSScreen.main else {
+            print("bench: no screen")
+            exit(1)
+        }
+        let environment = ProcessInfo.processInfo.environment
+        let delay = Env.value("BENCH_DELAY", in: environment).flatMap(Double.init) ?? 1
+        let geometry = NotchGeometry(screen: ScreenInfo(screen))
+        let store = TaskStore(previewTitles: [
+            "Ship the launch post", "Reply to the design review", "Update the changelog",
+            "Book the offsite room", "Draft the Q4 plan", "Send the invoices",
+            "Review the hiring plan", "Write the weekly update",
+        ])
+        let model = NotchModel(geometry: geometry, apiPort: APIPort.preferred)
+        let haptics = CountingPerformer()
+        model.performer = haptics
+        model.isOpen = !closed
+        let rows = store.list.rows
+        model.openWidth = PanelLayout.openWidth(rows: rows, geometry: geometry)
+        let height = geometry.notchHeight + OpenLayout.contentHeight(rows: rows.count - 1) + OpenLayout.bounceHeadroom
+        let size = CGSize(width: NotchGeometry.panelSize.width, height: max(ceil(height), NotchGeometry.panelSize.height))
+        let frame = CGRect(origin: screen.frame.origin, size: size)
+
+        let panel = NotchPanel(contentRect: frame)
+        panel.alphaValue = 0
+        let hosting = NotchHostingView(rootView: NotchView(store: store, model: model))
+        panel.contentView = hosting
+        panel.orderFrontRegardless()
+        // The hover rules flip click through on the panel they are given. That is a stand in with
+        // the same frame that is never shown, so the invisible panel never takes a click.
+        let standIn = NotchPanel(contentRect: frame)
+        let silent = FileManager.default.temporaryDirectory.appendingPathComponent("main-thing-bench-\(getpid())")
+        let hover = HoverController(
+            panel: standIn, model: model, store: store,
+            layout: PanelLayout(panel: standIn, model: model, store: store), sounds: Sounds(configDirectory: silent)
+        )
+
+        // Row centers from the top of the panel: the band, then rows 2..N.
+        var centers = [geometry.notchHeight / 2]
+        for index in 0..<(rows.count - 1) {
+            centers.append(geometry.notchHeight + Lanes.topGap + Lanes.rowHeight * (CGFloat(index) + 0.5))
+        }
+        let top = centers.first!, bottom = centers.last!
+        let x = size.width / 2
+        let step = Lanes.rowHeight / 3
+
+        Task { @MainActor in
+            // Let the open layout and the row insertions settle first.
+            try? await Task.sleep(for: .seconds(delay))
+            // SwiftUI takes hover moves only after its tracking area saw the cursor come in.
+            for area in hosting.trackingAreas where area.owner === hosting && !closed {
+                if let enter = NSEvent.enterExitEvent(
+                    with: .mouseEntered, location: CGPoint(x: x, y: size.height - top), modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber, context: nil,
+                    eventNumber: 0, trackingNumber: Int(bitPattern: Unmanaged.passUnretained(area).toOpaque()), userData: nil
+                ) {
+                    hosting.mouseEntered(with: enter)
+                }
+            }
+            // Wired after the enter: an enter reports the real cursor, which is somewhere else.
+            if !closed { hosting.onMouseMove = { point in hover.evaluate(at: point, source: "tracking") } }
+            let locked = Reminder.screenLocked
+            let meter = MainThreadMeter()
+            meter.start()
+            let began = ContinuousClock.now
+            var y = top
+            var down = true
+            var moves = 0
+            // About 200 moves a second, a row crossed every third move: a fast sweep.
+            while ContinuousClock.now - began < .seconds(seconds) {
+                try? await Task.sleep(for: .microseconds(4167))
+                y += down ? step : -step
+                if y >= bottom { y = bottom; down = false }
+                if y <= top { y = top; down = true }
+                // Closed: 20pt from the panel's left edge, far from the collapsed shape.
+                let point = CGPoint(x: closed ? 20 : x, y: size.height - y)
+                guard let event = NSEvent.mouseEvent(
+                    with: .mouseMoved, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0
+                ) else { continue }
+                if closed {
+                    hover.evaluate(at: panel.convertPoint(toScreen: point), source: "global")
+                } else {
+                    // The local monitor, then the tracking area (which also feeds SwiftUI's hover).
+                    hover.evaluate(at: panel.convertPoint(toScreen: point), source: "local")
+                    hosting.mouseMoved(with: event)
+                }
+                moves += 1
+            }
+            meter.stop()
+            // A locked screen renders differently and roughly doubles every number: not a result.
+            if locked || Reminder.screenLocked {
+                print("bench: the screen was locked during the run, no result")
+                exit(4)
+            }
+            let entries = haptics.count
+            let busy = meter.busyMilliseconds
+            print(String(format: "bench: %.1fs, %d moves, %d row entries, open %@, main thread busy %.0f ms (%.0f%%), %.2f ms per row entry, %.3f ms per move",
+                         meter.wallSeconds, moves, entries, model.isOpen ? "yes" : "no", busy, 100 * busy / (meter.wallSeconds * 1000),
+                         entries > 0 ? busy / Double(entries) : 0, moves > 0 ? busy / Double(moves) : 0))
+            try? FileManager.default.removeItem(at: silent)
+            exit(closed ? (model.isOpen ? 3 : 0) : (entries > 0 && model.isOpen ? 0 : 3))
+        }
+        app.run()
+    }
+}
+
+/// Stands in for the trackpad: counts the ticks, performs nothing.
+final class CountingPerformer: NSObject, NSHapticFeedbackPerformer {
+    nonisolated(unsafe) var count = 0
+    func perform(_ pattern: NSHapticFeedbackManager.FeedbackPattern, performanceTime: NSHapticFeedbackManager.PerformanceTime) {
+        count += 1
+    }
+}
+
+/// Main thread time spent outside the run loop's wait, from a run loop observer.
+@MainActor
+final class MainThreadMeter {
+    private var observer: CFRunLoopObserver?
+    private var awake: UInt64?
+    private var busy: UInt64 = 0
+    private var began: UInt64 = 0
+    private var ended: UInt64 = 0
+
+    var busyMilliseconds: Double { Double(busy) / 1e6 }
+    var wallSeconds: Double { Double(ended - began) / 1e9 }
+
+    func start() {
+        began = DispatchTime.now().uptimeNanoseconds
+        awake = began
+        let activities = CFRunLoopActivity.afterWaiting.rawValue | CFRunLoopActivity.beforeWaiting.rawValue
+        observer = CFRunLoopObserverCreateWithHandler(nil, activities, true, 0) { [weak self] _, activity in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let now = DispatchTime.now().uptimeNanoseconds
+                if activity == .afterWaiting {
+                    self.awake = now
+                } else if let awake = self.awake {
+                    self.busy += now - awake
+                    self.awake = nil
+                }
+            }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+    }
+
+    func stop() {
+        ended = DispatchTime.now().uptimeNanoseconds
+        if let awake { busy += ended - awake }
+        if let observer { CFRunLoopRemoveObserver(CFRunLoopGetMain(), observer, .commonModes) }
+    }
+}

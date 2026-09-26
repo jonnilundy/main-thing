@@ -42,6 +42,12 @@ public enum Launch {
             }
         }
 
+        // `MainThing --bench-hover [seconds] [closed]` sweeps the rows with synthesized moves and exits.
+        if let flag = CommandLine.arguments.firstIndex(of: "--bench-hover") {
+            let seconds = flag + 1 < CommandLine.arguments.count ? Double(CommandLine.arguments[flag + 1]) ?? 5 : 5
+            HoverBench.run(seconds: seconds, closed: CommandLine.arguments.contains("closed"))
+        }
+
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

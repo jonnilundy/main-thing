@@ -121,6 +121,8 @@ rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/A
 
 `scripts/test.sh` runs the checks and a smoke test against a throwaway copy of the app in about 5 seconds. `scripts/test.sh --checks-only` runs the checks alone. `scripts/render-previews.sh <dir>` renders every notch and editor state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
 
+Hover performance: `MainThing --bench-hover [seconds] [closed]` sweeps the open rows (or moves beside the collapsed notch) with synthesized moves in its own invisible panel and prints the main thread time per move; the cursor never moves. `scripts/bench-trace.sh <out.trace>` records a SwiftUI Instruments trace of the bench, `scripts/sweep-trace.sh <out.trace>` records one of the installed app while you sweep the rows by hand, and `scripts/trace-summary.py <file.trace>` prints hitches, commits, body updates and main thread hot spots of either.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

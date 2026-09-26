@@ -48,6 +48,8 @@ final class NotchModel {
 
     /// Which row the cursor is on and whether the next entry earns a tick.
     @ObservationIgnored private var haptics = RowHaptics()
+    /// The trackpad. The hover bench swaps in a counter, so it never ticks a real trackpad.
+    @ObservationIgnored var performer: any NSHapticFeedbackPerformer = NSHapticFeedbackManager.defaultPerformer
     @ObservationIgnored private let log = Logger(subsystem: MainThingBundleID, category: "hover")
 
     init(geometry: NotchGeometry, apiPort: UInt16) {
@@ -61,7 +63,7 @@ final class NotchModel {
         if inside {
             let tick = haptics.enter(key, at: Date.timeIntervalSinceReferenceDate)
             if tick {
-                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+                performer.perform(.alignment, performanceTime: .now)
             }
             log.debug("row \(number, privacy: .public) entered, tick \(tick, privacy: .public)")
         } else {
