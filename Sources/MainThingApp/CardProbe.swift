@@ -215,9 +215,11 @@ enum CardProbe {
 
             // Undo runs out after 4 seconds
             card.discard(store.list.rows[4].key)
-            await wait(3800)
-            check("Undo: still there at 3.8s", model.discarded != nil)
-            await wait(500)
+            // Wide margins: the probes share the Mac with a build, and the expiry rule itself is a
+            // pure check in main-thing-checks.
+            await wait(3000)
+            check("Undo: still there at 3s", model.discarded != nil)
+            await wait(1600)
             check("Undo: gone after 4s, the task stays discarded", model.discarded == nil && titles.count == 4)
             store.replace(start, source: "probe")
             await wait(100)
