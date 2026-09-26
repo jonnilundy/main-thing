@@ -2,19 +2,13 @@
 # Exercise every route with curl and the mainthing CLI against the running app, hooks included.
 # Exits non-zero on any mismatch. The list that was there before the run is put back at the end.
 # MAINTHING_PORT picks the app, MAINTHING_CONFIG_DIR its hooks folder (see README, a second copy for tests).
-# Without MAINTHING_PORT the app is looked for on port 80, then 7788.
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT="${MAINTHING_PORT:-}"
 if [[ -z "$PORT" ]]; then
-    for candidate in 80 7788; do
-        if curl -s --max-time 1 "http://localhost:$candidate/health" 2>/dev/null | /usr/bin/grep -q '"ok":true'; then
-            PORT=$candidate
-            break
-        fi
-    done
-    [[ -n "$PORT" ]] || { echo "FAIL no Main Thing answers on port 80 or 7788"; exit 1; }
+    echo "smoke.sh rewrites the list it tests. Run scripts/test.sh, which points it at a throwaway copy."
+    exit 1
 fi
 BASE="http://localhost:$PORT"
 HEALTH="{\"ok\":true,\"port\":$PORT,\"version\":\"0.1.0\"}"

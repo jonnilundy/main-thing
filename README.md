@@ -27,7 +27,7 @@ cd main-thing
 scripts/install.sh
 ```
 
-This builds a release, puts `MainThing.app` in `~/Applications`, links the `mainthing` command into `~/.local/bin`, and starts the app. To work on it: `swift run mainthing-checks` runs the logic checks, `scripts/smoke.sh` exercises every route against the running app, `scripts/package.sh` makes the DMG.
+This builds a release, puts `MainThing.app` in `~/Applications`, links the `mainthing` command into `~/.local/bin`, and starts the app. To work on it: `scripts/test.sh` runs the logic checks and then the smoke test against a throwaway copy of the app (about 5 seconds), `scripts/test.sh --checks-only` runs just the checks, `scripts/package.sh` makes the DMG.
 
 ## Use
 
