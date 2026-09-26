@@ -73,9 +73,11 @@ enum HoverBench {
         // the same frame that is never shown, so the invisible panel never takes a click.
         let standIn = NotchPanel(contentRect: frame)
         let silent = FileManager.default.temporaryDirectory.appendingPathComponent("main-thing-bench-\(getpid())")
+        let sounds = Sounds(configDirectory: silent)
+        sounds.muted = true
         let hover = HoverController(
             panel: standIn, model: model, store: store,
-            layout: PanelLayout(panel: standIn, model: model, store: store), sounds: Sounds(configDirectory: silent)
+            layout: PanelLayout(panel: standIn, model: model, store: store), sounds: sounds
         )
         let card = CardController(model: model, store: store, panel: panel, toggle: { row in hover.toggleCompletion(of: row) })
         hover.card = card
@@ -230,8 +232,10 @@ extension NSColor {
 /// Stands in for the trackpad: counts the ticks, performs nothing.
 final class CountingPerformer: NSObject, NSHapticFeedbackPerformer {
     nonisolated(unsafe) var count = 0
+    nonisolated(unsafe) var patterns: [NSHapticFeedbackManager.FeedbackPattern] = []
     func perform(_ pattern: NSHapticFeedbackManager.FeedbackPattern, performanceTime: NSHapticFeedbackManager.PerformanceTime) {
         count += 1
+        patterns.append(pattern)
     }
 }
 

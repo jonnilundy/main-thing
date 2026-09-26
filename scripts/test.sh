@@ -24,6 +24,12 @@ BIN="$(swift build --show-bin-path)"
 for screen in notch menubar menubar24; do
     "$BIN/MainThing" --bench-hover gap "$screen" | /usr/bin/tail -1
 done
+# Every edit in the open card, end to end: clicks, drags and long presses as NSEvents in the app.
+if ! PROBE=$("$BIN/MainThing" --probe-card 2>&1); then
+    printf '%s\n' "$PROBE" | /usr/bin/grep -E "FAIL|probe:" >&2
+    exit 1
+fi
+printf '%s\n' "$PROBE" | /usr/bin/tail -1
 
 [[ "${1:-}" == "--checks-only" ]] && exit 0
 
