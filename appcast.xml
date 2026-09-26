@@ -6,6 +6,27 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.4.1</title>
+            <pubDate>Sat, 26 Sep 2026 20:07:46 +0000</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.4.1</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.4.1 tidies the long press menu and drops the old names.
+
+## Changed
+
+- **The long press menu opens at the right end of the row.** The title ends with an ellipsis before it, so the menu never covers the words. Letting go right after the menu opens picks nothing; slide onto Rename or Discard and let go, or click one.
+- **The old names are gone.** Use `main-thing` and `main-thing.localhost`. The `mainthing` command, the `mainthing.localhost` address and the `MAINTHING_` environment names no longer work.
+
+## Install
+
+Download `MainThing-0.4.1.dmg`, drag it to Applications, then right click Main Thing and choose Open the first time (the app is not signed with an Apple developer certificate). If you have 0.2.0 or later, the update installs on its own.
+
+Requires macOS 15 or later.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.4.1/MainThing-0.4.1.zip" length="2486366" type="application/octet-stream" sparkle:edSignature="F/IefCUGZWDKr92ITJA/IJbUqpsTPs9KaJIULenkTD8I797yferdpz3vMLu+KCZLDEp73R3HF04rKT0+OqcfCg=="/>
+        </item>
+        <item>
             <title>Version 0.4.0</title>
             <pubDate>Sat, 26 Sep 2026 19:41:14 +0000</pubDate>
             <sparkle:version>4</sparkle:version>
