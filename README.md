@@ -119,7 +119,7 @@ rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/A
 
 ## Contributing
 
-`scripts/test.sh` runs the checks, the hover and card probes, and a smoke test against a throwaway copy of the app in about 30 seconds. `scripts/test.sh --checks-only` skips the smoke test. `scripts/render-previews.sh <dir>` renders every notch state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
+`scripts/test.sh` runs the checks, the hover and card probes, and a smoke test against a throwaway copy of the app in about 18 seconds. `scripts/test.sh --checks-only` skips the smoke test. `scripts/render-previews.sh <dir>` renders every notch state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
 
 The probes run the real notch view in an invisible panel of their own, on a list in memory, and never move the cursor. `MainThing --bench-hover gap [notch|menubar|menubar24]` steps down the open card 1pt at a time and reads back from the rendered view which row is drawn hovered, for a hardware notch, a Studio Display menu bar row or a 24pt menu bar. `MainThing --probe-card` clicks, drags, long presses, renames, discards and adds with events sent inside the app, and checks the list after each.
 

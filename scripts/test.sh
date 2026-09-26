@@ -18,18 +18,27 @@ for product in main-thing-checks MainThing; do
 done
 BIN="$(swift build --show-bin-path)"
 "$BIN/main-thing-checks" | /usr/bin/tail -1
+# The probes run side by side, each its own copy of the app in an invisible panel.
 # A drawn hover at every height of the open card, for a hardware notch, the 30pt menu bar row of a
-# Studio Display and a 24pt menu bar: synthesized moves in an invisible panel, the pills read back
-# from the rendered view.
+# Studio Display and a 24pt menu bar: synthesized moves, the pills read back from the rendered view.
+# The card probe: every edit in the open card, end to end, clicks, drags and long presses as NSEvents.
+PROBES="$(mktemp -d "${TMPDIR:-/tmp}/main-thing-probes.XXXXXX")"
+PIDS=()
 for screen in notch menubar menubar24; do
-    "$BIN/MainThing" --bench-hover gap "$screen" | /usr/bin/tail -1
+    "$BIN/MainThing" --bench-hover gap "$screen" > "$PROBES/gap-$screen" 2>&1 & PIDS+=($!)
 done
-# Every edit in the open card, end to end: clicks, drags and long presses as NSEvents in the app.
-if ! PROBE=$("$BIN/MainThing" --probe-card 2>&1); then
-    printf '%s\n' "$PROBE" | /usr/bin/grep -E "FAIL|probe:" >&2
+"$BIN/MainThing" --probe-card > "$PROBES/card" 2>&1 & PIDS+=($!)
+FAILED=0
+for pid in "${PIDS[@]}"; do wait "$pid" || FAILED=1; done
+for screen in notch menubar menubar24; do /usr/bin/tail -1 "$PROBES/gap-$screen"; done
+if [[ "$FAILED" == 1 ]] || ! /usr/bin/grep -q "all card checks passed" "$PROBES/card"; then
+    /usr/bin/grep -hE "FAIL|NOTHING|dead|probe:" "$PROBES"/* >&2
+    rm -rf "$PROBES"
+    echo "test.sh: a probe failed" >&2
     exit 1
 fi
-printf '%s\n' "$PROBE" | /usr/bin/tail -1
+/usr/bin/tail -1 "$PROBES/card"
+rm -rf "$PROBES"
 
 [[ "${1:-}" == "--checks-only" ]] && exit 0
 
