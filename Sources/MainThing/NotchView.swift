@@ -636,6 +636,9 @@ struct NotchMenu: View {
         }
         Button("Install Command Line Tool") { CommandLineTool.installFromMenu() }
         Divider()
+        UpdateMenuItems()
+        Button("Settings…") { SettingsWindow.show() }
+        Divider()
         Button("Quit Main Thing") { NSApp.terminate(nil) }
     }
 }

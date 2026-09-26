@@ -11,7 +11,8 @@ if [[ -z "$PORT" ]]; then
     exit 1
 fi
 BASE="http://localhost:$PORT"
-HEALTH="{\"ok\":true,\"port\":$PORT,\"version\":\"0.1.0\"}"
+VERSION=$(sed -n 's/^public let MainThingVersion = "\([^"]*\)"$/\1/p' "$ROOT/Sources/MainThingCore/Version.swift")
+HEALTH="{\"ok\":true,\"port\":$PORT,\"version\":\"$VERSION\"}"
 CLI="$ROOT/bin/mainthing"
 fails=0
 
@@ -130,7 +131,7 @@ same "mainthing list --json round trips through set --json -" $'Ref one\nPlain t
 same "mainthing set --json without - exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" set --json "A" >/dev/null 2>&1; echo $?)"
 same "mainthing unknown command exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
 same "mainthing on a dead port says not running" "1" "$(MAINTHING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
-same "mainthing version" "0.1.0" "$(MAINTHING_PORT=$PORT "$CLI" version)"
+same "mainthing version" "$VERSION" "$(MAINTHING_PORT=$PORT "$CLI" version)"
 same "mainthing port shows the running port" "running on port $PORT" "$(MAINTHING_PORT=$PORT "$CLI" port | /usr/bin/tail -1)"
 same "mainthing help lists every command" "15" "$("$CLI" help | /usr/bin/grep -c '^  mainthing')"
 same "mainthing help names the HTTP routes" "5" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"

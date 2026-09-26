@@ -20,16 +20,12 @@ final class TaskStore {
     /// The panel uses it to size itself before the shape animates.
     @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
+    /// The real list for the release app, a list keyed by bundle id for a test copy (`AppPaths`).
     /// `MAINTHING_TASKS_FILE` in the environment points a test copy at its own file.
     static var defaultFileURL: URL {
-        if let path = ProcessInfo.processInfo.environment["MAINTHING_TASKS_FILE"], !path.isEmpty {
-            return URL(fileURLWithPath: path)
-        }
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return base
-            .appendingPathComponent("MainThing", isDirectory: true)
-            .appendingPathComponent("tasks.json")
+        return AppPaths.tasksFile(environment: ProcessInfo.processInfo.environment, bundleID: Bundle.main.bundleIdentifier, applicationSupport: base)
     }
 
     init(fileURL: URL = TaskStore.defaultFileURL, configDirectory: URL = EventRunner.defaultConfigDirectory) {
@@ -59,6 +55,7 @@ final class TaskStore {
 
     /// First launch after the rename: copy NextUp's list when Main Thing has none. The old file stays.
     static func copyLegacyFileIfNeeded(to fileURL: URL) {
+        guard AppPaths.copiesLegacyList(bundleID: Bundle.main.bundleIdentifier) else { return }
         let files = FileManager.default
         let legacy = fileURL.deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent(LegacyData.legacyDirectoryName, isDirectory: true)

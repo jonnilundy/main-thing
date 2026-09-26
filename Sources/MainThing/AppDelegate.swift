@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var editor: EditorController?
     private var tearOff: TearOffController?
     private var screenObserver: (any NSObjectProtocol)?
+    private var updater: Updater?
 
     /// `MAINTHING_HEADLESS=1`: no notch, no hover, no single instance check. The store and the API
     /// run as usual, so smoke tests can drive a second copy on another port while the real one shows.
@@ -32,6 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard quitIfAnotherInstanceRuns() == false else { return }
+
+        let updater = Updater()
+        updater.start()
+        self.updater = updater
 
         guard let geometry = currentGeometry() else {
             log.error("no screen at launch")
@@ -54,6 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let panel = NotchPanel(contentRect: geometry.panelFrame)
         let layout = PanelLayout(panel: panel, model: model, store: store)
         let sounds = Sounds()
+        SettingsWindow.sounds = sounds
+        SettingsWindow.installShortcut()
         let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
         let reminder = Reminder(store: store, model: model)
@@ -79,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         snapshotter?.start()
         self.reminder = reminder
         reminder.start()
+        // `MainThing --settings` opens Settings at launch, for scripts and screenshots.
+        if CommandLine.arguments.contains("--settings") { SettingsWindow.show() }
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main

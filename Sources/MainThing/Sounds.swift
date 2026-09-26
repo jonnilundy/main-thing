@@ -11,7 +11,7 @@ import os
 @MainActor
 final class Sounds {
     static let volume: Double = 0.25
-    private static let key = "sound"
+    static let key = "sound"
 
     /// The Sound menu choice, stored by file name. Pen for new installs. A missing file is Pen.
     static var stored: String? { UserDefaults.standard.string(forKey: key) }
