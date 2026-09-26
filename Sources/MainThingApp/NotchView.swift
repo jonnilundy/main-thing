@@ -11,11 +11,10 @@ struct NotchView: View {
     var sounds: Sounds? = nil
     var reminder: Reminder? = nil
     var onToggle: (TaskList.Row) -> Void = { _ in }
-    var onEditList: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: onToggle, onEditList: onEditList)
+            NotchBody(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: onToggle)
                 // The hosting view fills the panel, so the global space is panel space, origin top left.
                 // A GeometryReader preference in the background never delivered the laid out frame here
                 // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
@@ -45,7 +44,6 @@ struct NotchBody: View {
     let sounds: Sounds?
     let reminder: Reminder?
     let onToggle: (TaskList.Row) -> Void
-    var onEditList: (() -> Void)? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -85,8 +83,6 @@ struct NotchBody: View {
                     .transition(Motion.openContent(reduceMotion))
             }
         }
-        // A tear off drag pulls the bottom edge down; the content stays where it is.
-        .padding(.bottom, model.isOpen ? model.tearStretch : 0)
         .padding(.horizontal, NotchMetrics.flare)
         // Pure black, no translucency: it must match a hardware notch.
         .background(shape.fill(.black))
@@ -95,7 +91,7 @@ struct NotchBody: View {
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
-        .contextMenu { NotchMenu(store: store, sounds: sounds, reminder: reminder, onEditList: onEditList) }
+        .contextMenu { NotchMenu(store: store, sounds: sounds, reminder: reminder) }
     }
 }
 
@@ -654,18 +650,13 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu: Edit List, Launch at Login, Sound, Reminder, Show Tasks File, Install Command Line Tool, Quit.
+/// Right click menu: Launch at Login, Sound, Reminder, Show Tasks File, Install Command Line Tool, Quit.
 struct NotchMenu: View {
     let store: TaskStore
     let sounds: Sounds?
     let reminder: Reminder?
-    var onEditList: (() -> Void)? = nil
 
     var body: some View {
-        if let onEditList {
-            Button("Edit List") { onEditList() }
-            Divider()
-        }
         if LaunchAtLogin.needsApproval {
             Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
         } else {

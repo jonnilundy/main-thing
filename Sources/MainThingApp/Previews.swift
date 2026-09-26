@@ -17,7 +17,7 @@ extension EnvironmentValues {
     @Entry var previewPins = PreviewPins()
 }
 
-// Every visual state of the notch and the editor as a preview, for `scripts/render-previews.sh`.
+// Every visual state of the notch as a preview, for `scripts/render-previews.sh`.
 // Fixed list, fixed sizes, a dark backdrop, no timers: nothing reads or writes the real tasks
 // file, the app's defaults, the network or audio.
 
@@ -68,49 +68,6 @@ private func notch(
         .background(backdrop)
 }
 
-/// The list editor over the backdrop.
-@MainActor
-private func editor(titles: [String], conflict: Bool = false) -> some View {
-    let model = EditorModel(draft: EditorDraft(titles.map { TaskItem($0) }))
-    model.conflict = conflict
-    let notch = NotchModel(geometry: NotchGeometry(screen: previewScreen), apiPort: APIPort.preferred)
-    return EditorView(editor: model, notch: notch, controller: PreviewEditorActions())
-        .background(FocusSink())
-        .frame(width: model.size.width, height: model.size.height)
-        .padding(24)
-        .background(backdrop)
-}
-
-/// Takes the preview window's first responder, so no field is focused with its title selected.
-private struct FocusSink: NSViewRepresentable {
-    final class Sink: NSView {
-        override var acceptsFirstResponder: Bool { true }
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            window?.initialFirstResponder = self
-            window?.makeFirstResponder(self)
-        }
-    }
-
-    func makeNSView(context: Context) -> Sink { Sink() }
-    func updateNSView(_ view: Sink, context: Context) {}
-}
-
-/// The editor's buttons and fields do nothing in a preview.
-private struct PreviewEditorActions: EditorActions {
-    func rename(_ id: UUID, _ title: String) {}
-    func remove(_ id: UUID) {}
-    func dragRow(_ id: UUID, translation: CGFloat) {}
-    func endDragRow() {}
-    func moveWindow() {}
-    func endMoveWindow() {}
-    func caretToEnd() {}
-    func reload() {}
-    func overwrite() {}
-    func cancel() {}
-    func save() {}
-}
-
 #Preview("Collapsed", traits: .sizeThatFitsLayout) {
     notch(open: false, height: 64)
 }
@@ -134,12 +91,4 @@ private struct PreviewEditorActions: EditorActions {
 
 #Preview("Reminder shimmer", traits: .sizeThatFitsLayout) {
     notch(open: false, sweep: 0.5, height: 64)
-}
-
-#Preview("Editor", traits: .sizeThatFitsLayout) {
-    editor(titles: Array(sampleTitles.prefix(4)))
-}
-
-#Preview("Editor conflict", traits: .sizeThatFitsLayout) {
-    editor(titles: Array(sampleTitles.prefix(4)), conflict: true)
 }

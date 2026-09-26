@@ -13,8 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hover: HoverController?
     private var snapshotter: Snapshotter?
     private var reminder: Reminder?
-    private var editor: EditorController?
-    private var tearOff: TearOffController?
     private var screenObserver: (any NSObjectProtocol)?
     private var updater: Updater?
 
@@ -66,12 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
         let reminder = Reminder(store: store, model: model)
-        let editor = EditorController(store: store, model: model, notchPanel: panel, hover: hover)
-        self.editor = editor
         let root = NotchView(
             store: store, model: model, sounds: sounds, reminder: reminder,
-            onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) },
-            onEditList: { [weak editor] in editor?.openFromMenu() }
+            onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) }
         )
         let hosting = NotchHostingView(rootView: root)
         hosting.onMouseMove = { [weak hover] point in hover?.evaluate(at: point, source: "tracking") }
@@ -80,9 +75,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.panel = panel
         self.hover = hover
         hover.start()
-        let tearOff = TearOffController(model: model, panel: panel, hover: hover, editor: editor)
-        tearOff.start()
-        self.tearOff = tearOff
 
         snapshotter = Snapshotter(store: store, model: model)
         snapshotter?.start()
