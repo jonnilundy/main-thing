@@ -1,7 +1,5 @@
 <p align="center"><img src="assets/cover-2026-09.png" alt="Main Thing showing the current task in a black notch at the top of a Mac screen, with the rest of the list below it" width="720"></p>
 
-<p align="center"><img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task with a pen stroke, and the notch closes again" width="340"></p>
-
 # Main Thing
 
 Main Thing keeps the one task you are on in your Mac's notch.
@@ -48,6 +46,10 @@ In the notch:
 - Click a task to cross it off with a pen stroke. Click it again right away to keep it.
 - Drag the open card down to pull out the editor: reorder, rename, add and remove tasks, then Save. Or right click and choose Edit List.
 - Right click for the menu: Edit List, Sound, Reminder, Launch at Login, Check for Updates, Settings.
+
+Hover to open, cross off a task, then drag the card down to pull out the editor:
+
+<img src="docs/demo.gif" alt="Hovering the notch opens the list. A click crosses off the third task with a pen stroke and it leaves. Dragging the card down pulls out the editor window, and Cancel sends it back into the notch" width="100%">
 
 ## Features
 
