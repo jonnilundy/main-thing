@@ -37,7 +37,6 @@ do {
     check("current is index 0", list.current == "A")
     check("count", list.count == 2)
     check("empty list has no current", TaskList().current == nil && TaskList().isEmpty)
-    check("version is 0.1.0", MainThingVersion == "0.1.0")
     check("legacy data: copy when the new file is missing and the old one exists", LegacyData.shouldCopy(newExists: false, legacyExists: true))
     check("legacy data: no copy when the new file exists", LegacyData.shouldCopy(newExists: true, legacyExists: true) == false)
     check("legacy data: no copy without an old file", LegacyData.shouldCopy(newExists: false, legacyExists: false) == false)
@@ -269,15 +268,17 @@ do {
     check("POST /tasks/done on empty is 200 and unchanged", empty.response.status == 200 && text(empty.response) == "{\"tasks\":[]}" && empty.changed == false)
 }
 do {
+    // The version is whatever Version.swift says, so a release bump keeps these passing.
+    let body7788 = "{\"ok\":true,\"port\":7788,\"version\":\"\(MainThingVersion)\"}"
     let out = MainThingRouter.handle(request("GET", "/health"), list: TaskList())
-    check("GET /health exact body, port 7788 by default", out.response.status == 200 && text(out.response) == "{\"ok\":true,\"port\":7788,\"version\":\"0.1.0\"}")
+    check("GET /health exact body, port 7788 by default", out.response.status == 200 && text(out.response) == body7788)
     let on80 = MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost"), list: TaskList(), port: 80)
-    check("GET /health reports the port it was given", text(on80.response) == "{\"ok\":true,\"port\":80,\"version\":\"0.1.0\"}")
+    check("GET /health reports the port it was given", text(on80.response) == "{\"ok\":true,\"port\":80,\"version\":\"\(MainThingVersion)\"}")
     let wire = String(decoding: out.response.serialized(), as: UTF8.self)
     check("serialized status line", wire.hasPrefix("HTTP/1.1 200 OK\r\n"))
-    check("serialized content length", wire.contains("\r\nContent-Length: 41\r\n"))
+    check("serialized content length", wire.contains("\r\nContent-Length: \(body7788.utf8.count)\r\n"))
     check("serialized closes the connection", wire.contains("\r\nConnection: close\r\n"))
-    check("serialized body after blank line", wire.hasSuffix("\r\n\r\n{\"ok\":true,\"port\":7788,\"version\":\"0.1.0\"}"))
+    check("serialized body after blank line", wire.hasSuffix("\r\n\r\n" + body7788))
 }
 do {
     check("ports: 80 then 7788 by default", APIPort.candidates(environment: nil, defaultsValue: 0) == [80, 7788])
@@ -326,5 +327,6 @@ runGeometryChecks()
 runEventChecks()
 runOpenChecks()
 runUpdateChecks()
+runPathChecks()
 print("\(passes) passed, \(failures) failed")
 exit(failures == 0 ? 0 : 1)

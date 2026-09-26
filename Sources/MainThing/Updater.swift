@@ -80,7 +80,7 @@ final class Updater: NSObject {
     static var bundleVersion: (version: String, build: String) {
         let info = Bundle.main.infoDictionary ?? [:]
         return (info["CFBundleShortVersionString"] as? String ?? MainThingVersion,
-                info["CFBundleVersion"] as? String ?? "?")
+                info["CFBundleVersion"] as? String ?? String(MainThingBuild))
     }
 
     func start() {
@@ -156,7 +156,7 @@ final class Updater: NSObject {
     /// - `<bundle id>.snapshot-windows` draws every visible window, title bar included, into PNGs in
     ///   `$TMPDIR/mainthing-windows/`. AppKit draws them in process, so it works on a locked screen.
     private func listenForTestInstall() {
-        guard let id = Bundle.main.bundleIdentifier, id != MainThingBundleID else { return }
+        guard let id = Bundle.main.bundleIdentifier, !AppPaths.isRelease(bundleID: id) else { return }
         let center = DistributedNotificationCenter.default()
         let install = Notification.Name(id + ".install-update")
         testObservers.append(center.addObserver(forName: install, object: nil, queue: .main) { [weak self] _ in
