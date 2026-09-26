@@ -77,10 +77,10 @@ func runOpenChecks() {
         check("count text", Lanes.countText(5) == "1 of 5")
         check("pill: inset 8, radius 8, 28 high, 10 above the bottom", Lanes.pillWidth(contentWidth: 300) == 284 && Lanes.pillRadius == 8 && Lanes.rowHeight == 28 && Lanes.bottomPadding == 10 && Lanes.topGap == 6)
 
-        check("content height: gap 6, four pills, padding 10", OpenLayout.contentHeight(rows: 4) == 6 + 112 + 10)
+        check("content height: gap 6, four pills, the add card, padding 10", OpenLayout.contentHeight(rows: 4) == 6 + 112 + 28 + 10)
         check("content height with two note lines", OpenLayout.contentHeight(rows: 1) + 2 * (6 + 14) == OpenLayout.contentHeight(rows: 1, notes: 2))
-        check("content height with only task 1 is the gap and the padding", OpenLayout.contentHeight(rows: 0) == 16)
-        check("content height of an empty list is one line", OpenLayout.contentHeight(rows: 0, empty: true) == 6 + 18 + 10)
+        check("content height with only task 1 is the gap, the add card and the padding", OpenLayout.contentHeight(rows: 0) == 6 + 28 + 10)
+        check("content height of an empty list is one line and the add card", OpenLayout.contentHeight(rows: 0, empty: true) == 6 + 18 + 28 + 10)
 
         let small = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 100, screenHeight: 1440, minimum: 260)
         check("a short card keeps the 260 minimum and does not scroll", small.panel == 260 && small.rowsMax == nil)
@@ -88,7 +88,7 @@ func runOpenChecks() {
         check("a taller card grows the panel with 40pt headroom", mid.panel == 470 && mid.rowsMax == nil)
         let tall = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 2000, screenHeight: 1440, minimum: 260)
         check("past 60 percent of the screen the panel caps at 864", tall.panel == 864)
-        check("and the rows scroll inside what is left", tall.rowsMax == 864 - 30 - 40 - 6 - 10)
+        check("and the rows scroll inside what is left", tall.rowsMax == 864 - 30 - 40 - 6 - 28 - 10)
         let edge = OpenLayout.panelHeight(notchHeight: 30, contentHeight: 794, screenHeight: 1440, minimum: 260)
         check("exactly at the cap: no scrolling", edge.panel == 864 && edge.rowsMax == nil)
 
