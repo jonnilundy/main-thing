@@ -177,6 +177,7 @@ extension HoverBench {
         for column in [x, left, right] {
             var owner: [(y: CGFloat, drawn: String)] = []
             var probe = geometry.notchHeight / 2
+            var addUnfolded = false
             let end = map.addTop + OpenLayout.addHeight / 2
             while probe <= end {
                 let point = CGPoint(x: column, y: height - probe)
@@ -188,6 +189,11 @@ extension HoverBench {
                     (hosting as? NSHostingView<NotchView>)?.mouseMoved(with: event)
                 }
                 try? await Task.sleep(for: .milliseconds(1))
+                // The add card unfolds out of the bottom padding with a spring: sample it settled.
+                if model.hover == .add, !addUnfolded {
+                    addUnfolded = true
+                    try? await Task.sleep(for: .milliseconds(400))
+                }
                 // What the screen would show: the hosting view drawn into a bitmap.
                 hosting.layoutSubtreeIfNeeded()
                 var lit: [String] = []

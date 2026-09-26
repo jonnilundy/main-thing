@@ -223,7 +223,7 @@ struct Band: View {
                 Text(Lanes.countText(rows.count))
                     .font(NotchMetrics.countFont)
                     .foregroundStyle(.white.opacity(Lanes.countOpacity))
-                    .padding(.trailing, Lanes.padding - pill.minX)
+                    .padding(.trailing, Lanes.trailingPadding - pill.minX)
                     .opacity(countShown ? 1 : 0)
                     .offset(y: countShown || reduceMotion ? 0 : 4)
                     .accessibilityHidden(!isOpen)
@@ -360,8 +360,13 @@ struct OpenContent: View {
                          onSubmit: { card?.submitAdd() }, onCancel: { card?.closeAdd() }, width: width)
                     .transition(.opacity)
             } else {
-                AddCard(width: width, hovered: model.hover == .add || pins.add, pressed: model.pressed == .add)
+                // Folded into the bottom padding until the pointer reaches it, then a row tall.
+                let shows = model.hover == .add || pins.add
+                AddCard(width: width, hovered: shows, pressed: model.pressed == .add)
                     .equatable()
+                    .frame(height: shows ? OpenLayout.addHeight : 0, alignment: .top)
+                    .clipped()
+                    .animation(Motion.content(reduceMotion), value: shows)
                     .accessibilityAction { card?.openAdd() }
             }
         }
@@ -595,7 +600,8 @@ struct TaskRow: View, Equatable {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, Lanes.pillPadding)
+        .padding(.leading, Lanes.pillPadding)
+        .padding(.trailing, Lanes.pillTrailingPadding)
         .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
         .background {
             // Held, the fill sits on black so the rows under it do not show through.
@@ -641,7 +647,8 @@ struct FieldRow: View {
             InlineField(text: $text, font: NotchMetrics.rowFont, prompt: prompt, keepsFocus: keepsFocus, onSubmit: onSubmit, onCancel: onCancel)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, Lanes.pillPadding)
+        .padding(.leading, Lanes.pillPadding)
+        .padding(.trailing, Lanes.pillTrailingPadding)
         .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.white.opacity(Lanes.pillOpacity)))
     }
@@ -700,7 +707,8 @@ struct UndoRow: View, Equatable {
                 .foregroundStyle(.white)
                 .opacity(Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast))
         }
-        .padding(.horizontal, Lanes.pillPadding)
+        .padding(.leading, Lanes.pillPadding)
+        .padding(.trailing, Lanes.pillTrailingPadding)
         .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.white.opacity(Lanes.pillOpacity)).opacity(hovered ? 1 : 0))
         .opacity(pressed ? 0.85 : 1)
@@ -761,7 +769,8 @@ struct AddCard: View, Equatable {
                 .opacity(Lanes.rowTitleOpacity(hovered: false, increaseContrast: contrast))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, Lanes.pillPadding)
+        .padding(.leading, Lanes.pillPadding)
+        .padding(.trailing, Lanes.pillTrailingPadding)
         .frame(width: Lanes.pillWidth(contentWidth: width), height: OpenLayout.addHeight, alignment: .leading)
         .opacity(hovered ? 1 : 0)
         .background(RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.white.opacity(Lanes.pillOpacity)).opacity(hovered ? 1 : 0))

@@ -28,14 +28,18 @@ public struct CardMap: Equatable, Sendable {
     public var notesHeight: CGFloat
     public var rowsMax: CGFloat?
     public var scroll: CGFloat
+    /// The add card shows (hovered, or its field open). Folded, its slot is only the bottom
+    /// padding: the card keeps no blank row, and hovering the padding unfolds it.
+    public var addOpen: Bool
 
-    public init(notchHeight: CGFloat, taskCount: Int, undoRow: Int? = nil, notesHeight: CGFloat = 0, rowsMax: CGFloat? = nil, scroll: CGFloat = 0) {
+    public init(notchHeight: CGFloat, taskCount: Int, undoRow: Int? = nil, notesHeight: CGFloat = 0, rowsMax: CGFloat? = nil, scroll: CGFloat = 0, addOpen: Bool = false) {
         self.notchHeight = notchHeight
         self.taskCount = max(taskCount, 0)
         self.undoRow = undoRow
         self.notesHeight = notesHeight
         self.rowsMax = rowsMax
         self.scroll = scroll
+        self.addOpen = addOpen
     }
 
     public var rowsTop: CGFloat { notchHeight + Lanes.topGap }
@@ -47,7 +51,9 @@ public struct CardMap: Equatable, Sendable {
     public var rowsVisibleHeight: CGFloat { rowsMax.map { min($0, rowsHeight) } ?? rowsHeight }
     public var addTop: CGFloat { rowsTop + rowsVisibleHeight + notesHeight }
     /// The card's full height, band included.
-    public var height: CGFloat { addTop + Lanes.rowHeight + Lanes.bottomPadding }
+    public var height: CGFloat { addTop + addHeight + Lanes.bottomPadding }
+    /// The add card's row: a row tall when it shows, nothing when folded into the padding.
+    public var addHeight: CGFloat { addOpen ? OpenLayout.addHeight : 0 }
 
     /// The Undo's position, clamped into the rows.
     public var undoPosition: Int? { undoRow.map { min(max($0, 0), max(rowItems - 1, 0)) } }
@@ -121,7 +127,7 @@ public struct CardMap: Equatable, Sendable {
         case .task(0): return notchHeight / 2
         case .task(let index): guard let p = position(ofTask: index) else { return notchHeight / 2 }; row = p
         case .undo: guard let p = undoPosition else { return rowsTop }; row = p
-        case .add: return addTop + OpenLayout.addHeight / 2
+        case .add: return addTop + (addHeight + Lanes.bottomPadding) / 2
         case .none: return rowsTop
         }
         return rowsTop + (CGFloat(row) + 0.5) * Lanes.rowHeight - scroll

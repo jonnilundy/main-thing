@@ -3,9 +3,9 @@ import Foundation
 
 /// The two lanes of the card, in every state: one for markers, one for text.
 ///
-/// The band (the notch row) is `[padding 18][marker slot 18][gap 10][title ...][padding 18]`, with
+/// The band (the notch row) is `[padding 18][marker slot 18][gap 10][title ...][trailing 24]`, with
 /// the count "1 of N" right aligned inside the padding when open. A row is
-/// `[pill inset 8][pill padding 10][marker slot 18][gap 10][title ...][pill padding 10][pill inset 8]`.
+/// `[pill inset 8][pill padding 10][marker slot 18][gap 10][title ...][pill trailing 16][pill inset 8]`.
 /// Open, the band gets a pill too, with the same inset, behind its dot, title and count.
 /// The slot starts 18 from the body edge either way, so the pink dot and the row numbers share
 /// one lane and every title starts at 46. Points at 1x, white opacities as fractions.
@@ -15,6 +15,11 @@ public enum Lanes {
     public static let gap: CGFloat = 10
     public static let pillInset: CGFloat = 8
     public static let pillPadding: CGFloat = 10
+    /// Right of the text, in the band and in a row: as far in as the dot and the row numbers sit
+    /// on the left (the slot start plus half the slot around the 7pt dot), so both sides read even.
+    public static let trailingPadding: CGFloat = 24
+    /// A row pill's padding right of its title, so the title ends `trailingPadding` from the edge.
+    public static var pillTrailingPadding: CGFloat { trailingPadding - pillInset }
     public static let pillRadius: CGFloat = 8
     public static let rowHeight: CGFloat = 28
     /// Gap between the band and the first pill.
@@ -33,9 +38,9 @@ public enum Lanes {
     public static var textStart: CGFloat { slotStart + markerSlot + gap }
     public static var rowTextStart: CGFloat { rowSlotStart + markerSlot + gap }
     /// Everything in the collapsed band that is not the title.
-    public static var collapsedChrome: CGFloat { textStart + padding }
+    public static var collapsedChrome: CGFloat { textStart + trailingPadding }
     /// Everything in a row that is not the title.
-    public static var rowChrome: CGFloat { rowTextStart + pillPadding + pillInset }
+    public static var rowChrome: CGFloat { rowTextStart + pillTrailingPadding + pillInset }
     /// The widest title the collapsed band can show without truncating.
     public static var collapsedTitleWidth: CGFloat { maximumCollapsedWidth - collapsedChrome }
 
@@ -55,7 +60,7 @@ public enum Lanes {
 
     /// The title lane in the open band, next to the count.
     public static func bandTitleWidth(contentWidth: CGFloat, countWidth: CGFloat) -> CGFloat {
-        max(contentWidth - textStart - countGap - ceil(countWidth) - padding, 1)
+        max(contentWidth - textStart - countGap - ceil(countWidth) - trailingPadding, 1)
     }
 
     public static func pillWidth(contentWidth: CGFloat) -> CGFloat {

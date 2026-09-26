@@ -510,7 +510,8 @@ extension CardMap {
             undoRow: model.discarded?.undoRow,
             notesHeight: CGFloat(notes) * (OpenLayout.noteSpacing + OpenLayout.noteHeight),
             rowsMax: model.rowsMaxHeight,
-            scroll: model.rowsScroll
+            scroll: model.rowsScroll,
+            addOpen: model.hover == .add || model.adding
         )
     }
 }

@@ -5,10 +5,13 @@ import MainThingCore
 @MainActor
 func runCardChecks() {
     section("CardMap")
-    // Band 30 tall, gap 6, rows from 36: row 2 36..64, row 3 64..92, row 4 92..120, add 120..148.
+    // Band 30 tall, gap 6, rows from 36: row 2 36..64, row 3 64..92, row 4 92..120. The add card is
+    // folded into the 10pt padding (120..130) until it shows, then 120..148 plus the padding.
     let map = CardMap(notchHeight: 30, taskCount: 4)
     check("the rows start under the gap", map.rowsTop == 36 && map.rowItems == 3)
-    check("the card: band, gap, three rows, add card, padding", map.height == 30 + 6 + 84 + 28 + 10)
+    check("folded: band, gap, three rows, padding", map.height == 30 + 6 + 84 + 10 && map.slot(atY: 121) == .add)
+    let shown = CardMap(notchHeight: 30, taskCount: 4, addOpen: true)
+    check("shown: the add card is a row above the padding", shown.height == 30 + 6 + 84 + 28 + 10 && shown.centerY(of: .add) == 139)
     check("the band is task 1", map.slot(atY: 0) == .task(0) && map.slot(atY: 29) == .task(0))
     check("the upper half of the gap is the band", map.slot(atY: 32.9) == .task(0))
     check("the lower half of the gap is row 2", map.slot(atY: 33) == .task(1))
@@ -38,7 +41,7 @@ func runCardChecks() {
     check("the Undo row by the pointer", undo.slot(atY: 64 + 14) == .undo && undo.slot(atY: 92 + 14) == .task(2))
     check("task positions skip the Undo", undo.position(ofTask: 1) == 0 && undo.position(ofTask: 2) == 2 && undo.position(ofTask: 0) == nil)
     check("live centers step over the Undo row", undo.liveCenters == [15, 50, 106] && undo.centerY(of: .undo) == 78)
-    check("without an Undo the live centers are the resting ones", map.liveCenters == map.taskCenters && map.centerY(of: .add) == 134)
+    check("without an Undo the live centers are the resting ones", map.liveCenters == map.taskCenters && map.centerY(of: .add) == 125)
     let lastUndo = CardMap(notchHeight: 30, taskCount: 0, undoRow: 3)
     check("the last task discarded: the Undo is the only row", !lastUndo.isEmpty && lastUndo.rowItems == 1 && lastUndo.slot(atY: 40) == .undo)
     check("an Undo past the end is clamped to the last row", CardMap(notchHeight: 30, taskCount: 2, undoRow: 7).item(atRow: 1) == .undo)
