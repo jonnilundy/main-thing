@@ -37,10 +37,6 @@ do {
     check("current is index 0", list.current == "A")
     check("count", list.count == 2)
     check("empty list has no current", TaskList().current == nil && TaskList().isEmpty)
-    check("legacy data: copy when the new file is missing and the old one exists", LegacyData.shouldCopy(newExists: false, legacyExists: true))
-    check("legacy data: no copy when the new file exists", LegacyData.shouldCopy(newExists: true, legacyExists: true) == false)
-    check("legacy data: no copy without an old file", LegacyData.shouldCopy(newExists: false, legacyExists: false) == false)
-    check("legacy data: the old folder is NextUp", LegacyData.legacyDirectoryName == "NextUp")
 }
 do {
     var list = TaskList(["M", "M", "X"])
@@ -312,8 +308,7 @@ do {
     check("Host [::1]:7788", MainThingRouter.handle(request("GET", "/health", host: "[::1]:7788"), list: list).response.status == 200)
     check("Host main-thing.localhost:7788", MainThingRouter.handle(request("GET", "/health", host: "main-thing.localhost:7788"), list: list).response.status == 200)
     check("Host main-thing.localhost without port", MainThingRouter.handle(request("GET", "/health", host: "Main-Thing.localhost"), list: list).response.status == 200)
-    check("Host mainthing.localhost:7788, the old name until 0.4", MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost:7788"), list: list).response.status == 200)
-    check("Host mainthing.localhost without port, the old name", MainThingRouter.handle(request("GET", "/health", host: "MainThing.localhost"), list: list).response.status == 200)
+    check("Host mainthing.localhost, the old name, is refused", MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost:7788"), list: list).response.status == 403)
     check("Host main-thing.localhost lookalike is refused", MainThingRouter.handle(request("GET", "/health", host: "main-thing.localhost.evil.example"), list: list).response.status == 403)
     check("Host other.localhost is refused", MainThingRouter.handle(request("GET", "/health", host: "other.localhost:7788"), list: list).response.status == 403)
     check("Host without port", MainThingRouter.handle(request("GET", "/health", host: "localhost"), list: list).response.status == 200)

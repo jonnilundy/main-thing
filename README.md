@@ -114,7 +114,7 @@ Task titles and hook output show as `<private>` in the log. An adapter or hook o
 Turn off Launch at Login in the notch menu, quit Main Thing, then:
 
 ```sh
-rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/Application Support/MainThing" ~/.local/bin/main-thing ~/.local/bin/mainthing ~/.config/main-thing ~/.config/mainthing
+rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/Application Support/MainThing" ~/.local/bin/main-thing ~/.config/main-thing
 ```
 
 ## Contributing

@@ -2,8 +2,7 @@ import AppKit
 import MainThingCore
 import os
 
-/// The `main-thing` command ships inside the bundle at Contents/Resources/main-thing, next to the
-/// `mainthing` alias for the name before 0.3 (it goes away in 0.4).
+/// The `main-thing` command ships inside the bundle at Contents/Resources/main-thing.
 /// Install links it into ~/.local/bin so it survives an app update in place.
 @MainActor
 enum CommandLineTool {
@@ -26,17 +25,11 @@ enum CommandLineTool {
         Bundle.main.resourceURL?.appendingPathComponent("main-thing")
     }
 
-    /// The old name's alias in the bundle.
-    static var aliasSource: URL? {
-        Bundle.main.resourceURL?.appendingPathComponent("mainthing")
-    }
-
     static var binDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin", isDirectory: true)
     }
 
     /// Links ~/.local/bin/main-thing to the command in the bundle. Replaces whatever is there.
-    /// An old ~/.local/bin/mainthing link becomes a link to the alias.
     static func install() throws -> Outcome {
         let files = FileManager.default
         guard let source, files.isExecutableFile(atPath: source.path) else {
@@ -49,13 +42,6 @@ enum CommandLineTool {
             try files.removeItem(at: link)
         }
         try files.createSymbolicLink(at: link, withDestinationURL: source)
-        let oldLink = dir.appendingPathComponent("mainthing")
-        if let alias = aliasSource, files.isExecutableFile(atPath: alias.path),
-           (try? files.destinationOfSymbolicLink(atPath: oldLink.path)) != nil {
-            try files.removeItem(at: oldLink)
-            try files.createSymbolicLink(at: oldLink, withDestinationURL: alias)
-            log.notice("relinked \(oldLink.path, privacy: .public) to the alias \(alias.path, privacy: .public)")
-        }
         let onPath = loginShellPath().split(separator: ":").contains { $0 == dir.path || $0 == "~/.local/bin" }
         log.notice("linked \(link.path, privacy: .public) to \(source.path, privacy: .public), on PATH: \(onPath, privacy: .public)")
         return Outcome(link: link, onPath: onPath)

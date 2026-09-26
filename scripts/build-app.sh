@@ -1,7 +1,6 @@
 #!/bin/bash
 # Build MainThing in release and assemble build/MainThing.app with an ad hoc signature.
-# The main-thing command goes into the bundle at Contents/Resources/main-thing, and next to it the
-# mainthing alias for the name before 0.3 (until 0.4).
+# The main-thing command goes into the bundle at Contents/Resources/main-thing.
 # The version and the build number come from one place, Sources/MainThingCore/Version.swift:
 # MainThingVersion becomes CFBundleShortVersionString, MainThingBuild becomes CFBundleVersion.
 #
@@ -12,13 +11,7 @@
 #   MAIN_THING_BUILD        CFBundleVersion, an integer
 #   MAIN_THING_FEED_URL     SUFeedURL, for example a localhost appcast
 #   MAIN_THING_PUBLIC_KEY   SUPublicEDKey, a throwaway test key
-# The old MAINTHING_* names still work until 0.4.
 set -euo pipefail
-
-for name in APP_OUT BUNDLE_ID VERSION BUILD FEED_URL PUBLIC_KEY; do
-    new="MAIN_THING_$name" old="MAINTHING_$name"
-    if [[ -z "${!new:-}" && -n "${!old:-}" ]]; then export "$new=${!old}"; fi
-done
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${MAIN_THING_APP_OUT:-$ROOT/build/MainThing.app}"
@@ -51,8 +44,7 @@ cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/*.wav "$APP/Contents/Resources/"
 cp "bin/main-thing" "$APP/Contents/Resources/main-thing"
-cp "bin/mainthing" "$APP/Contents/Resources/mainthing"
-chmod 755 "$APP/Contents/Resources/main-thing" "$APP/Contents/Resources/mainthing"
+chmod 755 "$APP/Contents/Resources/main-thing"
 PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"

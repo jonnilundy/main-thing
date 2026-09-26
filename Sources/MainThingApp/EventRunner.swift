@@ -20,30 +20,6 @@ final class EventRunner: @unchecked Sendable {
         AppPaths.configDirectory(environment: ProcessInfo.processInfo.environment, bundleID: Bundle.main.bundleIdentifier, home: NSHomeDirectory())
     }
 
-    /// Before 0.3 the release app's config folder was `~/.config/mainthing`. Moves it, with its
-    /// adapters, hooks, sounds and env files, to the new folder and leaves a link at the old path,
-    /// so anything that still points there keeps working.
-    static func moveLegacyConfigIfNeeded() {
-        let files = FileManager.default
-        let log = Logger(subsystem: MainThingBundleID, category: "events")
-        guard let legacy = AppPaths.legacyConfigDirectory(
-            environment: ProcessInfo.processInfo.environment, bundleID: Bundle.main.bundleIdentifier, home: NSHomeDirectory()
-        ) else { return }
-        let target = defaultConfigDirectory
-        var isDirectory: ObjCBool = false
-        let legacyIsLink = (try? files.destinationOfSymbolicLink(atPath: legacy.path)) != nil
-        let legacyIsFolder = files.fileExists(atPath: legacy.path, isDirectory: &isDirectory) && isDirectory.boolValue
-        let newExists = files.fileExists(atPath: target.path) || (try? files.destinationOfSymbolicLink(atPath: target.path)) != nil
-        guard AppPaths.movesLegacyConfig(legacyIsFolder: legacyIsFolder, legacyIsLink: legacyIsLink, newExists: newExists) else { return }
-        do {
-            try files.moveItem(at: legacy, to: target)
-            try files.createSymbolicLink(at: legacy, withDestinationURL: target)
-            log.notice("moved the config folder \(legacy.path, privacy: .public) to \(target.path, privacy: .public), link left at the old path")
-        } catch {
-            log.error("could not move the config folder \(legacy.path, privacy: .public) to \(target.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
     let configDirectory: URL
     private let queue = DispatchQueue(label: MainThingBundleID + ".events", qos: .utility)
     private let log = Logger(subsystem: MainThingBundleID, category: "events")

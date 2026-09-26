@@ -26,13 +26,7 @@
 # Tests only: MAIN_THING_SPARKLE_KEY_FILE reads a throwaway key from a file instead of 1Password,
 # MAIN_THING_DOWNLOAD_BASE points the enclosure at a local server, and build-app.sh's test
 # overrides (MAIN_THING_BUNDLE_ID, MAIN_THING_FEED_URL, ...) pass through. Never with --publish.
-# The old MAINTHING_* names still work until 0.4.
 set -euo pipefail
-
-for name in KEY_ACCOUNT SPARKLE_KEY_FILE DOWNLOAD_BASE BUNDLE_ID FEED_URL PUBLIC_KEY VERSION BUILD APP_OUT; do
-    new="MAIN_THING_$name" old="MAINTHING_$name"
-    if [[ -z "${!new:-}" && -n "${!old:-}" ]]; then export "$new=${!old}"; fi
-done
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

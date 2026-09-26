@@ -5,7 +5,7 @@
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PORT="${MAIN_THING_PORT:-${MAINTHING_PORT:-}}"
+PORT="${MAIN_THING_PORT:-}"
 if [[ -z "$PORT" ]]; then
     echo "smoke.sh rewrites the list it tests. Run scripts/test.sh, which points it at a throwaway copy."
     exit 1
@@ -14,7 +14,6 @@ BASE="http://localhost:$PORT"
 VERSION=$(sed -n 's/^public let MainThingVersion = "\([^"]*\)"$/\1/p' "$ROOT/Sources/MainThingCore/Version.swift")
 HEALTH="{\"ok\":true,\"port\":$PORT,\"version\":\"$VERSION\"}"
 CLI="$ROOT/bin/main-thing"
-ALIAS="$ROOT/bin/mainthing"
 fails=0
 
 pass() { echo "ok   $1"; }
@@ -111,8 +110,6 @@ expect "GET /health at http://main-thing.localhost (resolved to loopback)" 200 "
     --resolve "main-thing.localhost:$PORT:127.0.0.1" "http://main-thing.localhost:$PORT/health"
 expect "GET /health at http://main-thing.localhost (system resolver)" 200 "$HEALTH" "http://main-thing.localhost:$PORT/health"
 expect "GET /health with Host main-thing.localhost and no port" 200 "$HEALTH" -H "Host: main-thing.localhost" "$BASE/health"
-expect "GET /health with the old Host mainthing.localhost (until 0.4)" 200 "$HEALTH" -H "Host: mainthing.localhost:$PORT" "$BASE/health"
-expect "GET /health at http://mainthing.localhost, the old name (system resolver)" 200 "$HEALTH" "http://mainthing.localhost:$PORT/health"
 expect "GET /health with Host localhost:80 on any port" 200 "$HEALTH" -H "Host: localhost:80" "$BASE/health"
 expect "GET /health over IPv6" 200 "$HEALTH" -6 "http://[::1]:$PORT/health"
 expect "GET /health via 127.0.0.1" 200 "$HEALTH" "http://127.0.0.1:$PORT/health"
@@ -138,15 +135,10 @@ same "main-thing version" "$VERSION" "$(MAIN_THING_PORT=$PORT "$CLI" version)"
 same "main-thing port shows the running port" "running on port $PORT" "$(MAIN_THING_PORT=$PORT "$CLI" port | /usr/bin/tail -1)"
 same "main-thing help lists every command" "15" "$("$CLI" help | /usr/bin/grep -c '^  main-thing')"
 same "main-thing help names the HTTP routes" "5" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"
-echo "--- the old names, until 0.4"
-same "mainthing alias runs main-thing" "$(MAIN_THING_PORT=$PORT "$CLI" list)" "$(MAIN_THING_PORT=$PORT "$ALIAS" list 2>/dev/null)"
-same "mainthing alias says it is going away" "mainthing is now main-thing, this alias goes away in 0.4" "$(MAIN_THING_PORT=$PORT "$ALIAS" list 2>&1 >/dev/null)"
-same "mainthing alias keeps the arguments and the exit code" "1" "$(MAIN_THING_PORT=$PORT "$ALIAS" done 9 >/dev/null 2>&1; echo $?)"
-same "main-thing reads the old MAINTHING_PORT" "$HEALTH" "$(env -u MAIN_THING_PORT MAINTHING_PORT=$PORT "$CLI" health)"
 
 echo "--- hooks"
 # A test hook writes its payload to a scratch file. Installed for the run, any existing hook is put back.
-CONFIG="${MAIN_THING_CONFIG_DIR:-${MAINTHING_CONFIG_DIR:-$HOME/.config/main-thing}}"
+CONFIG="${MAIN_THING_CONFIG_DIR:-$HOME/.config/main-thing}"
 HOOK="$CONFIG/hooks/list-changed"
 SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/main-thing-smoke.XXXXXX")
 mkdir -p "$CONFIG/hooks"

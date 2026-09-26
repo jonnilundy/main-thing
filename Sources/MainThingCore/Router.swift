@@ -80,8 +80,7 @@ public enum BodyDecoding {
 
 /// Pure routing. Takes a request and the current list, returns the response and the list after it.
 public enum MainThingRouter {
-    /// `mainthing.localhost` is the name before 0.3, accepted until 0.4.
-    public static let allowedHosts: Set<String> = ["127.0.0.1", "localhost", "[::1]", "main-thing.localhost", "mainthing.localhost"]
+    public static let allowedHosts: Set<String> = ["127.0.0.1", "localhost", "[::1]", "main-thing.localhost"]
 
     public struct Outcome: Equatable, Sendable {
         public var response: HTTPResponse

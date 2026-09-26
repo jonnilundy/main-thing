@@ -29,7 +29,6 @@ final class TaskStore {
     }
 
     init(fileURL: URL = TaskStore.defaultFileURL, configDirectory: URL = EventRunner.defaultConfigDirectory) {
-        TaskStore.copyLegacyFileIfNeeded(to: fileURL)
         self.fileURL = fileURL
         var loaded = TaskList()
         var loadError: String?
@@ -58,27 +57,6 @@ final class TaskStore {
         fileURL = URL(fileURLWithPath: "/dev/null")
         list = TaskList(titles)
         runner = EventRunner(configDirectory: URL(fileURLWithPath: "/var/empty")) { _, _ in }
-    }
-
-    /// First launch after the rename: copy NextUp's list when Main Thing has none. The old file stays.
-    static func copyLegacyFileIfNeeded(to fileURL: URL) {
-        guard AppPaths.copiesLegacyList(bundleID: Bundle.main.bundleIdentifier) else { return }
-        let files = FileManager.default
-        let legacy = fileURL.deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent(LegacyData.legacyDirectoryName, isDirectory: true)
-            .appendingPathComponent(fileURL.lastPathComponent)
-        guard LegacyData.shouldCopy(
-            newExists: files.fileExists(atPath: fileURL.path),
-            legacyExists: files.fileExists(atPath: legacy.path)
-        ) else { return }
-        let log = Logger(subsystem: MainThingBundleID, category: "store")
-        do {
-            try files.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try files.copyItem(at: legacy, to: fileURL)
-            log.notice("copied the NextUp list from \(legacy.path, privacy: .public)")
-        } catch {
-            log.error("could not copy the NextUp list from \(legacy.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
-        }
     }
 
     var current: String? { list.current }

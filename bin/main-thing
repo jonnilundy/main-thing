@@ -3,8 +3,7 @@
 set -u
 
 HOST=main-thing.localhost
-# MAINTHING_PORT is the name before 0.3, read until 0.4.
-PORT="${MAIN_THING_PORT:-${MAINTHING_PORT:-}}"
+PORT="${MAIN_THING_PORT:-}"
 BASE=""
 BUNDLE_ID=com.jonnilundy.mainthing
 

@@ -1,4 +1,0 @@
-#!/bin/bash
-# mainthing: the name of main-thing before 0.3. Kept for one release; it goes away in 0.4.
-echo "mainthing is now main-thing, this alias goes away in 0.4" >&2
-exec "$(dirname "$(readlink -f "$0")")/main-thing" "$@"

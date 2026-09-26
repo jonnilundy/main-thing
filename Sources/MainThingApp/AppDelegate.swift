@@ -32,9 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard quitIfAnotherInstanceRuns() == false else { return }
-        // Before anything reads the config folder: hooks, adapters and sounds move with it.
-        EventRunner.moveLegacyConfigIfNeeded()
-
         let updater = Updater()
         updater.start()
         self.updater = updater
