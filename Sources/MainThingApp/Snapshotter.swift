@@ -6,7 +6,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import os
 
-/// Debug aid. When `MAINTHING_SNAPSHOT_DIR` is set, renders the notch view to a PNG
+/// Debug aid. When `MAIN_THING_SNAPSHOT_DIR` is set, renders the notch view to a PNG
 /// after each list change. Self render, so it needs no Screen Recording permission.
 @MainActor
 final class Snapshotter {
@@ -18,7 +18,7 @@ final class Snapshotter {
     private var pending = false
 
     init?(store: TaskStore, model: NotchModel, environment: [String: String] = ProcessInfo.processInfo.environment) {
-        guard let path = environment["MAINTHING_SNAPSHOT_DIR"], !path.isEmpty else { return nil }
+        guard let path = Env.value("SNAPSHOT_DIR", in: environment) else { return nil }
         self.store = store
         self.model = model
         self.directory = URL(fileURLWithPath: path, isDirectory: true)

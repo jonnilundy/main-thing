@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "mainthing",
+    name: "main-thing",
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "MainThingCore", targets: ["MainThingCore"]),
         .library(name: "MainThingApp", targets: ["MainThingApp"]),
         .executable(name: "MainThing", targets: ["MainThing"]),
-        .executable(name: "mainthing-checks", targets: ["mainthing-checks"]),
+        .executable(name: "main-thing-checks", targets: ["main-thing-checks"]),
     ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
@@ -21,6 +21,6 @@ let package = Package(
             dependencies: ["MainThingCore", .product(name: "Sparkle", package: "Sparkle")]
         ),
         .executableTarget(name: "MainThing", dependencies: ["MainThingApp"]),
-        .executableTarget(name: "mainthing-checks", dependencies: ["MainThingCore"]),
+        .executableTarget(name: "main-thing-checks", dependencies: ["MainThingCore"]),
     ]
 )

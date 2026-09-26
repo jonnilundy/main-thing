@@ -272,7 +272,7 @@ do {
     let body7788 = "{\"ok\":true,\"port\":7788,\"version\":\"\(MainThingVersion)\"}"
     let out = MainThingRouter.handle(request("GET", "/health"), list: TaskList())
     check("GET /health exact body, port 7788 by default", out.response.status == 200 && text(out.response) == body7788)
-    let on80 = MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost"), list: TaskList(), port: 80)
+    let on80 = MainThingRouter.handle(request("GET", "/health", host: "main-thing.localhost"), list: TaskList(), port: 80)
     check("GET /health reports the port it was given", text(on80.response) == "{\"ok\":true,\"port\":80,\"version\":\"\(MainThingVersion)\"}")
     let wire = String(decoding: out.response.serialized(), as: UTF8.self)
     check("serialized status line", wire.hasPrefix("HTTP/1.1 200 OK\r\n"))
@@ -282,7 +282,7 @@ do {
 }
 do {
     check("ports: 80 then 7788 by default", APIPort.candidates(environment: nil, defaultsValue: 0) == [80, 7788])
-    check("ports: MAINTHING_PORT alone", APIPort.candidates(environment: "7799", defaultsValue: 0) == [7799])
+    check("ports: MAIN_THING_PORT alone", APIPort.candidates(environment: "7799", defaultsValue: 0) == [7799])
     check("ports: the defaults override alone", APIPort.candidates(environment: nil, defaultsValue: 7799) == [7799])
     check("ports: the environment wins over the defaults", APIPort.candidates(environment: "8080", defaultsValue: 7799) == [8080])
     check("ports: a bad environment value falls back to the defaults", APIPort.candidates(environment: "abc", defaultsValue: 7799) == [7799])
@@ -310,8 +310,11 @@ do {
     check("Host 127.0.0.1:7788", MainThingRouter.handle(request("GET", "/health", host: "127.0.0.1:7788"), list: list).response.status == 200)
     check("Host localhost:7788", MainThingRouter.handle(request("GET", "/health", host: "localhost:7788"), list: list).response.status == 200)
     check("Host [::1]:7788", MainThingRouter.handle(request("GET", "/health", host: "[::1]:7788"), list: list).response.status == 200)
-    check("Host mainthing.localhost:7788", MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost:7788"), list: list).response.status == 200)
-    check("Host mainthing.localhost without port", MainThingRouter.handle(request("GET", "/health", host: "MainThing.localhost"), list: list).response.status == 200)
+    check("Host main-thing.localhost:7788", MainThingRouter.handle(request("GET", "/health", host: "main-thing.localhost:7788"), list: list).response.status == 200)
+    check("Host main-thing.localhost without port", MainThingRouter.handle(request("GET", "/health", host: "Main-Thing.localhost"), list: list).response.status == 200)
+    check("Host mainthing.localhost:7788, the old name until 0.4", MainThingRouter.handle(request("GET", "/health", host: "mainthing.localhost:7788"), list: list).response.status == 200)
+    check("Host mainthing.localhost without port, the old name", MainThingRouter.handle(request("GET", "/health", host: "MainThing.localhost"), list: list).response.status == 200)
+    check("Host main-thing.localhost lookalike is refused", MainThingRouter.handle(request("GET", "/health", host: "main-thing.localhost.evil.example"), list: list).response.status == 403)
     check("Host other.localhost is refused", MainThingRouter.handle(request("GET", "/health", host: "other.localhost:7788"), list: list).response.status == 403)
     check("Host without port", MainThingRouter.handle(request("GET", "/health", host: "localhost"), list: list).response.status == 200)
     check("Host [::1] without port", MainThingRouter.handle(request("GET", "/health", host: "[::1]"), list: list).response.status == 200)

@@ -1,11 +1,11 @@
 #!/bin/bash
-# Exercise every route with curl and the mainthing CLI against the running app, hooks included.
+# Exercise every route with curl and the main-thing CLI against the running app, hooks included.
 # Exits non-zero on any mismatch. The list that was there before the run is put back at the end.
-# MAINTHING_PORT picks the app, MAINTHING_CONFIG_DIR its hooks folder (see README, a second copy for tests).
+# MAIN_THING_PORT picks the app, MAIN_THING_CONFIG_DIR its hooks folder (see README, a second copy for tests).
 set -u
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PORT="${MAINTHING_PORT:-}"
+PORT="${MAIN_THING_PORT:-${MAINTHING_PORT:-}}"
 if [[ -z "$PORT" ]]; then
     echo "smoke.sh rewrites the list it tests. Run scripts/test.sh, which points it at a throwaway copy."
     exit 1
@@ -13,7 +13,8 @@ fi
 BASE="http://localhost:$PORT"
 VERSION=$(sed -n 's/^public let MainThingVersion = "\([^"]*\)"$/\1/p' "$ROOT/Sources/MainThingCore/Version.swift")
 HEALTH="{\"ok\":true,\"port\":$PORT,\"version\":\"$VERSION\"}"
-CLI="$ROOT/bin/mainthing"
+CLI="$ROOT/bin/main-thing"
+ALIAS="$ROOT/bin/mainthing"
 fails=0
 
 pass() { echo "ok   $1"; }
@@ -105,42 +106,49 @@ expect "GET /tasks with Origin" 403 '{"error":"requests with an Origin header ar
 expect "PUT /tasks with Origin" 403 '' -X PUT -H 'Origin: null' --data-binary '["x"]' "$BASE/tasks"
 expect "GET /health with a foreign Host" 403 '' -H 'Host: evil.example' "$BASE/health"
 expect "GET /health with Host other.localhost" 403 '' -H "Host: other.localhost:$PORT" "$BASE/health"
-expect "GET /health with Host mainthing.localhost" 200 "$HEALTH" -H "Host: mainthing.localhost:$PORT" "$BASE/health"
-expect "GET /health at http://mainthing.localhost (resolved to loopback)" 200 "$HEALTH" \
-    --resolve "mainthing.localhost:$PORT:127.0.0.1" "http://mainthing.localhost:$PORT/health"
-expect "GET /health at http://mainthing.localhost (system resolver)" 200 "$HEALTH" "http://mainthing.localhost:$PORT/health"
-expect "GET /health with Host mainthing.localhost and no port" 200 "$HEALTH" -H "Host: mainthing.localhost" "$BASE/health"
+expect "GET /health with Host main-thing.localhost" 200 "$HEALTH" -H "Host: main-thing.localhost:$PORT" "$BASE/health"
+expect "GET /health at http://main-thing.localhost (resolved to loopback)" 200 "$HEALTH" \
+    --resolve "main-thing.localhost:$PORT:127.0.0.1" "http://main-thing.localhost:$PORT/health"
+expect "GET /health at http://main-thing.localhost (system resolver)" 200 "$HEALTH" "http://main-thing.localhost:$PORT/health"
+expect "GET /health with Host main-thing.localhost and no port" 200 "$HEALTH" -H "Host: main-thing.localhost" "$BASE/health"
+expect "GET /health with the old Host mainthing.localhost (until 0.4)" 200 "$HEALTH" -H "Host: mainthing.localhost:$PORT" "$BASE/health"
+expect "GET /health at http://mainthing.localhost, the old name (system resolver)" 200 "$HEALTH" "http://mainthing.localhost:$PORT/health"
 expect "GET /health with Host localhost:80 on any port" 200 "$HEALTH" -H "Host: localhost:80" "$BASE/health"
 expect "GET /health over IPv6" 200 "$HEALTH" -6 "http://[::1]:$PORT/health"
 expect "GET /health via 127.0.0.1" 200 "$HEALTH" "http://127.0.0.1:$PORT/health"
 
-echo "--- mainthing CLI"
-same "mainthing health" "$HEALTH" "$(MAINTHING_PORT=$PORT "$CLI" health)"
-same "mainthing set with quotes and an apostrophe" $'She said "go"\nAna\'s memo\nTab\\there' \
-    "$(MAINTHING_PORT=$PORT "$CLI" set 'She said "go"' "Ana's memo" 'Tab\there')"
-same "mainthing prints the current task" 'She said "go"' "$(MAINTHING_PORT=$PORT "$CLI")"
-same "mainthing list" $'She said "go"\nAna\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" list)"
-same "mainthing done" $'Ana\'s memo\nTab\\there' "$(MAINTHING_PORT=$PORT "$CLI" done)"
-same "mainthing done 2 removes the second" "Ana's memo" "$(MAINTHING_PORT=$PORT "$CLI" done 2)"
-same "mainthing done 0 exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" done 0 >/dev/null 2>&1; echo $?)"
-same "mainthing done 9 past the end exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" done 9 >/dev/null 2>&1; echo $?)"
-same "mainthing set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | MAINTHING_PORT=$PORT "$CLI" set -)"
-same "mainthing set --json - with a ref" $'Ref one\nPlain two' "$(printf '[{"title":"Ref one","ref":"smoke:9"},"Plain two"]' | MAINTHING_PORT=$PORT "$CLI" set --json -)"
-same "mainthing list --json prints the objects" '[{"ref":"smoke:9","title":"Ref one"},{"title":"Plain two"}]' "$(MAINTHING_PORT=$PORT "$CLI" list --json)"
-same "mainthing list --json round trips through set --json -" $'Ref one\nPlain two' "$(MAINTHING_PORT=$PORT "$CLI" list --json | MAINTHING_PORT=$PORT "$CLI" set --json -)"
-same "mainthing set --json without - exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" set --json "A" >/dev/null 2>&1; echo $?)"
-same "mainthing unknown command exits 1" "1" "$(MAINTHING_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
-same "mainthing on a dead port says not running" "1" "$(MAINTHING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
-same "mainthing version" "$VERSION" "$(MAINTHING_PORT=$PORT "$CLI" version)"
-same "mainthing port shows the running port" "running on port $PORT" "$(MAINTHING_PORT=$PORT "$CLI" port | /usr/bin/tail -1)"
-same "mainthing help lists every command" "15" "$("$CLI" help | /usr/bin/grep -c '^  mainthing')"
-same "mainthing help names the HTTP routes" "5" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"
+echo "--- main-thing CLI"
+same "main-thing health" "$HEALTH" "$(MAIN_THING_PORT=$PORT "$CLI" health)"
+same "main-thing set with quotes and an apostrophe" $'She said "go"\nAna\'s memo\nTab\\there' \
+    "$(MAIN_THING_PORT=$PORT "$CLI" set 'She said "go"' "Ana's memo" 'Tab\there')"
+same "main-thing prints the current task" 'She said "go"' "$(MAIN_THING_PORT=$PORT "$CLI")"
+same "main-thing list" $'She said "go"\nAna\'s memo\nTab\\there' "$(MAIN_THING_PORT=$PORT "$CLI" list)"
+same "main-thing done" $'Ana\'s memo\nTab\\there' "$(MAIN_THING_PORT=$PORT "$CLI" done)"
+same "main-thing done 2 removes the second" "Ana's memo" "$(MAIN_THING_PORT=$PORT "$CLI" done 2)"
+same "main-thing done 0 exits 1" "1" "$(MAIN_THING_PORT=$PORT "$CLI" done 0 >/dev/null 2>&1; echo $?)"
+same "main-thing done 9 past the end exits 1" "1" "$(MAIN_THING_PORT=$PORT "$CLI" done 9 >/dev/null 2>&1; echo $?)"
+same "main-thing set - from stdin" $'Line one\nLine "two"' "$(printf 'Line one\nLine "two"\n' | MAIN_THING_PORT=$PORT "$CLI" set -)"
+same "main-thing set --json - with a ref" $'Ref one\nPlain two' "$(printf '[{"title":"Ref one","ref":"smoke:9"},"Plain two"]' | MAIN_THING_PORT=$PORT "$CLI" set --json -)"
+same "main-thing list --json prints the objects" '[{"ref":"smoke:9","title":"Ref one"},{"title":"Plain two"}]' "$(MAIN_THING_PORT=$PORT "$CLI" list --json)"
+same "main-thing list --json round trips through set --json -" $'Ref one\nPlain two' "$(MAIN_THING_PORT=$PORT "$CLI" list --json | MAIN_THING_PORT=$PORT "$CLI" set --json -)"
+same "main-thing set --json without - exits 1" "1" "$(MAIN_THING_PORT=$PORT "$CLI" set --json "A" >/dev/null 2>&1; echo $?)"
+same "main-thing unknown command exits 1" "1" "$(MAIN_THING_PORT=$PORT "$CLI" nope >/dev/null 2>&1; echo $?)"
+same "main-thing on a dead port says not running" "1" "$(MAIN_THING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
+same "main-thing version" "$VERSION" "$(MAIN_THING_PORT=$PORT "$CLI" version)"
+same "main-thing port shows the running port" "running on port $PORT" "$(MAIN_THING_PORT=$PORT "$CLI" port | /usr/bin/tail -1)"
+same "main-thing help lists every command" "15" "$("$CLI" help | /usr/bin/grep -c '^  main-thing')"
+same "main-thing help names the HTTP routes" "5" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"
+echo "--- the old names, until 0.4"
+same "mainthing alias runs main-thing" "$(MAIN_THING_PORT=$PORT "$CLI" list)" "$(MAIN_THING_PORT=$PORT "$ALIAS" list 2>/dev/null)"
+same "mainthing alias says it is going away" "mainthing is now main-thing, this alias goes away in 0.4" "$(MAIN_THING_PORT=$PORT "$ALIAS" list 2>&1 >/dev/null)"
+same "mainthing alias keeps the arguments and the exit code" "1" "$(MAIN_THING_PORT=$PORT "$ALIAS" done 9 >/dev/null 2>&1; echo $?)"
+same "main-thing reads the old MAINTHING_PORT" "$HEALTH" "$(env -u MAIN_THING_PORT MAINTHING_PORT=$PORT "$CLI" health)"
 
 echo "--- hooks"
 # A test hook writes its payload to a scratch file. Installed for the run, any existing hook is put back.
-CONFIG="${MAINTHING_CONFIG_DIR:-$HOME/.config/mainthing}"
+CONFIG="${MAIN_THING_CONFIG_DIR:-${MAINTHING_CONFIG_DIR:-$HOME/.config/main-thing}}"
 HOOK="$CONFIG/hooks/list-changed"
-SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/mainthing-smoke.XXXXXX")
+SCRATCH=$(mktemp -d "${TMPDIR:-/tmp}/main-thing-smoke.XXXXXX")
 mkdir -p "$CONFIG/hooks"
 [[ -e "$HOOK" ]] && mv "$HOOK" "$HOOK.smoke-backup"
 printf '#!/bin/bash\ncat > "%s/payload.json"\n' "$SCRATCH" > "$HOOK"
@@ -152,11 +160,11 @@ payload=$(cat "$SCRATCH/payload.json" 2>/dev/null)
 same "hook payload event and source" 'list-changed smoke' "$(printf '%s' "$payload" | /usr/bin/sed -E 's/.*"event":"([^"]*)".*"source":"([^"]*)".*/\1 \2/')"
 same "hook payload carries the list" '"tasks":[{"ref":"smoke:7","title":"Hooked"}]' "$(printf '%s' "$payload" | /usr/bin/sed -E 's/.*("tasks":\[.*\]).*/\1/')"
 same "hook payload time is ISO 8601 UTC" 'ok' "$(printf '%s' "$payload" | /usr/bin/grep -Eq '"at":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z"' && echo ok)"
-same "mainthing hooks lists it with exit 0" 'list-changed  ok  last run' "$(MAINTHING_PORT=$PORT "$CLI" hooks | /usr/bin/head -1 | /usr/bin/cut -c1-26)"
+same "main-thing hooks lists it with exit 0" 'list-changed  ok  last run' "$(MAIN_THING_PORT=$PORT "$CLI" hooks | /usr/bin/head -1 | /usr/bin/cut -c1-26)"
 chmod 775 "$HOOK"
 expect "group writable hook: the change still lands" 200 '{"tasks":[{"title":"Skipped"}]}' -X PUT --data-binary '["Skipped"]' "$BASE/tasks"
 sleep 0.3
-same "group writable hook is reported as skipped" 'list-changed  skipped: group or world writable' "$(MAINTHING_PORT=$PORT "$CLI" hooks | /usr/bin/head -1 | /usr/bin/cut -c1-46)"
+same "group writable hook is reported as skipped" 'list-changed  skipped: group or world writable' "$(MAIN_THING_PORT=$PORT "$CLI" hooks | /usr/bin/head -1 | /usr/bin/cut -c1-46)"
 rm -f "$HOOK"
 [[ -e "$HOOK.smoke-backup" ]] && mv "$HOOK.smoke-backup" "$HOOK"
 rm -rf "$SCRATCH"

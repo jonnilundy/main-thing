@@ -1,20 +1,27 @@
 #!/bin/bash
 # Build MainThing in release and assemble build/MainThing.app with an ad hoc signature.
-# The mainthing command goes into the bundle at Contents/Resources/mainthing.
+# The main-thing command goes into the bundle at Contents/Resources/main-thing, and next to it the
+# mainthing alias for the name before 0.3 (until 0.4).
 # The version and the build number come from one place, Sources/MainThingCore/Version.swift:
 # MainThingVersion becomes CFBundleShortVersionString, MainThingBuild becomes CFBundleVersion.
 #
 # Test builds only (never for a release): these override the bundle without touching the source.
-#   MAINTHING_APP_OUT      where the app goes, instead of build/MainThing.app
-#   MAINTHING_BUNDLE_ID    a test bundle id; the app then keeps its own list and config
-#   MAINTHING_VERSION      CFBundleShortVersionString, for example 0.2.0-test
-#   MAINTHING_BUILD        CFBundleVersion, an integer
-#   MAINTHING_FEED_URL     SUFeedURL, for example a localhost appcast
-#   MAINTHING_PUBLIC_KEY   SUPublicEDKey, a throwaway test key
+#   MAIN_THING_APP_OUT      where the app goes, instead of build/MainThing.app
+#   MAIN_THING_BUNDLE_ID    a test bundle id; the app then keeps its own list and config
+#   MAIN_THING_VERSION      CFBundleShortVersionString, for example 0.2.0-test
+#   MAIN_THING_BUILD        CFBundleVersion, an integer
+#   MAIN_THING_FEED_URL     SUFeedURL, for example a localhost appcast
+#   MAIN_THING_PUBLIC_KEY   SUPublicEDKey, a throwaway test key
+# The old MAINTHING_* names still work until 0.4.
 set -euo pipefail
 
+for name in APP_OUT BUNDLE_ID VERSION BUILD FEED_URL PUBLIC_KEY; do
+    new="MAIN_THING_$name" old="MAINTHING_$name"
+    if [[ -z "${!new:-}" && -n "${!old:-}" ]]; then export "$new=${!old}"; fi
+done
+
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="${MAINTHING_APP_OUT:-$ROOT/build/MainThing.app}"
+APP="${MAIN_THING_APP_OUT:-$ROOT/build/MainThing.app}"
 
 cd "$ROOT"
 VERSION=$(sed -n 's/^public let MainThingVersion = "\([^"]*\)"$/\1/p' Sources/MainThingCore/Version.swift)
@@ -23,8 +30,8 @@ if [[ -z "$VERSION" || -z "$BUILD" ]]; then
     echo "could not read MainThingVersion and MainThingBuild from Sources/MainThingCore/Version.swift" >&2
     exit 1
 fi
-VERSION="${MAINTHING_VERSION:-$VERSION}"
-BUILD="${MAINTHING_BUILD:-$BUILD}"
+VERSION="${MAIN_THING_VERSION:-$VERSION}"
+BUILD="${MAIN_THING_BUILD:-$BUILD}"
 
 swift build -c release --product MainThing
 
@@ -43,14 +50,15 @@ fi
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/*.wav "$APP/Contents/Resources/"
+cp "bin/main-thing" "$APP/Contents/Resources/main-thing"
 cp "bin/mainthing" "$APP/Contents/Resources/mainthing"
-chmod 755 "$APP/Contents/Resources/mainthing"
+chmod 755 "$APP/Contents/Resources/main-thing" "$APP/Contents/Resources/mainthing"
 PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"
-[[ -n "${MAINTHING_BUNDLE_ID:-}" ]] && /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $MAINTHING_BUNDLE_ID" "$PLIST"
-[[ -n "${MAINTHING_FEED_URL:-}" ]] && /usr/libexec/PlistBuddy -c "Set :SUFeedURL $MAINTHING_FEED_URL" "$PLIST"
-[[ -n "${MAINTHING_PUBLIC_KEY:-}" ]] && /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $MAINTHING_PUBLIC_KEY" "$PLIST"
+[[ -n "${MAIN_THING_BUNDLE_ID:-}" ]] && /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $MAIN_THING_BUNDLE_ID" "$PLIST"
+[[ -n "${MAIN_THING_FEED_URL:-}" ]] && /usr/libexec/PlistBuddy -c "Set :SUFeedURL $MAIN_THING_FEED_URL" "$PLIST"
+[[ -n "${MAIN_THING_PUBLIC_KEY:-}" ]] && /usr/libexec/PlistBuddy -c "Set :SUPublicEDKey $MAIN_THING_PUBLIC_KEY" "$PLIST"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
 # Ad hoc sign inside out: Sparkle's helpers first, then the framework, then the app.

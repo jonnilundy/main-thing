@@ -30,7 +30,7 @@ public enum Launch {
             exit(0)
         }
 
-        // `MainThing --install-cli` links ~/.local/bin/mainthing to the command in the bundle and exits.
+        // `MainThing --install-cli` links ~/.local/bin/main-thing to the command in the bundle and exits.
         // The same thing as Install Command Line Tool in the notch menu, for scripts.
         if CommandLine.arguments.contains("--install-cli") {
             do {

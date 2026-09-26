@@ -22,10 +22,10 @@ final class APIServer {
     /// Called with true and the port once both listeners are up, false when every candidate failed.
     var onStatus: (@MainActor (Bool, UInt16) -> Void)?
 
-    /// `defaults write <bundle id> port 7799` pins the port. `MAINTHING_PORT` in the environment
+    /// `defaults write <bundle id> port 7799` pins the port. `MAIN_THING_PORT` in the environment
     /// overrides both, for a second copy in tests. Without either: 80, then 7788.
     static func configuredPorts(_ defaults: UserDefaults = .standard, environment: [String: String] = ProcessInfo.processInfo.environment) -> [UInt16] {
-        APIPort.candidates(environment: environment["MAINTHING_PORT"], defaultsValue: defaults.integer(forKey: "port"))
+        APIPort.candidates(environment: Env.value("PORT", in: environment), defaultsValue: defaults.integer(forKey: "port"))
     }
 
     init(store: TaskStore, ports: [UInt16] = APIServer.configuredPorts()) {

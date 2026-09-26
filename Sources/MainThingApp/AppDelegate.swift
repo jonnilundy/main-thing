@@ -18,9 +18,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var screenObserver: (any NSObjectProtocol)?
     private var updater: Updater?
 
-    /// `MAINTHING_HEADLESS=1`: no notch, no hover, no single instance check. The store and the API
+    /// `MAIN_THING_HEADLESS=1`: no notch, no hover, no single instance check. The store and the API
     /// run as usual, so smoke tests can drive a second copy on another port while the real one shows.
-    static var headless: Bool { ProcessInfo.processInfo.environment["MAINTHING_HEADLESS"] == "1" }
+    static var headless: Bool { Env.value("HEADLESS", in: ProcessInfo.processInfo.environment) == "1" }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if AppDelegate.headless {
@@ -33,6 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard quitIfAnotherInstanceRuns() == false else { return }
+        // Before anything reads the config folder: hooks, adapters and sounds move with it.
+        EventRunner.moveLegacyConfigIfNeeded()
 
         let updater = Updater()
         updater.start()

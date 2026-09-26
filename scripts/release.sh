@@ -13,24 +13,32 @@
 # Refuses to run while SUPublicEDKey in Resources/Info.plist is the placeholder, when the key in
 # 1Password is missing, or when that key does not match SUPublicEDKey.
 #
-# The key lives in the maintainer's own 1Password (vault Private; set MAINTHING_KEY_ACCOUNT to pick
-# the account when op knows more than one), read with
-# the desktop app's Touch ID prompt, never with a service account. It was created once with OpenSSL 3:
+# The key lives in the maintainer's own 1Password (vault Private; set MAIN_THING_KEY_ACCOUNT to pick
+# the account when op knows more than one), read with the desktop app's Touch ID prompt.
+# MAIN_THING_KEY_REF points at another copy of the key instead. When it is set and
+# OP_SERVICE_ACCOUNT_TOKEN is in the environment, that service account reads it, with no prompt.
+# It was created once with OpenSSL 3:
 #   seed=$(openssl genpkey -algorithm ed25519 | openssl pkey -outform DER | tail -c 32 | base64)
 # and stored as the item's password field. The matching public key is SUPublicEDKey in
 # Resources/Info.plist; `op read ... | swift scripts/ed-public-key.swift` prints it.
 # A lost key means no installed app can update again until it is reinstalled by hand.
 #
-# Tests only: MAINTHING_SPARKLE_KEY_FILE reads a throwaway key from a file instead of 1Password,
-# MAINTHING_DOWNLOAD_BASE points the enclosure at a local server, and build-app.sh's test
-# overrides (MAINTHING_BUNDLE_ID, MAINTHING_FEED_URL, ...) pass through. Never with --publish.
+# Tests only: MAIN_THING_SPARKLE_KEY_FILE reads a throwaway key from a file instead of 1Password,
+# MAIN_THING_DOWNLOAD_BASE points the enclosure at a local server, and build-app.sh's test
+# overrides (MAIN_THING_BUNDLE_ID, MAIN_THING_FEED_URL, ...) pass through. Never with --publish.
+# The old MAINTHING_* names still work until 0.4.
 set -euo pipefail
+
+for name in KEY_ACCOUNT SPARKLE_KEY_FILE DOWNLOAD_BASE BUNDLE_ID FEED_URL PUBLIC_KEY VERSION BUILD APP_OUT; do
+    new="MAIN_THING_$name" old="MAINTHING_$name"
+    if [[ -z "${!new:-}" && -n "${!old:-}" ]]; then export "$new=${!old}"; fi
+done
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-KEY_ACCOUNT="${MAINTHING_KEY_ACCOUNT:-}"
-KEY_REF="op://Private/Main Thing Sparkle EdDSA key/password"
+KEY_ACCOUNT="${MAIN_THING_KEY_ACCOUNT:-}"
+KEY_REF="${MAIN_THING_KEY_REF:-op://Private/Main Thing Sparkle EdDSA key/password}"
 REPO="jonnilundy/main-thing"
 PLACEHOLDER="REPLACE-WITH-PUBLIC-KEY"
 SPARKLE_BIN="$ROOT/.build/artifacts/sparkle/Sparkle/bin"
@@ -77,14 +85,14 @@ if [[ -z "$PUBLIC_KEY" || "$PUBLIC_KEY" == "$PLACEHOLDER" ]]; then
 fi
 
 if [[ "$PUBLISH" == 1 ]]; then
-    for var in MAINTHING_SPARKLE_KEY_FILE MAINTHING_DOWNLOAD_BASE MAINTHING_BUNDLE_ID MAINTHING_FEED_URL MAINTHING_PUBLIC_KEY MAINTHING_VERSION MAINTHING_BUILD MAINTHING_APP_OUT; do
+    for var in MAIN_THING_SPARKLE_KEY_FILE MAIN_THING_DOWNLOAD_BASE MAIN_THING_BUNDLE_ID MAIN_THING_FEED_URL MAIN_THING_PUBLIC_KEY MAIN_THING_VERSION MAIN_THING_BUILD MAIN_THING_APP_OUT; do
         [[ -z "${!var:-}" ]] || fail "$var is a test override; unset it before --publish"
     done
     [[ "$(git rev-parse --abbrev-ref HEAD)" == "main" ]] || fail "--publish runs from main"
     command -v gh >/dev/null || fail "gh is not installed"
 fi
 
-[[ -z "${MAINTHING_APP_OUT:-}" ]] || fail "MAINTHING_APP_OUT is not supported here; the release app is build/MainThing.app"
+[[ -z "${MAIN_THING_APP_OUT:-}" ]] || fail "MAIN_THING_APP_OUT is not supported here; the release app is build/MainThing.app"
 [[ -z "$(git status --porcelain)" ]] || fail "the working tree has changes; commit or stash them first"
 git rev-parse -q --verify "refs/tags/v$NEW_VERSION" >/dev/null && fail "tag v$NEW_VERSION exists already"
 
@@ -98,16 +106,22 @@ NEW_BUILD=$((OLD_BUILD + 1))
 [[ -x "$SPARKLE_BIN/sign_update" ]] || fail "no sign_update in $SPARKLE_BIN; run swift build once"
 
 # The private key: into a variable for the length of this script, never echoed or written.
-if [[ -n "${MAINTHING_SPARKLE_KEY_FILE:-}" ]]; then
-    echo "test key from MAINTHING_SPARKLE_KEY_FILE"
-    PRIVATE_KEY=$(cat "$MAINTHING_SPARKLE_KEY_FILE")
+if [[ -n "${MAIN_THING_SPARKLE_KEY_FILE:-}" ]]; then
+    echo "test key from MAIN_THING_SPARKLE_KEY_FILE"
+    PRIVATE_KEY=$(cat "$MAIN_THING_SPARKLE_KEY_FILE")
 else
     command -v op >/dev/null || fail "the 1Password CLI (op) is not installed"
     OP_ERR=$(mktemp)
-    if ! PRIVATE_KEY=$(env -u OP_SERVICE_ACCOUNT_TOKEN op read ${KEY_ACCOUNT:+--account "$KEY_ACCOUNT"} "$KEY_REF" 2>"$OP_ERR"); then
+    if [[ -n "${MAIN_THING_KEY_REF:-}" && -n "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+        # The service account in the environment reads its own copy of the key.
+        read_key() { op read "$KEY_REF"; }
+    else
+        read_key() { env -u OP_SERVICE_ACCOUNT_TOKEN op read ${KEY_ACCOUNT:+--account "$KEY_ACCOUNT"} "$KEY_REF"; }
+    fi
+    if ! PRIVATE_KEY=$(read_key 2>"$OP_ERR"); then
         echo "release: could not read the Sparkle signing key from 1Password at $KEY_REF" >&2
         echo "release: op said: $(tr '\n' ' ' < "$OP_ERR")" >&2
-        echo "release: approve the 1Password prompt (vault Private, item Main Thing Sparkle EdDSA key; MAINTHING_KEY_ACCOUNT picks the account), then run again" >&2
+        echo "release: approve the 1Password prompt (vault Private, item Main Thing Sparkle EdDSA key; MAIN_THING_KEY_ACCOUNT picks the account), or set MAIN_THING_KEY_REF with a service account token, then run again" >&2
         rm -f "$OP_ERR"
         exit 1
     fi
@@ -155,7 +169,7 @@ echo "signed $ZIP_NAME ($LENGTH bytes)"
 
 # --- Appcast: the new item goes first. ---
 
-DOWNLOAD_BASE="${MAINTHING_DOWNLOAD_BASE:-https://github.com/$REPO/releases/download/v$NEW_VERSION}"
+DOWNLOAD_BASE="${MAIN_THING_DOWNLOAD_BASE:-https://github.com/$REPO/releases/download/v$NEW_VERSION}"
 RELEASE_PAGE="https://github.com/$REPO/releases/tag/v$NEW_VERSION"
 MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PLIST")
 PUB_DATE=$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")

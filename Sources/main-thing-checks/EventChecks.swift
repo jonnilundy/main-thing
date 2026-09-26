@@ -5,7 +5,7 @@ import MainThingCore
 func runEventChecks() {
     section("Events")
     let at = Date(timeIntervalSince1970: 1_790_000_000.5)
-    let config = URL(fileURLWithPath: "/Users/me/.config/mainthing", isDirectory: true)
+    let config = URL(fileURLWithPath: "/Users/me/.config/main-thing", isDirectory: true)
 
     do {
         check("ISO 8601 UTC with milliseconds", EventPayload.iso8601(at) == "2026-09-21T14:13:20.500Z")
@@ -56,16 +56,16 @@ func runEventChecks() {
 
     do {
         let installed: Set<String> = [
-            "/Users/me/.config/mainthing/adapters/openbrain",
-            "/Users/me/.config/mainthing/hooks/task-completed",
-            "/Users/me/.config/mainthing/hooks/list-changed",
+            "/Users/me/.config/main-thing/adapters/openbrain",
+            "/Users/me/.config/main-thing/hooks/task-completed",
+            "/Users/me/.config/main-thing/hooks/list-changed",
         ]
         let exists: (String) -> Bool = { installed.contains($0) }
         let done = EventPayload(event: .taskCompleted, source: "cli", at: at, task: TaskItem("A", ref: "openbrain:md7abc"), tasks: [])
         let jobs = EventPlan.jobs(for: done, configDirectory: config, exists: exists)
         check("task-completed with a ref: adapter first, then the hook", jobs == [
-            EventJob(kind: .adapter, name: "openbrain", path: "/Users/me/.config/mainthing/adapters/openbrain", arguments: ["complete", "md7abc"]),
-            EventJob(kind: .hook, name: "task-completed", path: "/Users/me/.config/mainthing/hooks/task-completed"),
+            EventJob(kind: .adapter, name: "openbrain", path: "/Users/me/.config/main-thing/adapters/openbrain", arguments: ["complete", "md7abc"]),
+            EventJob(kind: .hook, name: "task-completed", path: "/Users/me/.config/main-thing/hooks/task-completed"),
         ])
         let noAdapter = EventPayload(event: .taskCompleted, source: "cli", at: at, task: TaskItem("A", ref: "linear:X-1"), tasks: [])
         check("no adapter installed for the ref: hook only", EventPlan.jobs(for: noAdapter, configDirectory: config, exists: exists).map(\.kind) == [.hook])
@@ -73,7 +73,7 @@ func runEventChecks() {
         check("no ref: hook only", EventPlan.jobs(for: noRef, configDirectory: config, exists: exists).map(\.kind) == [.hook])
         let changed = EventPayload(event: .listChanged, source: "cli", at: at, task: TaskItem("A", ref: "openbrain:1"), tasks: [])
         check("list-changed never runs an adapter", EventPlan.jobs(for: changed, configDirectory: config, exists: exists) == [
-            EventJob(kind: .hook, name: "list-changed", path: "/Users/me/.config/mainthing/hooks/list-changed"),
+            EventJob(kind: .hook, name: "list-changed", path: "/Users/me/.config/main-thing/hooks/list-changed"),
         ])
         check("nothing installed, no jobs", EventPlan.jobs(for: done, configDirectory: config, exists: { _ in false }).isEmpty)
         check("job labels", jobs.map(\.label) == ["openbrain", "task-completed hook"] && jobs.map(\.id) == ["adapter:openbrain", "hook:task-completed"])

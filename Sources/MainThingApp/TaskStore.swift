@@ -21,7 +21,7 @@ final class TaskStore {
     @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
     /// The real list for the release app, a list keyed by bundle id for a test copy (`AppPaths`).
-    /// `MAINTHING_TASKS_FILE` in the environment points a test copy at its own file.
+    /// `MAIN_THING_TASKS_FILE` in the environment points a test copy at its own file.
     static var defaultFileURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")

@@ -80,7 +80,8 @@ public enum BodyDecoding {
 
 /// Pure routing. Takes a request and the current list, returns the response and the list after it.
 public enum MainThingRouter {
-    public static let allowedHosts: Set<String> = ["127.0.0.1", "localhost", "[::1]", "mainthing.localhost"]
+    /// `mainthing.localhost` is the name before 0.3, accepted until 0.4.
+    public static let allowedHosts: Set<String> = ["127.0.0.1", "localhost", "[::1]", "main-thing.localhost", "mainthing.localhost"]
 
     public struct Outcome: Equatable, Sendable {
         public var response: HTTPResponse
@@ -168,7 +169,7 @@ public enum MainThingRouter {
             return unchanged(.error(403, "requests with an Origin header are refused"))
         }
         guard hostAllowed(request.header("host")) else {
-            return unchanged(.error(403, "Host must be localhost, mainthing.localhost, 127.0.0.1 or [::1]"))
+            return unchanged(.error(403, "Host must be localhost, main-thing.localhost, 127.0.0.1 or [::1]"))
         }
 
         var path = request.path

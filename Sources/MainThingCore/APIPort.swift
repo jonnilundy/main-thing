@@ -1,5 +1,5 @@
 /// Which port the API listens on. 80 first, so URLs need no port, then 7788 when 80 is taken
-/// or refused. An override (`MAINTHING_PORT` in the environment, or `port` in the app's defaults)
+/// or refused. An override (`MAIN_THING_PORT` in the environment, or `port` in the app's defaults)
 /// is tried alone.
 public enum APIPort {
     public static let preferred: UInt16 = 80

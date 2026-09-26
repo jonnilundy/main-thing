@@ -3,14 +3,14 @@
 An adapter tells another tool that a task was completed in Main Thing. Main Thing does not know
 about Open Brain, Linear, Things or your own scripts. It knows one thing: a task can carry a `ref`
 of the form `<adapter>:<id>`. When that task is completed, Main Thing runs the executable at
-`~/.config/mainthing/adapters/<adapter>` with `complete <id>`. Everything else is the adapter's
+`~/.config/main-thing/adapters/<adapter>` with `complete <id>`. Everything else is the adapter's
 business.
 
 The adapters in this folder each have their own README. Open Brain: [openbrain/README.md](openbrain/README.md).
 
 ## The contract
 
-- The file: `~/.config/mainthing/adapters/<name>`. The name is `[a-z0-9-]+` and matches the part
+- The file: `~/.config/main-thing/adapters/<name>`. The name is `[a-z0-9-]+` and matches the part
   of the ref before the colon. A symlink to a file elsewhere is fine; the target is what is judged.
 - The call: `<adapter> complete <id>`, where `<id>` is the part of the ref after the first colon.
   Other verbs may come later. An adapter should reject verbs it does not know with exit 2.
@@ -33,14 +33,14 @@ The adapters in this folder each have their own README. Open Brain: [openbrain/R
   PATH, so add the folders your tools live in at the top of the script.
 - Adapters run one at a time, in event order, off the main thread. The API call that completed the
   task returns at once; it never waits for an adapter.
-- Secrets: never put them in the script. Read them from a file in `~/.config/mainthing/` with
+- Secrets: never put them in the script. Read them from a file in `~/.config/main-thing/` with
   mode 600, or from your password manager at run time.
 
 ## Template
 
 ```sh
 #!/bin/sh
-# ~/.config/mainthing/adapters/mytool: "mytool complete <id>" marks <id> done in My Tool.
+# ~/.config/main-thing/adapters/mytool: "mytool complete <id>" marks <id> done in My Tool.
 set -eu
 PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 [ "${1:-}" = "complete" ] && [ -n "${2:-}" ] || { echo "usage: mytool complete <id>" >&2; exit 2; }
@@ -54,25 +54,25 @@ exec mytool-cli tasks close "$id"                # exit 0 on success, anything e
 Keep the script in your own repo or dotfiles and link it in:
 
 ```sh
-mkdir -p ~/.config/mainthing/adapters
+mkdir -p ~/.config/main-thing/adapters
 chmod 755 mytool
-ln -s "$PWD/mytool" ~/.config/mainthing/adapters/mytool
-mainthing adapters        # lists what is installed and whether each one may run
+ln -s "$PWD/mytool" ~/.config/main-thing/adapters/mytool
+main-thing adapters        # lists what is installed and whether each one may run
 ```
 
 Then give tasks refs:
 
 ```sh
-printf '[{"title":"Write the memo","ref":"mytool:4821"}]' | mainthing set --json -
+printf '[{"title":"Write the memo","ref":"mytool:4821"}]' | main-thing set --json -
 ```
 
 ## Debug
 
 ```sh
-mainthing adapters                                              # installed, may it run, last exit and stderr
-echo '{}' | ~/.config/mainthing/adapters/mytool complete <id>   # run it by hand, same call the app makes
-mainthing logs                                                  # every run with its exit code
-curl -s mainthing.localhost/status                              # the same as mainthing adapters, as JSON
+main-thing adapters                                              # installed, may it run, last exit and stderr
+echo '{}' | ~/.config/main-thing/adapters/mytool complete <id>   # run it by hand, same call the app makes
+main-thing logs                                                  # every run with its exit code
+curl -s main-thing.localhost/status                              # the same as main-thing adapters, as JSON
 ```
 
 A "skip" line in the log names the run rule that failed. A "killed after 10000 ms" line means the

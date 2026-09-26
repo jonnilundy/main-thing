@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Main Thing, quit any running copy, install to ~/Applications, link the mainthing CLI, start it.
+# Build Main Thing, quit any running copy, install to ~/Applications, link the main-thing CLI, start it.
 # Also retires the app's old name: NextUp.app and its nextup link go away, its list is copied on first launch.
 set -euo pipefail
 
@@ -45,12 +45,17 @@ cp -R "$ROOT/build/MainThing.app" "$DEST"
 open "$DEST"
 
 mkdir -p "$BIN_DIR"
-ln -sf "$ROOT/bin/mainthing" "$BIN_DIR/mainthing"
-echo "linked $BIN_DIR/mainthing -> $ROOT/bin/mainthing"
+ln -sf "$ROOT/bin/main-thing" "$BIN_DIR/main-thing"
+echo "linked $BIN_DIR/main-thing -> $ROOT/bin/main-thing"
+# The name before 0.3: an old link becomes the alias, which says so and runs main-thing (until 0.4).
+if [[ -L "$BIN_DIR/mainthing" ]]; then
+    ln -sfn "$ROOT/bin/mainthing" "$BIN_DIR/mainthing"
+    echo "linked $BIN_DIR/mainthing -> $ROOT/bin/mainthing, the alias for the old name"
+fi
 case ":$PATH:" in
     *":$BIN_DIR:"*) ;;
     *) echo "note: $BIN_DIR is not on your PATH. Add it, for example: export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
 esac
 
 echo "installed and started $DEST"
-echo "check: mainthing health"
+echo "check: main-thing health"

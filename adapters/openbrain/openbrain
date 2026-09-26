@@ -5,17 +5,19 @@
 #   openbrain complete <id>    mark Open Brain task <id> done, via `ob task done <id>`
 #
 # Needs the Open Brain CLI (`ob`) and OPEN_BRAIN_API_URL plus OPEN_BRAIN_API_KEY, read
-# from ~/.config/mainthing/openbrain.env (KEY=value, one per line). When that file
+# from ~/.config/main-thing/openbrain.env (KEY=value, one per line). When that file
 # holds op:// references, the script runs itself through `op run --env-file`, so the
 # 1Password CLI resolves them. The event payload on stdin is ignored.
 #
-# Install:  ln -s "$PWD/adapters/openbrain/openbrain" ~/.config/mainthing/adapters/openbrain
+# Install:  ln -s "$PWD/adapters/openbrain/openbrain" ~/.config/main-thing/adapters/openbrain
 set -u
 
 # The app runs adapters with a small PATH. Add the usual homes of `ob` and `op`.
 path=("$HOME/.volta/bin" "$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/mainthing"
+config="${XDG_CONFIG_HOME:-$HOME/.config}/main-thing"
+# Before 0.3 the folder was ~/.config/mainthing; the app moves it on first launch.
+[[ -d "$config" ]] || config="${XDG_CONFIG_HOME:-$HOME/.config}/mainthing"
 env_file="$config/openbrain.env"
 script="$0"    # inside a zsh function $0 is the function name
 
@@ -23,9 +25,9 @@ script="$0"    # inside a zsh function $0 is the function name
 # which re-runs this script with the values in place.
 load_env() {
     [[ -f "$env_file" ]] || return 0
-    if [[ -z "${MAINTHING_OPENBRAIN_ENV_LOADED:-}" ]] && /usr/bin/grep -q 'op://' "$env_file"; then
+    if [[ -z "${MAIN_THING_OPENBRAIN_ENV_LOADED:-}" ]] && /usr/bin/grep -q 'op://' "$env_file"; then
         command -v op >/dev/null || { echo "openbrain: $env_file holds op:// references but the 1Password CLI (op) is not on PATH" >&2; exit 1; }
-        MAINTHING_OPENBRAIN_ENV_LOADED=1 exec op run --env-file "$env_file" -- "$script" "$@"
+        MAIN_THING_OPENBRAIN_ENV_LOADED=1 exec op run --env-file "$env_file" -- "$script" "$@"
     fi
     set -a
     source "$env_file"

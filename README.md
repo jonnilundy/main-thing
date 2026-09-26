@@ -19,7 +19,7 @@ The current task sits at the top of the screen, all day. Hover to see the rest o
 3. Right click Main Thing in Applications, choose Open, then click Open. macOS asks this once, because the app is not signed with an Apple developer certificate.
 4. If macOS still refuses, open System Settings, go to Privacy & Security, and click Open Anyway next to Main Thing.
 
-The notch appears at the top of the screen. Right click it and choose Install Command Line Tool to get the `mainthing` command.
+The notch appears at the top of the screen. Right click it and choose Install Command Line Tool to get the `main-thing` command.
 
 ### Build from source
 
@@ -29,17 +29,17 @@ cd main-thing
 scripts/install.sh
 ```
 
-Needs macOS 15 and Swift 6 (Xcode or its Command Line Tools). The script builds a release, puts `MainThing.app` in `~/Applications`, links `mainthing` into `~/.local/bin`, and starts the app.
+Needs macOS 15 and Swift 6 (Xcode or its Command Line Tools). The script builds a release, puts `MainThing.app` in `~/Applications`, links `main-thing` into `~/.local/bin`, and starts the app.
 
 ## Usage
 
 ```sh
-mainthing set "Write the memo" "Review the plan"   # replace the list
-mainthing                                          # print the current task
-mainthing list                                     # print the list, one task per line
-mainthing done                                     # cross off the current task
-mainthing done 2                                   # cross off the second task
-mainthing help                                     # every command, the JSON shape, the API
+main-thing set "Write the memo" "Review the plan"   # replace the list
+main-thing                                          # print the current task
+main-thing list                                     # print the list, one task per line
+main-thing done                                     # cross off the current task
+main-thing done 2                                   # cross off the second task
+main-thing help                                     # every command, the JSON shape, the API
 ```
 
 In the notch:
@@ -52,15 +52,15 @@ In the notch:
 ## Features
 
 - **Reminder flash.** Every few minutes a colored band sweeps across the current task. The color steps through 10 hues, so the same color coming back tells you how long you have been on the task. Hover the dot to read the time.
-- **Refs.** A task can carry its id in another tool, written `<adapter>:<id>`, for example `openbrain:qh75pbc`. `mainthing set --json -` and `mainthing list --json` keep refs.
+- **Refs.** A task can carry its id in another tool, written `<adapter>:<id>`, for example `openbrain:qh75pbc`. `main-thing set --json -` and `main-thing list --json` keep refs.
 - **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Removing a task in the editor only deletes it from the list.
-- **Hooks.** An executable in `~/.config/mainthing/hooks/` runs on every change, with the event as JSON on stdin.
-- **Sounds.** Pick a sound in the menu, or drop your own audio files into `~/.config/mainthing/sounds/`.
+- **Hooks.** An executable in `~/.config/main-thing/hooks/` runs on every change, with the event as JSON on stdin.
+- **Sounds.** Pick a sound in the menu, or drop your own audio files into `~/.config/main-thing/sounds/`.
 - **Updates.** Main Thing checks once a day, downloads in the background, and installs when you quit or pick Install Update from the menu. It never pops up a window on its own, and it only installs updates signed with the project's key.
 
 ## HTTP API
 
-The command wraps a local API at `http://mainthing.localhost` (port 7788 if port 80 is taken, `mainthing health` says which).
+The command wraps a local API at `http://main-thing.localhost` (port 7788 if port 80 is taken, `main-thing health` says which).
 
 | Request | What it does |
 | --- | --- |
@@ -70,14 +70,14 @@ The command wraps a local API at `http://mainthing.localhost` (port 7788 if port
 | `GET /health` | Is the app up, and on which port |
 
 ```sh
-curl -X PUT mainthing.localhost/tasks -d '["Write the memo","Review the plan"]'
+curl -X PUT main-thing.localhost/tasks -d '["Write the memo","Review the plan"]'
 ```
 
 Loopback only. Requests with an `Origin` header are refused, so a web page cannot change your list.
 
 ## Adapters
 
-An adapter is an executable at `~/.config/mainthing/adapters/<name>`. When a task with the ref `<name>:<id>` is crossed off, Main Thing runs `<name> complete <id>`.
+An adapter is an executable at `~/.config/main-thing/adapters/<name>`. When a task with the ref `<name>:<id>` is crossed off, Main Thing runs `<name> complete <id>`.
 
 - Open Brain: [adapters/openbrain/README.md](adapters/openbrain/README.md)
 
@@ -89,7 +89,7 @@ Give your agent (Claude Code, Codex, Cursor, anything with a shell) this prompt:
 
 ```text
 You manage my Main Thing list, the task shown in the notch at the top of my screen.
-Run `mainthing help` once for the commands, the JSON shape and the API.
+Run `main-thing help` once for the commands, the JSON shape and the API.
 - Keep the list short and ordered, most important first. The first task is what I see all day.
 - Read the list before you write it. Change only what we discussed.
 - Keep every ref. It ties a task to another tool.
@@ -99,10 +99,10 @@ Run `mainthing help` once for the commands, the JSON shape and the API.
 ## Troubleshooting
 
 ```sh
-mainthing health       # is the app up, and on which port
-mainthing logs         # ports, refused requests, hook and adapter runs
-mainthing adapters     # installed adapters and why one did not run
-mainthing port 7799    # pin another port, then relaunch the app
+main-thing health       # is the app up, and on which port
+main-thing logs         # ports, refused requests, hook and adapter runs
+main-thing adapters     # installed adapters and why one did not run
+main-thing port 7799    # pin another port, then relaunch the app
 ```
 
 Task titles and hook output show as `<private>` in the log. An adapter or hook only runs if it is a regular file you own, executable, and not writable by group or others. The notch opens only when the cursor is over the black shape itself.
@@ -112,7 +112,7 @@ Task titles and hook output show as `<private>` in the log. An adapter or hook o
 Turn off Launch at Login in the notch menu, quit Main Thing, then:
 
 ```sh
-rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/Application Support/MainThing" ~/.local/bin/mainthing ~/.config/mainthing
+rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/Application Support/MainThing" ~/.local/bin/main-thing ~/.local/bin/mainthing ~/.config/main-thing ~/.config/mainthing
 ```
 
 ## Contributing

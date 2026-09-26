@@ -154,7 +154,7 @@ final class Updater: NSObject {
     /// - `<bundle id>.install-update` runs `installUpdate()`, the menu item's code path, so an end
     ///   to end test installs without clicking.
     /// - `<bundle id>.snapshot-windows` draws every visible window, title bar included, into PNGs in
-    ///   `$TMPDIR/mainthing-windows/`. AppKit draws them in process, so it works on a locked screen.
+    ///   `$TMPDIR/main-thing-windows/`. AppKit draws them in process, so it works on a locked screen.
     private func listenForTestInstall() {
         guard let id = Bundle.main.bundleIdentifier, !AppPaths.isRelease(bundleID: id) else { return }
         let center = DistributedNotificationCenter.default()
@@ -173,7 +173,7 @@ final class Updater: NSObject {
     }
 
     private func snapshotWindows() {
-        let folder = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("mainthing-windows", isDirectory: true)
+        let folder = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("main-thing-windows", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         for (index, window) in NSApp.windows.enumerated() where window.isVisible && !window.title.isEmpty {
             guard let view = window.contentView?.superview ?? window.contentView,
@@ -186,7 +186,7 @@ final class Updater: NSObject {
         }
     }
 
-    /// The app taking focus, or any window becoming key, goes to the log: `mainthing logs` shows
+    /// The app taking focus, or any window becoming key, goes to the log: `main-thing logs` shows
     /// whether an update ever took focus without being asked to.
     private func logFocusChanges() {
         let center = NotificationCenter.default
