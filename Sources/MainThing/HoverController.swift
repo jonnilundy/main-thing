@@ -92,6 +92,12 @@ final class HoverController {
     /// move inside the shape opens the notch.
     func evaluate(at screenPoint: CGPoint, source: String) {
         lastScreenPoint = screenPoint
+        if model.editorOpen {
+            // The editor holds the list: no opening on hover, no clicks on the notch.
+            panel.ignoresMouseEvents = true
+            if model.isOpen { setOpen(false) }
+            return
+        }
         if model.forceOpen {
             if !model.isOpen { setOpen(true) }
             panel.ignoresMouseEvents = false
@@ -124,6 +130,12 @@ final class HoverController {
             model.pending = PendingCompletions()
             layout.fitClosed()
         }
+    }
+
+    /// The editor window came up: collapse now, whatever the cursor is on.
+    func editorOpened() {
+        panel.ignoresMouseEvents = true
+        setOpen(false)
     }
 
     /// The list changed while open: rows that left are no longer pending, and the card refits.

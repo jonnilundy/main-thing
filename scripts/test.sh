@@ -6,7 +6,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-swift build --product mainthing-checks --product MainThing 2>&1 | /usr/bin/grep -E "error|warning: unre" || true
+# One product per build: with two --product flags SwiftPM builds only the last, and stale checks would run.
+for product in mainthing-checks MainThing; do
+    swift build --product "$product" 2>&1 | /usr/bin/grep -E "error|warning: unre" || true
+done
 BIN="$(swift build --show-bin-path)"
 "$BIN/mainthing-checks" | /usr/bin/tail -1
 

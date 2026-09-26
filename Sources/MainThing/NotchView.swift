@@ -11,10 +11,11 @@ struct NotchView: View {
     var sounds: Sounds? = nil
     var reminder: Reminder? = nil
     var onToggle: (TaskList.Row) -> Void = { _ in }
+    var onEditList: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchBody(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: onToggle)
+            NotchBody(store: store, model: model, sounds: sounds, reminder: reminder, onToggle: onToggle, onEditList: onEditList)
                 // The hosting view fills the panel, so the global space is panel space, origin top left.
                 // A GeometryReader preference in the background never delivered the laid out frame here
                 // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
@@ -38,6 +39,7 @@ struct NotchBody: View {
     let sounds: Sounds?
     let reminder: Reminder?
     let onToggle: (TaskList.Row) -> Void
+    var onEditList: (() -> Void)? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -85,7 +87,7 @@ struct NotchBody: View {
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
-        .contextMenu { NotchMenu(store: store, sounds: sounds, reminder: reminder) }
+        .contextMenu { NotchMenu(store: store, sounds: sounds, reminder: reminder, onEditList: onEditList) }
     }
 }
 
@@ -575,13 +577,18 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu: Launch at Login, Sound, Reminder, Show Tasks File, Install Command Line Tool, Quit.
+/// Right click menu: Edit List, Launch at Login, Sound, Reminder, Show Tasks File, Install Command Line Tool, Quit.
 struct NotchMenu: View {
     let store: TaskStore
     let sounds: Sounds?
     let reminder: Reminder?
+    var onEditList: (() -> Void)? = nil
 
     var body: some View {
+        if let onEditList {
+            Button("Edit List") { onEditList() }
+            Divider()
+        }
         if LaunchAtLogin.needsApproval {
             Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
         } else {

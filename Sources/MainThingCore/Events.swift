@@ -12,6 +12,8 @@ public enum EventKind: String, Sendable, CaseIterable, Encodable {
 public enum EventSource {
     public static let notch = "notch"
     public static let api = "api"
+    /// The list editor's Save. A replace: removed tasks are deleted, never completed.
+    public static let editor = "editor"
     public static let maxLength = 64
 
     /// Why a caller supplied source is not acceptable, or nil when it is. `[a-z0-9._-]{1,64}`.

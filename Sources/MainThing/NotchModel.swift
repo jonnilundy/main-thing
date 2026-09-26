@@ -34,6 +34,8 @@ final class NotchModel {
     var flashCore: Color = NotchMetrics.pink
     var flashEdge: Color = NotchMetrics.pinkEdge
     var taskTime = ""
+    /// The list editor window is up: the notch stays collapsed and lets every click through.
+    var editorOpen = false
 
     /// Which row the cursor is on and whether the next entry earns a tick.
     @ObservationIgnored private var haptics = RowHaptics()
