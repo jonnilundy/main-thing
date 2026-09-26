@@ -18,6 +18,8 @@ for product in main-thing-checks MainThing; do
 done
 BIN="$(swift build --show-bin-path)"
 "$BIN/main-thing-checks" | /usr/bin/tail -1
+# Hover reaches every height from the band to row 3: synthesized moves in an invisible panel.
+"$BIN/MainThing" --bench-hover gap | /usr/bin/tail -1
 
 [[ "${1:-}" == "--checks-only" ]] && exit 0
 

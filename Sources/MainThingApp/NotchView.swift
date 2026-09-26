@@ -144,7 +144,9 @@ struct Band: View {
                         .contentShape(BandTarget(
                             isOpen: isOpen,
                             titleStart: Lanes.textStart - pill.minX,
-                            titleWidth: NotchMetrics.titleWidth(for: current.title)
+                            titleWidth: NotchMetrics.titleWidth(for: current.title),
+                            above: pill.minY,
+                            below: height - pill.maxY + Lanes.topGap / 2
                         ))
                 }
                 .buttonStyle(RowButtonStyle())
@@ -225,15 +227,19 @@ struct Band: View {
     }
 }
 
-/// Where the band takes clicks, in the pill's frame. Open: the whole pill. Collapsed: the title,
-/// as it always was.
+/// Where the band takes hover and clicks, in the pill's frame. Open: the pill's width, from the
+/// band's top edge down to the middle of the gap above row 2, which takes the other half, so the
+/// cursor never crosses a spot that belongs to no row. Collapsed: the title, as it always was.
 struct BandTarget: Shape {
     var isOpen: Bool
     var titleStart: CGFloat
     var titleWidth: CGFloat
+    /// The band above and below the pill, open.
+    var above: CGFloat = 0
+    var below: CGFloat = 0
 
     func path(in rect: CGRect) -> Path {
-        if isOpen { return Path(roundedRect: rect, cornerRadius: Lanes.pillRadius, style: .continuous) }
+        if isOpen { return Path(CGRect(x: rect.minX, y: rect.minY - above, width: rect.width, height: rect.height + above + below)) }
         return Path(CGRect(x: rect.minX + titleStart, y: rect.minY, width: titleWidth, height: rect.height))
     }
 }
@@ -434,7 +440,8 @@ struct TaskRow: View {
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let titleOpacity = Lanes.rowTitleOpacity(hovered: hovering, increaseContrast: contrast)
         let numberOpacity = Lanes.numberOpacity(hovered: hovering, increaseContrast: contrast)
-        let truncated = PanelLayout.width(of: row.title, font: NotchMetrics.rowNSFont) > OpenLayout.titleWidth(contentWidth: width)
+        let titleWidth = NotchMetrics.rowTitleWidth(row.title)
+        let truncated = ceil(titleWidth) > OpenLayout.titleWidth(contentWidth: width)
         let pill = RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
         Button(action: action) {
             HStack(spacing: Lanes.gap) {
@@ -445,6 +452,9 @@ struct TaskRow: View {
                     .foregroundStyle(.white)
                     .opacity(numberOpacity)
                     .frame(width: Lanes.markerSlot)
+                // A hover change never reaches the renderer: rerunning it lays the text out again
+                // on every frame. Unstruck, the title dims with a plain opacity and the preview is a
+                // shape over it; struck, the renderer dims the glyphs so the ink stays at full strength.
                 Text(row.title)
                     .font(NotchMetrics.rowFont)
                     .foregroundStyle(.white)
@@ -452,23 +462,35 @@ struct TaskRow: View {
                     .truncationMode(.tail)
                     .modifier(Ink(
                         progress: struck ? pins.ink ?? 1 : 0,
-                        preview: hovering && !struck ? 1 : 0,
-                        textOpacity: titleOpacity,
+                        preview: 0,
+                        textOpacity: struck ? titleOpacity : 1,
                         key: row.key,
                         xHeight: NotchMetrics.rowNSFont.xHeight,
                         thickness: 2.8,
                         inkOpacity: Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast),
                         shimmer: 0
                     ))
+                    .opacity(struck ? 1 : titleOpacity)
                     // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
                     // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
                     .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                    .overlay(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
+                        PreviewStroke(key: row.key, lineWidth: titleWidth, xHeight: NotchMetrics.rowNSFont.xHeight)
+                            .fill(.white.opacity(NotchMetrics.previewOpacity))
+                            .frame(height: PreviewStroke.height)
+                            .alignmentGuide(.firstTextBaseline) { _ in PreviewStroke.height }
+                            .opacity(hovering && !struck ? 1 : 0)
+                            // The click hides it at once, as the renderer did when the ink started.
+                            .animation(nil, value: struck)
+                    }
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, Lanes.pillPadding)
             .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
-            .background(pill.fill(.white.opacity(hovering ? Lanes.pillOpacity : 0)))
-            .contentShape(pill)
+            .background(pill.fill(.white.opacity(Lanes.pillOpacity)).opacity(hovering ? 1 : 0))
+            // Square, not the pill: rows touch, so the rounded corners would leave dead spots
+            // between them. Row 2 also takes the lower half of the gap under the band.
+            .contentShape(RowTarget(above: number == 2 ? Lanes.topGap / 2 : 0))
         }
         .buttonStyle(RowButtonStyle())
         // See Band: an explicit transaction keeps the row's position on the list's own animation.
@@ -480,6 +502,41 @@ struct TaskRow: View {
         .accessibilityLabel(row.title)
         .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
         .accessibilityAction(named: "Cross off") { action() }
+    }
+}
+
+/// The hover preview of the cross off over a one line title: the hand drawn path the click will
+/// ink, thinner and whole, on the middle of the x-height. Its bottom edge sits on the title's
+/// baseline; it spans the title's width, or the frame when the title is cut.
+struct PreviewStroke: Shape {
+    /// Tall enough for the x-height and the stroke's wobble above the baseline.
+    static let height: CGFloat = 16
+    var key: String
+    var lineWidth: CGFloat
+    var xHeight: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let y = rect.maxY - xHeight / 2
+        let samples = PenStroke.centerline(
+            from: CGPoint(x: rect.minX, y: y), to: CGPoint(x: rect.minX + min(lineWidth, rect.width), y: y), line: 0,
+            seed: PenStroke.seed(key: key, line: 0), thickness: NotchMetrics.previewThickness
+        )
+        let outline = PenStroke.outline(samples, progress: 1)
+        var path = Path()
+        guard outline.count >= 3 else { return path }
+        path.move(to: outline[0])
+        for point in outline.dropFirst() { path.addLine(to: point) }
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Where a row takes hover and clicks: its frame, reaching `above` higher.
+struct RowTarget: Shape {
+    var above: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(CGRect(x: rect.minX, y: rect.minY - above, width: rect.width, height: rect.height + above))
     }
 }
 
@@ -707,6 +764,17 @@ enum NotchMetrics {
     @MainActor static func titleWidth(for title: String) -> CGFloat {
         min(ceil((title as NSString).size(withAttributes: [.font: nsFont]).width), Lanes.collapsedTitleWidth)
     }
+
+    /// A row title's single line width, unrounded. Measured once per title: a row's body runs on
+    /// every hover change.
+    @MainActor static func rowTitleWidth(_ title: String) -> CGFloat {
+        if let width = rowTitleWidths[title] { return width }
+        if rowTitleWidths.count > 256 { rowTitleWidths.removeAll() }
+        let width = (title as NSString).size(withAttributes: [.font: rowNSFont]).width
+        rowTitleWidths[title] = width
+        return width
+    }
+    @MainActor private static var rowTitleWidths: [String: CGFloat] = [:]
 
     /// Single line width of "1 of N".
     @MainActor static func countWidth(_ count: Int) -> CGFloat {

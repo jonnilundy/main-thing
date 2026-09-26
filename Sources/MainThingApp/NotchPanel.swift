@@ -84,6 +84,9 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
 
     required init(rootView: Content) {
         super.init(rootView: rootView)
+        // The panel's frame is set by hand (`PanelLayout`). Without this the hosting view measures
+        // its minimum and maximum size again on every layout pass, so on every hover frame.
+        sizingOptions = []
     }
 
     @available(*, unavailable)

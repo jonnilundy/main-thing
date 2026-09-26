@@ -15,9 +15,13 @@ import SwiftUI
 ///
 /// `MainThing --bench-hover [seconds] closed`: the notch stays collapsed and the cursor moves beside
 /// it, as anywhere on screen. Only the global monitor's `evaluate` runs, once per move.
+///
+/// `MainThing --bench-hover gap`: no timing. Steps the cursor down 1pt at a time from the band's
+/// center to row 3's center and prints which row has hover at each height. Exits 5 when some
+/// height between them has no row: a dead zone.
 @MainActor
 enum HoverBench {
-    static func run(seconds: Double, closed: Bool = false) {
+    static func run(seconds: Double, closed: Bool = false, gap: Bool = false) {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         guard let screen = NSScreen.main else {
@@ -80,6 +84,40 @@ enum HoverBench {
             }
             // Wired after the enter: an enter reports the real cursor, which is somewhere else.
             if !closed { hosting.onMouseMove = { point in hover.evaluate(at: point, source: "tracking") } }
+            if gap {
+                // Top of the panel is y 0 here; the band's center down to row 3's center, at the
+                // pills' center and 1pt inside their left and right ends.
+                let left = x - model.openWidth / 2 + Lanes.pillInset + 1
+                let right = left + Lanes.pillWidth(contentWidth: model.openWidth) - 2
+                var dead = false
+                for column in [x, left, right] {
+                var owner: [(y: CGFloat, key: String?)] = []
+                var probe = top
+                while probe <= centers[2] {
+                    let point = CGPoint(x: column, y: size.height - probe)
+                    if let event = NSEvent.mouseEvent(
+                        with: .mouseMoved, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+                        windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0
+                    ) {
+                        hover.evaluate(at: panel.convertPoint(toScreen: point), source: "local")
+                        hosting.mouseMoved(with: event)
+                    }
+                    try? await Task.sleep(for: .milliseconds(10))
+                    owner.append((probe, model.hoveredRow))
+                    probe += 1
+                }
+                let names = Dictionary(uniqueKeysWithValues: rows.enumerated().map { ($1.key, "row \($0 + 1)") })
+                var start = 0
+                for index in owner.indices where index == owner.count - 1 || owner[index + 1].key != owner[index].key {
+                    let name = owner[index].key.map { names[$0] ?? "?" } ?? "NOTHING"
+                    if owner[index].key == nil { dead = true }
+                    print(String(format: "bench gap: x %.0f, y %.1f to %.1f: %@", column, owner[start].y, owner[index].y, name))
+                    start = index + 1
+                }
+                }
+                print("bench gap: " + (dead ? "dead zone found" : "no dead zone") + String(format: " (band %.0fpt tall, rows %.0fpt from y %.0f)", geometry.notchHeight, Lanes.rowHeight, geometry.notchHeight + Lanes.topGap))
+                exit(dead ? 5 : 0)
+            }
             let locked = Reminder.screenLocked
             let meter = MainThreadMeter()
             meter.start()
