@@ -69,6 +69,7 @@ struct NotchBody: View {
                 dotColor: model.dotColor,
                 flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
                 taskTime: model.taskTime,
+                onHover: { key, inside in model.rowHover(key, number: 1, inside: inside) },
                 onToggle: { if let first = rows.first { onToggle(first) } }
             )
             if model.isOpen {
@@ -92,7 +93,10 @@ struct NotchBody: View {
 /// aligned at the card padding. One view in both states, so nothing swaps on open; open, the
 /// count "1 of N" sits right aligned. A task change pushes the new title in; each title keeps its
 /// own natural width, so a title that fits never truncates while the shape width animates around
-/// it. The title is the button that crosses task 1 off. Empty list: nothing, the plain notch.
+/// it. Open, task 1 is a row like the others: the button is its pill (`Lanes.bandPill`), inset 8
+/// like the row pills, and hover anywhere on it fills the pill, previews the cross off and ticks
+/// once. The dot, title and count keep their lanes: inset 8 plus padding 10 is the band's 18.
+/// Collapsed, only the title takes clicks and there is no pill. Empty list: nothing, the plain notch.
 struct Band: View {
     let rows: [TaskList.Row]
     let width: CGFloat
@@ -105,55 +109,94 @@ struct Band: View {
     let dotColor: Color
     let flash: Gradient
     let taskTime: String
+    /// The cursor entered or left task 1's pill while open. The model turns entries into haptic ticks.
+    let onHover: (String, Bool) -> Void
     let onToggle: () -> Void
     @State private var hovering = false
     @State private var countShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: Lanes.gap) {
+        let pill = Lanes.bandPill(width: width, height: height)
+        Group {
             if let current = rows.first {
+                Button(action: onToggle) {
+                    content(current, pill: pill)
+                        .background {
+                            // Rides with the animating edge like the count, and fades in on the
+                            // count's schedule, the same rise as the first row. The fill shows on hover.
+                            RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous)
+                                .fill(.white.opacity(hovering && isOpen ? Lanes.pillOpacity : 0))
+                                .opacity(countShown ? 1 : 0)
+                        }
+                        .contentShape(BandTarget(
+                            isOpen: isOpen,
+                            titleStart: Lanes.textStart - pill.minX,
+                            titleWidth: NotchMetrics.titleWidth(for: current.title)
+                        ))
+                }
+                .buttonStyle(RowButtonStyle())
+                // An explicit transaction, not `.animation(_:value:)`: that modifier would also
+                // animate the title's position with the preview timing on the frame the cursor
+                // lands on it, which is the frame the card starts to widen, and the title would
+                // run ahead of the dot.
+                .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside } }
+                .onChange(of: hovering && isOpen) { _, onRow in onHover(current.key, onRow) }
+                .onChange(of: current.key) { old, new in
+                    // Task 1 left and the next one moved up under the cursor: that is a new row.
+                    if hovering && isOpen {
+                        onHover(old, false)
+                        onHover(new, true)
+                    }
+                }
+                .accessibilityLabel(current.title)
+                .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
+                .accessibilityAction(named: "Cross off") { onToggle() }
+            } else {
+                content(nil, pill: pill)
+            }
+        }
+        .padding(.leading, pill.minX)
+        .frame(width: width, height: height, alignment: .leading)
+        .onChange(of: isOpen, initial: true) { _, open in
+            withAnimation(Motion.countFade(reduceMotion, opening: open)) { countShown = open }
+        }
+        .animation(Motion.content(reduceMotion), value: rows.map(\.key))
+    }
+
+    /// The dot, the title and the count, laid out in the pill's frame.
+    private func content(_ current: TaskList.Row?, pill: CGRect) -> some View {
+        HStack(spacing: Lanes.gap) {
+            if let current {
                 Dot(sweep: sweep, color: dotColor)
                     .frame(width: Lanes.markerSlot, height: Lanes.markerSlot)
                     .help(taskTime)
                 ZStack(alignment: .leading) {
-                    Button(action: onToggle) {
-                        Text(current.title)
-                            .font(NotchMetrics.font)
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .modifier(Ink(
-                                progress: struck ? 1 : 0,
-                                preview: hovering && isOpen && !struck ? 1 : 0,
-                                key: current.key,
-                                xHeight: NotchMetrics.nsFont.xHeight,
-                                thickness: 3.2,
-                                inkOpacity: 1,
-                                // Reduce Motion: the dot pulses, the title stays still.
-                                shimmer: reduceMotion ? 0 : Double(sweep),
-                                flash: flash
-                            ))
-                            .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
-                            .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(RowButtonStyle())
-                    // An explicit transaction, not `.animation(_:value:)`: that modifier would also
-                    // animate the title's position with the preview timing on the frame the cursor
-                    // lands on it, which is the frame the card starts to widen, and the title would
-                    // run ahead of the dot.
-                    .onHover { inside in withAnimation(reduceMotion ? nil : Motion.preview) { hovering = inside } }
-                    .accessibilityLabel(current.title)
-                    .accessibilityHint(struck ? "Crossed off, leaving. Click again to keep it" : "Click to cross off")
-                    .accessibilityAction(named: "Cross off") { onToggle() }
-                    .id(current.key)
-                    .transition(Motion.push(reduceMotion))
+                    Text(current.title)
+                        .font(NotchMetrics.font)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .modifier(Ink(
+                            progress: struck ? 1 : 0,
+                            preview: hovering && isOpen && !struck ? 1 : 0,
+                            key: current.key,
+                            xHeight: NotchMetrics.nsFont.xHeight,
+                            thickness: 3.2,
+                            inkOpacity: 1,
+                            // Reduce Motion: the dot pulses, the title stays still.
+                            shimmer: reduceMotion ? 0 : Double(sweep),
+                            flash: flash
+                        ))
+                        .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                        .frame(width: NotchMetrics.titleWidth(for: current.title), alignment: .leading)
+                        .id(current.key)
+                        .transition(Motion.push(reduceMotion))
                 }
             }
         }
-        .padding(.leading, Lanes.slotStart)
-        .frame(width: width, height: height, alignment: .leading)
+        .padding(.leading, Lanes.slotStart - pill.minX)
+        .frame(width: pill.width, height: pill.height, alignment: .leading)
         .overlay(alignment: .trailing) {
             // Always in the tree, so it rides with the animating right edge instead of landing on
             // the final one; opacity and a 4pt rise come in on their own transaction.
@@ -161,16 +204,25 @@ struct Band: View {
                 Text(Lanes.countText(rows.count))
                     .font(NotchMetrics.countFont)
                     .foregroundStyle(.white.opacity(Lanes.countOpacity))
-                    .padding(.trailing, Lanes.padding)
+                    .padding(.trailing, Lanes.padding - pill.minX)
                     .opacity(countShown ? 1 : 0)
                     .offset(y: countShown || reduceMotion ? 0 : 4)
                     .accessibilityHidden(!isOpen)
             }
         }
-        .onChange(of: isOpen, initial: true) { _, open in
-            withAnimation(Motion.countFade(reduceMotion, opening: open)) { countShown = open }
-        }
-        .animation(Motion.content(reduceMotion), value: rows.map(\.key))
+    }
+}
+
+/// Where the band takes clicks, in the pill's frame. Open: the whole pill. Collapsed: the title,
+/// as it always was.
+struct BandTarget: Shape {
+    var isOpen: Bool
+    var titleStart: CGFloat
+    var titleWidth: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        if isOpen { return Path(roundedRect: rect, cornerRadius: Lanes.pillRadius, style: .continuous) }
+        return Path(CGRect(x: rect.minX + titleStart, y: rect.minY, width: titleWidth, height: rect.height))
     }
 }
 

@@ -46,6 +46,41 @@ func runHoverChecks() {
         check("after 300ms entries tick again", h.enter("E#0", at: 20.3) == true)
         check("settle is 300ms", RowHaptics.settle == 0.3)
     }
+    do {
+        // Task 1's pill in the band is a row target like rows 2..N: key "A#0", then "B#0" below it.
+        var h = RowHaptics()
+        check("entering the band row ticks", h.enter("A#0", at: 30) == true)
+        check("moving along the band row, off the letters, is silent", h.enter("A#0", at: 30.2) == false)
+        check("from the band row to row 2 ticks", h.enter("B#0", at: 30.4) == true)
+        h.exit("B#0")
+        check("from row 2 back to the band row ticks", h.enter("A#0", at: 30.6) == true)
+        h.listAnimates(at: 31)
+        h.exit("A#0")
+        check("task 1 crossed off: the next task moving up under a still cursor is silent", h.enter("B#0", at: 31.1) == false)
+    }
+
+    section("Band row hit test")
+    do {
+        // A 316 wide open card below a 30pt hardware notch band: title at 46, count at the right.
+        let band = CGSize(width: 316, height: 30)
+        let pill = Lanes.bandPill(width: band.width, height: band.height)
+        check("band pill: inset 8 like the rows, so it spans the same x as a row pill",
+              pill.minX == Lanes.pillInset && pill.width == Lanes.pillWidth(contentWidth: band.width) && pill.maxX == band.width - Lanes.pillInset)
+        check("band pill: a row tall and centered in a 30pt band", pill.height == Lanes.rowHeight && pill.minY == 1 && pill.maxY == 29)
+        check("band pill fits a short band: 24 in a 24pt menu bar", Lanes.bandPill(width: 300, height: 24).height == 24 && Lanes.bandPill(width: 300, height: 24).minY == 0)
+        let titleEnd = Lanes.textStart + 80
+        let countStart = band.width - Lanes.padding - 30
+        check("off the letters, right of the title and left of the count, is on task 1", pill.contains(CGPoint(x: (titleEnd + countStart) / 2, y: 15)))
+        check("the dot, the title and the count are on task 1",
+              pill.contains(CGPoint(x: Lanes.slotStart + 9, y: 15)) && pill.contains(CGPoint(x: Lanes.textStart + 10, y: 15)) && pill.contains(CGPoint(x: countStart + 10, y: 15)))
+        check("the 8pt inset beside the pill is not", !pill.contains(CGPoint(x: 4, y: 15)) && !pill.contains(CGPoint(x: band.width - 4, y: 15)))
+        check("the gap under the band is not: row 2 starts after it", !pill.contains(CGPoint(x: 150, y: band.height + Lanes.topGap / 2)))
+        // In panel space the band pill sits inside the open shape, so hovering it keeps the card open.
+        let shape = CGRect(x: 242, y: 0, width: band.width + 2 * NotchGeometry.flare, height: 158)
+        let inPanel = pill.offsetBy(dx: shape.minX + NotchGeometry.flare, dy: 0)
+        check("the whole band pill is inside the open shape",
+              [CGPoint(x: inPanel.minX, y: inPanel.minY), CGPoint(x: inPanel.maxX, y: inPanel.maxY)].allSatisfy { NotchHover.inside($0, shape: shape, isOpen: true) })
+    }
 
     section("Router actions")
     let list = TaskList(["A", "B"])

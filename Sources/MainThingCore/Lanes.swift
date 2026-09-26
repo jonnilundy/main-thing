@@ -6,6 +6,7 @@ import Foundation
 /// The band (the notch row) is `[padding 18][marker slot 18][gap 10][title ...][padding 18]`, with
 /// the count "1 of N" right aligned inside the padding when open. A row is
 /// `[pill inset 8][pill padding 10][marker slot 18][gap 10][title ...][pill padding 10][pill inset 8]`.
+/// Open, the band gets a pill too, with the same inset, behind its dot, title and count.
 /// The slot starts 18 from the body edge either way, so the pink dot and the row numbers share
 /// one lane and every title starts at 46. Points at 1x, white opacities as fractions.
 public enum Lanes {
@@ -59,6 +60,15 @@ public enum Lanes {
 
     public static func pillWidth(contentWidth: CGFloat) -> CGFloat {
         max(contentWidth - 2 * pillInset, 1)
+    }
+
+    /// Task 1's pill in the open band, in band coordinates (origin top left): the same inset and
+    /// radius as a row pill, a row tall where the band has room, centered in the band. The dot,
+    /// the title and the count stay where the band puts them; the pill only sits behind them.
+    /// It is task 1's hover and click target, so the cursor needs to be on the row, not the letters.
+    public static func bandPill(width: CGFloat, height: CGFloat) -> CGRect {
+        let pillHeight = min(rowHeight, max(height, 0))
+        return CGRect(x: pillInset, y: (height - pillHeight) / 2, width: pillWidth(contentWidth: width), height: pillHeight)
     }
 
     /// Sub tasks are dim so the main thing stays the focus; the hovered row lifts.
