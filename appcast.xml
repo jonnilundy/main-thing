@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>Main Thing</title>
+        <link>https://raw.githubusercontent.com/jonnilundy/main-thing/main/appcast.xml</link>
+        <description>Main Thing updates</description>
+        <language>en</language>
+        <item>
+            <title>Version 0.2.0</title>
+            <pubDate>Sat, 26 Sep 2026 14:49:58 +0000</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.2.0</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.2.0.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.2.0/MainThing-0.2.0.zip" length="2426995" type="application/octet-stream" sparkle:edSignature="vT1+erskU+f77Cu9C6wUh7mbyQ7cuezt/9BiV82ic9OFVNarLm8o9MVeEgH3RSJqFEFWkv4wXxSsl7tJ3ZFaBQ=="/>
+        </item>
+    </channel>
+</rss>
