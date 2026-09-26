@@ -168,7 +168,9 @@ RELEASE_PAGE="https://github.com/$REPO/releases/tag/v$NEW_VERSION"
 MIN_OS=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$PLIST")
 PUB_DATE=$(LC_ALL=C date -u "+%a, %d %b %Y %H:%M:%S +0000")
 if [[ -n "$NOTES_FILE" ]]; then
-    NOTES=$(sed 's/]]>/]]]]><![CDATA[>/g' "$NOTES_FILE")
+    # The update window shows the notes as Markdown, without the Install section: whoever reads
+    # them there has the app already. The GitHub release keeps the whole file.
+    NOTES=$(awk '/^## Install/ { exit } { print }' "$NOTES_FILE" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' | sed 's/]]>/]]]]><![CDATA[>/g')
 else
     NOTES="Main Thing $NEW_VERSION."
 fi
@@ -182,7 +184,7 @@ cat > "$ITEM" <<EOF
             <sparkle:shortVersionString>$NEW_VERSION</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>$MIN_OS</sparkle:minimumSystemVersion>
             <sparkle:fullReleaseNotesLink>$RELEASE_PAGE</sparkle:fullReleaseNotesLink>
-            <description sparkle:format="plain-text"><![CDATA[$NOTES]]></description>
+            <description sparkle:format="markdown"><![CDATA[$NOTES]]></description>
             <enclosure url="$DOWNLOAD_BASE/$ZIP_NAME" length="$LENGTH" type="application/octet-stream" sparkle:edSignature="$SIGNATURE"/>
         </item>
 EOF

@@ -12,18 +12,12 @@
             <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.4.1</sparkle:fullReleaseNotesLink>
-            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.4.1 tidies the long press menu and drops the old names.
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.4.1 tidies the long press menu and drops the old names.
 
 ## Changed
 
 - **The long press menu opens at the right end of the row.** The title ends with an ellipsis before it, so the menu never covers the words. Letting go right after the menu opens picks nothing; slide onto Rename or Discard and let go, or click one.
-- **The old names are gone.** Use `main-thing` and `main-thing.localhost`. The `mainthing` command, the `mainthing.localhost` address and the `MAINTHING_` environment names no longer work.
-
-## Install
-
-Download `MainThing-0.4.1.dmg`, drag it to Applications, then right click Main Thing and choose Open the first time (the app is not signed with an Apple developer certificate). If you have 0.2.0 or later, the update installs on its own.
-
-Requires macOS 15 or later.]]></description>
+- **The old names are gone.** Use `main-thing` and `main-thing.localhost`. The `mainthing` command, the `mainthing.localhost` address and the `MAINTHING_` environment names no longer work.]]></description>
             <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.4.1/MainThing-0.4.1.zip" length="2486366" type="application/octet-stream" sparkle:edSignature="F/IefCUGZWDKr92ITJA/IJbUqpsTPs9KaJIULenkTD8I797yferdpz3vMLu+KCZLDEp73R3HF04rKT0+OqcfCg=="/>
         </item>
         <item>
@@ -33,7 +27,7 @@ Requires macOS 15 or later.]]></description>
             <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.4.0</sparkle:fullReleaseNotesLink>
-            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.4.0 lets you edit the list right in the notch.
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.4.0 lets you edit the list right in the notch.
 
 ## New
 
@@ -46,13 +40,7 @@ Requires macOS 15 or later.]]></description>
 
 - The separate editor window, the tear off drag and Edit List are gone. All editing happens in the card.
 - Hovering the open list costs about 40 percent less work, and there is no dead strip between the main task and task 2.
-- The right side of the card has the same padding as the left.
-
-## Install
-
-Download `MainThing-0.4.0.dmg`, drag it to Applications, then right click Main Thing and choose Open the first time (the app is not signed with an Apple developer certificate). If you have 0.2.0 or later, the update installs on its own.
-
-Requires macOS 15 or later.]]></description>
+- The right side of the card has the same padding as the left.]]></description>
             <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.4.0/MainThing-0.4.0.zip" length="2492457" type="application/octet-stream" sparkle:edSignature="Y93yif9VYf8g95ZBXIloV1MKrLzgWPZwvggoB1+YzkzFCSk5Po8gYr+Bp4/K+LL+Q/vuux1sY+OVKVuX54mgCg=="/>
         </item>
         <item>
@@ -62,7 +50,7 @@ Requires macOS 15 or later.]]></description>
             <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.3.0</sparkle:fullReleaseNotesLink>
-            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.3.0 renames the command and the API to `main-thing`.
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.3.0 renames the command and the API to `main-thing`.
 
 ## Changed
 
@@ -71,13 +59,7 @@ Requires macOS 15 or later.]]></description>
 - **The config folder is now `~/.config/main-thing`.** Your adapters, hooks and sounds move on the first launch, and the old path becomes a link to the new one.
 - **Environment variables start with `MAIN_THING_`.** The old `MAINTHING_` names still work until 0.4.
 
-Your list and your settings stay as they are.
-
-## Install
-
-Download `MainThing-0.3.0.dmg`, drag it to Applications, then right click Main Thing and choose Open the first time (the app is not signed with an Apple developer certificate). If you have 0.2.0, the update installs on its own.
-
-Requires macOS 15 or later.]]></description>
+Your list and your settings stay as they are.]]></description>
             <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.3.0/MainThing-0.3.0.zip" length="2443102" type="application/octet-stream" sparkle:edSignature="SP7JfwDESp3OatjmGCRerQsdk7slUyO84nVhL0lLEz/5faZqrEBHubHpaHe0gmiuWbJwaMWvqjCplM53+Ad0Bg=="/>
         </item>
         <item>
@@ -87,7 +69,7 @@ Requires macOS 15 or later.]]></description>
             <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.2.0</sparkle:fullReleaseNotesLink>
-            <description sparkle:format="plain-text"><![CDATA[Main Thing 0.2.0.]]></description>
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.2.0.]]></description>
             <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.2.0/MainThing-0.2.0.zip" length="2426995" type="application/octet-stream" sparkle:edSignature="vT1+erskU+f77Cu9C6wUh7mbyQ7cuezt/9BiV82ic9OFVNarLm8o9MVeEgH3RSJqFEFWkv4wXxSsl7tJ3ZFaBQ=="/>
         </item>
     </channel>
