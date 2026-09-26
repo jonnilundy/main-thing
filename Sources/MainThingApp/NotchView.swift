@@ -64,48 +64,18 @@ struct NotchBody: View {
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
         )
-        let centers = CardMap(model: model, store: store).liveCenters
-        let first = rows.first
-        let held = first != nil && model.drag?.key == first?.key
         VStack(spacing: 0) {
             // The band, hanging under the menu bar: the dot and task 1 in both states. Its frame
             // width is what animates, and the band is leading aligned, so the dot and the title
             // ride with the card's left edge and never re-align or swap.
-            Band(
-                rows: rows,
-                width: width,
-                height: geometry.notchHeight,
-                isOpen: model.isOpen,
-                struck: first.map { model.pending.isPending($0.key) } ?? false,
-                sweep: model.sweep,
-                dotColor: model.dotColor,
-                flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
-                taskTime: model.taskTime,
-                hovered: model.isOpen && model.hover == .task(0),
-                pressed: model.pressed == .task(0),
-                lift: model.shift(ofTask: 0, centers: centers),
-                held: held,
-                menuOpen: first != nil && model.menu?.key == first?.key,
-                quiet: model.quietRows,
-                rename: model.isOpen && first != nil && model.renaming == first?.key ? Bindable(model).renameText : nil,
-                card: card,
-                onToggle: { if let first { onToggle(first) } }
-            )
-            // Held, task 1 rides over the rows.
-            .zIndex(held ? 1 : 0)
+            BandSlot(store: store, model: model, width: width, card: card, onToggle: onToggle)
             if model.isOpen {
                 OpenContent(store: store, model: model, onToggle: onToggle, width: openWidth, card: card)
                     .transition(Motion.openContent(reduceMotion))
             }
         }
         // The long press menu, on its row, card coordinates.
-        .overlay(alignment: .topLeading) {
-            if model.isOpen, let menu = model.menu {
-                RowMenuView(menu: menu, card: card)
-                    .offset(x: menu.frame.minX, y: menu.frame.minY)
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .leading)))
-            }
-        }
+        .overlay(alignment: .topLeading) { MenuLayer(model: model, card: card) }
         .padding(.horizontal, NotchMetrics.flare)
         // Pure black, no translucency: it must match a hardware notch.
         .background(shape.fill(.black))
@@ -115,6 +85,59 @@ struct NotchBody: View {
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
         .contextMenu { NotchMenu(store: store, sounds: sounds, reminder: reminder) }
+    }
+}
+
+/// The band as the model has it now. Its own view, so a hover or a drag step redraws the band
+/// and the rows, never the card around them.
+struct BandSlot: View {
+    let store: TaskStore
+    let model: NotchModel
+    let width: CGFloat
+    var card: CardController?
+    let onToggle: (TaskList.Row) -> Void
+
+    var body: some View {
+        let rows = store.list.rows
+        let first = rows.first
+        let held = first != nil && model.drag?.key == first?.key
+        Band(
+            rows: rows,
+            width: width,
+            height: model.geometry.notchHeight,
+            isOpen: model.isOpen,
+            struck: first.map { model.pending.isPending($0.key) } ?? false,
+            sweep: model.sweep,
+            dotColor: model.dotColor,
+            flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
+            taskTime: model.taskTime,
+            hovered: model.isOpen && model.hover == .task(0),
+            pressed: model.pressed == .task(0),
+            lift: model.drag == nil ? 0 : model.shift(ofTask: 0, centers: CardMap(model: model, store: store).liveCenters),
+            held: held,
+            menuOpen: first != nil && model.menu?.key == first?.key,
+            quiet: model.quietRows,
+            rename: model.isOpen && first != nil && model.renaming == first?.key ? Bindable(model).renameText : nil,
+            card: card,
+            onToggle: { if let first { onToggle(first) } }
+        )
+        // Held, task 1 rides over the rows.
+        .zIndex(held ? 1 : 0)
+    }
+}
+
+/// The long press menu over its row, in card coordinates.
+struct MenuLayer: View {
+    let model: NotchModel
+    var card: CardController?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if model.isOpen, let menu = model.menu {
+            RowMenuView(menu: menu, card: card)
+                .offset(x: menu.frame.minX, y: menu.frame.minY)
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .leading)))
+        }
     }
 }
 
