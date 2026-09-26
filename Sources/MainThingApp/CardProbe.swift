@@ -239,6 +239,16 @@ enum CardProbe {
             model.addText = "  "
             card.submitAdd()
             check("Add: a blank title adds nothing", titles.count == 6)
+            // Jonni's case: add, then click the new task while the empty field is still open.
+            let added = store.list.rows[5]
+            await click(CGPoint(x: title, y: y(5)))
+            check("Add: a click on a task past the open field closes the field", !model.adding)
+            check("Add: and the same click crosses that task off", model.pending.isPending(added.key))
+            send(.leftMouseDown, CGPoint(x: title, y: y(5)))
+            send(.leftMouseUp, CGPoint(x: title, y: y(5)))
+            await wait(50)
+            await click(CGPoint(x: title, y: card.map.addTop + 5))
+            check("Add: the field opens again", model.adding)
             model.addText = "Half typed"
             send(.mouseMoved, CGPoint(x: title, y: card.map.height + 60))
             check("Add: with text, leaving the card keeps it open", model.adding && model.isOpen)

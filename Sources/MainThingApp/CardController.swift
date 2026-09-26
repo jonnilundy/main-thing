@@ -142,10 +142,11 @@ final class CardController {
             }
             return
         }
-        // A field takes its own presses. A press anywhere else ends it first, and does only that.
+        // A field takes its own presses. A press anywhere else ends it (saving what it holds) and
+        // then does what it does there, as a click past a rename in Finder does.
         if let field = fieldSlot {
-            if field != slot { endFields(commit: true) }
-            return
+            if field == slot { return }
+            endFields(commit: true)
         }
         press = CardPress(slot: slot, start: p, onHandle: CardMap.inHandle(x: p.x))
         model.pressed = slot
