@@ -92,22 +92,32 @@ final class EventRunner: @unchecked Sendable {
     /// After the timeout the group gets SIGTERM, and SIGKILL this much later if it is still there.
     static let termGrace: TimeInterval = 1
 
-    /// Runs one job in its own process group, so a timeout kills the hook and everything it
-    /// started, not just the shell at the top.
+    /// Runs one job and logs what it printed to stdout.
     private func run(_ job: EventJob, stdin payload: Data) -> RunRecord {
+        let (record, stdoutData) = EventRunner.execute(path: job.path, arguments: job.arguments, stdin: payload, timeout: EventRunner.timeout)
+        if !stdoutData.isEmpty {
+            let head = String(decoding: stdoutData.prefix(EventRunner.stderrLimit), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            log.info("\(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) stdout: \(head, privacy: .private)")
+        }
+        return record
+    }
+
+    /// Runs one executable in its own process group, so a timeout kills it and everything it
+    /// started, not just the shell at the top. Returns the record and the whole stdout.
+    static func execute(path: String, arguments: [String], stdin payload: Data, timeout: TimeInterval) -> (record: RunRecord, stdout: Data) {
         let started = Date()
         guard let stdinPipe = EventRunner.pipe(), let stdoutPipe = EventRunner.pipe(), let stderrPipe = EventRunner.pipe() else {
-            return RunRecord(at: started, exit: nil, ms: 0, stderr: "could not open pipes")
+            return (RunRecord(at: started, exit: nil, ms: 0, stderr: "could not open pipes"), Data())
         }
         let pid: pid_t
         switch EventRunner.spawn(
-            path: job.path, arguments: job.arguments, environment: EventRunner.childEnvironment(),
+            path: path, arguments: arguments, environment: EventRunner.childEnvironment(),
             stdin: stdinPipe.read, stdout: stdoutPipe.write, stderr: stderrPipe.write
         ) {
         case .success(let p): pid = p
         case .failure(let error):
             for fd in [stdinPipe.read, stdinPipe.write, stdoutPipe.read, stdoutPipe.write, stderrPipe.read, stderrPipe.write] { close(fd) }
-            return RunRecord(at: started, exit: nil, ms: 0, stderr: "could not start: \(error.localizedDescription)")
+            return (RunRecord(at: started, exit: nil, ms: 0, stderr: "could not start: \(error.localizedDescription)"), Data())
         }
         // The child holds its ends now.
         close(stdinPipe.read)
@@ -145,7 +155,7 @@ final class EventRunner: @unchecked Sendable {
             exited.signal()
         }
         var timedOut = false
-        if exited.wait(timeout: .now() + EventRunner.timeout) == .timedOut {
+        if exited.wait(timeout: .now() + timeout) == .timedOut {
             timedOut = true
             killpg(pid, SIGTERM)
             if exited.wait(timeout: .now() + EventRunner.termGrace) == .timedOut {
@@ -166,11 +176,7 @@ final class EventRunner: @unchecked Sendable {
         let exit: Int32? = timedOut || !exitedNormally ? nil : (status >> 8) & 0xff
         let stderr = String(decoding: stderrData.prefix(EventRunner.stderrLimit), as: UTF8.self)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if !stdoutData.isEmpty {
-            let head = String(decoding: stdoutData.prefix(EventRunner.stderrLimit), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            log.info("\(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) stdout: \(head, privacy: .private)")
-        }
-        return RunRecord(at: started, exit: exit, ms: ms, timedOut: timedOut, stderr: stderr)
+        return (RunRecord(at: started, exit: exit, ms: ms, timedOut: timedOut, stderr: stderr), stdoutData)
     }
 
     /// A pipe with both ends close-on-exec; the spawn dup2s the child's end into place.

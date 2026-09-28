@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SettingsWindow.installShortcut()
         let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
+        store.isEditing = { [weak model] key in model?.renaming == key }
         let reminder = Reminder(store: store, model: model)
         let card = CardController(model: model, store: store, panel: panel, toggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
         hover.card = card

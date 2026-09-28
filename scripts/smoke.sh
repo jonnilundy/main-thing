@@ -133,8 +133,8 @@ same "main-thing unknown command exits 1" "1" "$(MAIN_THING_PORT=$PORT "$CLI" no
 same "main-thing on a dead port says not running" "1" "$(MAIN_THING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
 same "main-thing version" "$VERSION" "$(MAIN_THING_PORT=$PORT "$CLI" version)"
 same "main-thing port shows the running port" "running on port $PORT" "$(MAIN_THING_PORT=$PORT "$CLI" port | /usr/bin/tail -1)"
-same "main-thing help lists every command" "15" "$("$CLI" help | /usr/bin/grep -c '^  main-thing')"
-same "main-thing help names the HTTP routes" "5" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"
+same "main-thing help lists every command" "16" "$("$CLI" help | /usr/bin/grep -c '^  main-thing')"
+same "main-thing help names the HTTP routes" "6" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"
 
 echo "--- hooks"
 # A test hook writes its payload to a scratch file. Installed for the run, any existing hook is put back.
@@ -160,6 +160,74 @@ same "group writable hook is reported as skipped" 'list-changed  skipped: group 
 rm -f "$HOOK"
 [[ -e "$HOOK.smoke-backup" ]] && mv "$HOOK.smoke-backup" "$HOOK"
 rm -rf "$SCRATCH"
+
+echo "--- add and links"
+expect "POST /tasks appends" 200 '{"tasks":[{"title":"Skipped"},{"title":"Added"}]}' -X POST --data-binary '["Added"]' "$BASE/tasks"
+same "main-thing add appends" $'Skipped\nAdded\nOne more' "$(MAIN_THING_PORT=$PORT "$CLI" add "One more")"
+same "main-thing add with nothing exits 1" "1" "$(MAIN_THING_PORT=$PORT "$CLI" add >/dev/null 2>&1; echo $?)"
+# Fake adapters, installed for the run: "fake" claims https://fake.test/item/<id> (slow/<id> after
+# a second) and logs completes; "old" knows only complete, so resolve is an unknown verb (exit 2).
+ADAPTERS="$CONFIG/adapters"
+LINKS=$(mktemp -d "${TMPDIR:-/tmp}/main-thing-links.XXXXXX")
+mkdir -p "$ADAPTERS"
+for name in fake old; do [[ -e "$ADAPTERS/$name" ]] && mv "$ADAPTERS/$name" "$ADAPTERS/$name.smoke-backup"; done
+cat > "$ADAPTERS/fake" <<'ADAPTER'
+#!/bin/bash
+case "$1 $2" in
+    "resolve https://fake.test/item/"*) printf '{"id":"%s","title":"Fake title %s"}\n' "${2##*/}" "${2##*/}" ;;
+    "resolve https://fake.test/slow/"*) sleep 1; printf '{"id":"%s","title":"Slow title"}\n' "${2##*/}" ;;
+    "resolve "*) exit 3 ;;
+    "complete "*) echo "$2" >> "SCRATCH/completed" ;;
+    *) exit 2 ;;
+esac
+ADAPTER
+/usr/bin/sed -i '' "s|SCRATCH|$LINKS|" "$ADAPTERS/fake"
+printf '#!/bin/bash\n[[ "$1" == complete ]] || exit 2\n' > "$ADAPTERS/old"
+chmod 755 "$ADAPTERS/fake" "$ADAPTERS/old"
+
+# wait_for <name> <exact GET /tasks body>: polls for up to 4 s.
+wait_for() {
+    local got=""
+    for _ in $(seq 1 40); do
+        got=$(curl -s "$BASE/tasks")
+        [[ "$got" == "$2" ]] && break
+        sleep 0.1
+    done
+    same "$1" "$2" "$got"
+}
+expect "PUT a list to add links to" 200 '{"tasks":[{"title":"Plain"}]}' -X PUT --data-binary '["Plain"]' "$BASE/tasks"
+same "main-thing add <link> shows the placeholder at once" $'Plain\nfake.test/…/42' "$(MAIN_THING_PORT=$PORT "$CLI" add https://fake.test/item/42)"
+wait_for "the adapter's title and ref land" '{"tasks":[{"title":"Plain"},{"ref":"fake:42","title":"Fake title 42"}]}'
+same "main-thing list shows the title only" $'Plain\nFake title 42' "$(MAIN_THING_PORT=$PORT "$CLI" list)"
+MAIN_THING_PORT=$PORT "$CLI" add https://nobody.test/some/page >/dev/null
+wait_for "an unclaimed link stays as the title, no ref" '{"tasks":[{"title":"Plain"},{"ref":"fake:42","title":"Fake title 42"},{"title":"https://nobody.test/some/page"}]}'
+expect "PUT keeps the old link row as it is" 200 '{"tasks":[{"title":"https://nobody.test/some/page"},{"ref":"fake:42","title":"Fake title 42"}]}' \
+    -X PUT --data-binary '["https://nobody.test/some/page",{"title":"Fake title 42","ref":"fake:42"}]' "$BASE/tasks"
+sleep 0.3
+same "the old link is not asked about again" '{"tasks":[{"title":"https://nobody.test/some/page"},{"ref":"fake:42","title":"Fake title 42"}]}' "$(curl -s "$BASE/tasks")"
+expect "PUT with a new link: the placeholder in the reply" 200 '{"tasks":[{"title":"fake.test/…/7"},{"ref":"fake:42","title":"Fake title 42"}]}' \
+    -X PUT --data-binary '["https://fake.test/item/7",{"title":"Fake title 42","ref":"fake:42"}]' "$BASE/tasks"
+wait_for "a link in a PUT resolves too" '{"tasks":[{"ref":"fake:7","title":"Fake title 7"},{"ref":"fake:42","title":"Fake title 42"}]}'
+expect "a link already on the list as a ref" 200 '' -X POST --data-binary '["https://fake.test/item/7"]' "$BASE/tasks"
+wait_for "a second copy of a resolved link stays as typed" '{"tasks":[{"ref":"fake:7","title":"Fake title 7"},{"ref":"fake:42","title":"Fake title 42"},{"title":"https://fake.test/item/7"}]}'
+expect "a slow link" 200 '{"tasks":[{"title":"fake.test/…/9"}]}' -X PUT --data-binary '["https://fake.test/slow/9"]' "$BASE/tasks"
+expect "renamed before the answer" 200 '{"tasks":[{"title":"My own title"}]}' -X PUT --data-binary '["My own title"]' "$BASE/tasks"
+sleep 1.5
+same "the late answer does not clobber the rename" '{"tasks":[{"title":"My own title"}]}' "$(curl -s "$BASE/tasks")"
+expect "a slow link removed before the answer" 200 '{"tasks":[{"title":"fake.test/…/10"}]}' -X PUT --data-binary '["https://fake.test/slow/10"]' "$BASE/tasks"
+expect "removed" 200 '{"tasks":[]}' -X PUT --data-binary '[]' "$BASE/tasks"
+sleep 1.5
+same "the late answer does not bring it back" '{"tasks":[]}' "$(curl -s "$BASE/tasks")"
+MAIN_THING_PORT=$PORT "$CLI" add https://fake.test/item/55 >/dev/null
+wait_for "resolved for the done test" '{"tasks":[{"ref":"fake:55","title":"Fake title 55"}]}'
+MAIN_THING_PORT=$PORT "$CLI" done >/dev/null
+for _ in $(seq 1 20); do [[ -s "$LINKS/completed" ]] && break; sleep 0.1; done
+same "crossing off a resolved task runs <adapter> complete <id>" "55" "$(cat "$LINKS/completed" 2>/dev/null)"
+for name in fake old; do
+    rm -f "$ADAPTERS/$name"
+    [[ -e "$ADAPTERS/$name.smoke-backup" ]] && mv "$ADAPTERS/$name.smoke-backup" "$ADAPTERS/$name"
+done
+rm -rf "$LINKS"
 
 expect "restore the saved list" 200 "$original" -X PUT --data-binary "$original" "$BASE/tasks"
 

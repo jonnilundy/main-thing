@@ -107,6 +107,7 @@ struct BandSlot: View {
             height: model.geometry.notchHeight,
             isOpen: model.isOpen,
             struck: first.map { model.pending.isPending($0.key) } ?? false,
+            resolving: first.map { store.resolving[$0.key] != nil } ?? false,
             sweep: model.sweep,
             dotColor: model.dotColor,
             flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
@@ -156,6 +157,8 @@ struct Band: View {
     let height: CGFloat
     let isOpen: Bool
     let struck: Bool
+    /// Task 1 was added as a link and waits for its title.
+    var resolving = false
     /// Reminder sweeps so far; each bump runs the shimmer and the dot pulse.
     let sweep: Int
     /// The color clock: the dot now, the band of the step last reached, the dot's tooltip.
@@ -266,6 +269,7 @@ struct Band: View {
                             flash: flash
                         ))
                         .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
+                        .opacity(resolving ? NotchMetrics.resolvingOpacity : 1)
                         .frame(width: menuOpen ? min(NotchMetrics.titleWidth(for: current.title), RowMenu.titleLimit(cardWidth: width)) : NotchMetrics.titleWidth(for: current.title), alignment: .leading)
                         .id(current.key)
                         .transition(quiet ? .identity : Motion.push(reduceMotion))
@@ -401,7 +405,8 @@ struct OpenContent: View {
                         hovered: model.hover == .task(index) || pins.hovered == row.key,
                         pressed: model.pressed == .task(index),
                         held: lifted,
-                        menuOpen: model.menu?.key == row.key
+                        menuOpen: model.menu?.key == row.key,
+                        resolving: store.resolving[row.key] != nil
                     )
                     .equatable()
                     .accessibilityElement(children: .combine)
@@ -546,12 +551,15 @@ struct TaskRow: View, Equatable {
     var held = false
     /// The long press menu is open on this row: the title ends before it.
     var menuOpen = false
+    /// Added as a link, waiting for its title.
+    var resolving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
 
     nonisolated static func == (a: TaskRow, b: TaskRow) -> Bool {
         a.row == b.row && a.number == b.number && a.struck == b.struck && a.width == b.width
             && a.hovered == b.hovered && a.pressed == b.pressed && a.held == b.held && a.menuOpen == b.menuOpen
+            && a.resolving == b.resolving
     }
 
     var body: some View {
@@ -589,6 +597,7 @@ struct TaskRow: View, Equatable {
                     shimmer: 0
                 ))
                 .opacity(struck ? 1 : titleOpacity)
+                .opacity(resolving ? NotchMetrics.resolvingOpacity : 1)
                 .frame(maxWidth: menuOpen ? RowMenu.titleLimit(cardWidth: width) : .infinity, alignment: .leading)
                 // The pen: linear over 220ms with the ease inside the renderer, so the ink grows from
                 // the left end to the right. Undo: a fast erase. Reduce Motion: the ink is just there.
@@ -1015,6 +1024,8 @@ enum NotchMetrics {
     /// The hover preview of the cross off: thinner and translucent next to the real ink.
     static let previewThickness: CGFloat = 1.6
     static let previewOpacity: Double = 0.55
+    /// A task added as a link, while the adapters look up its title: the placeholder shows dim.
+    static let resolvingOpacity: Double = 0.45
     static let flare = NotchGeometry.flare
     static let bottomRadius: CGFloat = 12
     static let openBottomRadius: CGFloat = 24

@@ -52,6 +52,7 @@ main-thing: the task list in the Main Thing notch, over its local API.
   main-thing set "A" "B"      replace the list
   main-thing set -            replace the list, one task per line on stdin
   main-thing set --json -     replace the list from a JSON array on stdin
+  main-thing add "A"          add tasks at the end; "add -" reads one per line on stdin
   main-thing done             mark the current task done
   main-thing done 3           mark the third task done
   main-thing adapters         installed adapters and their last run
@@ -63,7 +64,11 @@ main-thing: the task list in the Main Thing notch, over its local API.
   main-thing help             this text
 
 The list is ordered. The first task is the one in the notch.
-set and done take --source <name> to say who made the change, default cli.
+set, add and done take --source <name> to say who made the change, default cli.
+
+A new task that is exactly one link (https://...) shows a short placeholder, and the installed
+adapters are asked for its title: `<adapter> resolve <url>`. The one that claims it sets the
+title and the ref. When none does, the link stays as the title.
 
 JSON: an array of strings or {"title":"...","ref":"..."} objects. A ref ties a task to the
 same task in another tool, "<adapter>:<id>", for example "openbrain:qh75pbc". Keep it when
@@ -72,6 +77,7 @@ you rewrite the list. Completing that task then closes it in the other tool too.
 HTTP, at http://main-thing.localhost (port 80), or http://main-thing.localhost:7788:
   GET  /tasks        the list, {"tasks":[{"title":"A","ref":"x:1"},{"title":"B"}]}
   PUT  /tasks        replace the list; body: a JSON array as above; answers with the list
+  POST /tasks        add tasks at the end; body as PUT; answers with the list
   POST /tasks/done   complete the first task; body {"index":N} (0 based) or {"ref":"x:1"} picks another
   GET  /status       installed hooks and adapters with their last run
   GET  /health       {"ok":true,"port":80,"version":"0.1.0"}
@@ -207,6 +213,18 @@ case "$cmd" in
             fi
             call PUT "/tasks?source=$SOURCE" "$(json_array "$@")" | titles
         fi
+        ;;
+    add)
+        shift
+        take_source "$@"
+        set -- "${REST[@]+"${REST[@]}"}"
+        if [[ "${1-}" == "-" ]]; then
+            lines=()
+            while IFS= read -r line || [[ -n "$line" ]]; do lines+=("$line"); done
+            set -- "${lines[@]+"${lines[@]}"}"
+        fi
+        [[ $# -gt 0 ]] || fail "add takes one or more titles. Try: main-thing add \"Write the memo\", main-thing add https://linear.app/..."
+        call POST "/tasks?source=$SOURCE" "$(json_array "$@")" | titles
         ;;
     done)
         shift
