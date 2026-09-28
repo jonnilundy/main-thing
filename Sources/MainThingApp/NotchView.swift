@@ -407,7 +407,8 @@ struct OpenContent: View {
                         held: lifted,
                         menuOpen: model.menu?.key == row.key,
                         resolving: store.resolving[row.key] != nil,
-                        quietPreview: model.quietPreviewKey == row.key
+                        quietPreview: model.quietPreviewKey == row.key,
+                        sparkleStart: model.sparkle?.key == row.key ? model.sparkle?.start : nil
                     )
                     .equatable()
                     .accessibilityElement(children: .combine)
@@ -556,13 +557,15 @@ struct TaskRow: View, Equatable {
     var resolving = false
     /// Just added under a still pointer: no cross off preview until the pointer moves.
     var quietPreview = false
+    /// When a pasted link turned into this title: a short sparkle along it.
+    var sparkleStart: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
 
     nonisolated static func == (a: TaskRow, b: TaskRow) -> Bool {
         a.row == b.row && a.number == b.number && a.struck == b.struck && a.width == b.width
             && a.hovered == b.hovered && a.pressed == b.pressed && a.held == b.held && a.menuOpen == b.menuOpen
-            && a.resolving == b.resolving && a.quietPreview == b.quietPreview
+            && a.resolving == b.resolving && a.quietPreview == b.quietPreview && a.sparkleStart == b.sparkleStart
     }
 
     var body: some View {
@@ -614,6 +617,12 @@ struct TaskRow: View, Equatable {
                         .opacity(hovered && !held && !struck && !resolving && !quietPreview ? 1 : 0)
                         // The click hides it at once, as the renderer did when the ink started.
                         .animation(nil, value: struck)
+                }
+                .overlay(alignment: .leading) {
+                    if let sparkleStart {
+                        SparkleBurst(start: sparkleStart, width: titleWidth, seed: row.key)
+                            .allowsHitTesting(false)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -1103,5 +1112,67 @@ struct NotchShape: Shape {
         )
         p.closeSubpath()
         return p
+    }
+}
+
+/// The sparkle when a pasted link turns into its title: small four point stars pop along the
+/// title from left to right, turn a little and fade, all within 300ms. Drawn only while it runs.
+struct SparkleBurst: View {
+    static let count = 7
+    static let stagger = 0.015
+    static let life = 0.2
+    static var duration: Double { Double(count - 1) * stagger + life }
+
+    let start: Date
+    let width: CGFloat
+    let seed: String
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            let elapsed = context.date.timeIntervalSince(start)
+            Canvas { ctx, size in
+                var rng = SeededJitter(seed)
+                for i in 0..<Self.count {
+                    let jx = rng.next() - 0.5, jy = rng.next() - 0.5, js = rng.next()
+                    let t = (elapsed - Double(i) * Self.stagger) / Self.life
+                    guard t > 0, t < 1 else { continue }
+                    let pop = sin(Double.pi * t)
+                    let r = CGFloat(2.2 + 2.2 * js) * CGFloat(pop)
+                    let x = size.width * (CGFloat(i) + 0.5 + CGFloat(jx) * 0.6) / CGFloat(Self.count)
+                    let y = size.height / 2 + CGFloat(jy) * 10 - CGFloat(t) * 2
+                    var star = ctx
+                    star.translateBy(x: x, y: y)
+                    star.rotate(by: .degrees(45 * t))
+                    star.opacity = pop
+                    star.fill(Self.star(radius: r), with: .color(.white))
+                }
+            }
+            .frame(width: max(width, 1) + 8, height: 22)
+            .offset(x: -4)
+        }
+    }
+
+    static func star(radius r: CGFloat) -> Path {
+        let w = r * 0.28
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: -r))
+        p.addLine(to: CGPoint(x: w, y: -w)); p.addLine(to: CGPoint(x: r, y: 0)); p.addLine(to: CGPoint(x: w, y: w))
+        p.addLine(to: CGPoint(x: 0, y: r)); p.addLine(to: CGPoint(x: -w, y: w)); p.addLine(to: CGPoint(x: -r, y: 0))
+        p.addLine(to: CGPoint(x: -w, y: -w)); p.closeSubpath()
+        return p
+    }
+}
+
+/// Stable jitter from a string, so a row's sparkle looks the same every run.
+struct SeededJitter {
+    private var state: UInt64
+    init(_ seed: String) {
+        var h: UInt64 = 1469598103934665603
+        for b in seed.utf8 { h = (h ^ UInt64(b)) &* 1099511628211 }
+        state = h == 0 ? 1 : h
+    }
+    mutating func next() -> Double {
+        state ^= state << 13; state ^= state >> 7; state ^= state << 17
+        return Double(state % 10_000) / 10_000
     }
 }

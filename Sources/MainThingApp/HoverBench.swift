@@ -179,7 +179,7 @@ extension HoverBench {
         for index in 1..<rows.count { sampled.append(("row \(index + 1)", map.center(ofTask: index))) }
         sampled.append(("add card", map.addTop + OpenLayout.addHeight / 2))
         let left = bodyLeft + Lanes.pillInset + 1
-        let right = bodyLeft + Lanes.pillWidth(contentWidth: model.openWidth) + Lanes.pillInset - 1
+        let right = bodyLeft + Lanes.pillWidth(contentWidth: model.openWidth) + Lanes.pillInset - 3
         var failed = false
         print(String(format: "bench gap: %@, %@, band %.0fpt tall, rows 28pt from y %.0f, add card from y %.0f, card %.0fpt wide",
                      fixture, geometry.hasHardwareNotch ? "hardware notch" : "in the menu bar row", geometry.notchHeight, map.rowsTop, map.addTop, model.openWidth))

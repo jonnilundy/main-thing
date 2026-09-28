@@ -44,6 +44,7 @@ final class CardController {
         store.willRekey = { [weak self] old, new in
             self?.quiet()
             self?.model.rekey(from: old, to: new)
+            self?.sparkle(new)
         }
     }
 
@@ -332,6 +333,18 @@ final class CardController {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             self?.model.quietRows = false
+        }
+    }
+
+    /// The row of a resolved link sparkles once. The flag goes when the sparkle is over, so the
+    /// row stops redrawing.
+    private func sparkle(_ key: String) {
+        guard !reduceMotion else { return }
+        let sparkle = NotchModel.Sparkle(key: key, start: Date())
+        model.sparkle = sparkle
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(Int(SparkleBurst.duration * 1000) + 50))
+            if self?.model.sparkle == sparkle { self?.model.sparkle = nil }
         }
     }
 

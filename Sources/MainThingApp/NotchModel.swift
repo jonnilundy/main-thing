@@ -78,6 +78,9 @@ final class NotchModel {
     var quietRows = false
     /// The row just added under a still pointer: no cross off preview on it until the pointer moves.
     var quietPreviewKey: String?
+    /// A pasted link just turned into its title: that row sparkles once, from this moment.
+    var sparkle: Sparkle?
+    struct Sparkle: Equatable { var key: String; var start: Date }
     /// The row key (or "add", "undo") the pointer is on, for the haptics.
     @ObservationIgnored private var hoverKey: String?
 
