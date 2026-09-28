@@ -1115,13 +1115,15 @@ struct NotchShape: Shape {
     }
 }
 
-/// The sparkle when a pasted link turns into its title: small four point stars pop along the
-/// title from left to right, turn a little and fade, all within 300ms. Drawn only while it runs.
+/// The sparkle when a pasted link turns into its title: seven four point stars with a soft glow
+/// pop above and below the title from left to right, turn a little and fade, within 300ms. Drawn
+/// only while it runs.
 struct SparkleBurst: View {
     static let count = 7
-    static let stagger = 0.015
-    static let life = 0.2
+    static let stagger = 0.013
+    static let life = 0.22
     static var duration: Double { Double(count - 1) * stagger + life }
+    static let height: CGFloat = 36
 
     let start: Date
     let width: CGFloat
@@ -1132,23 +1134,26 @@ struct SparkleBurst: View {
             let elapsed = context.date.timeIntervalSince(start)
             Canvas { ctx, size in
                 var rng = SeededJitter(seed)
+                ctx.addFilter(.shadow(color: .white.opacity(0.9), radius: 3))
                 for i in 0..<Self.count {
-                    let jx = rng.next() - 0.5, jy = rng.next() - 0.5, js = rng.next()
+                    let jx = rng.next() - 0.5, jy = rng.next(), js = rng.next()
                     let t = (elapsed - Double(i) * Self.stagger) / Self.life
                     guard t > 0, t < 1 else { continue }
                     let pop = sin(Double.pi * t)
-                    let r = CGFloat(2.2 + 2.2 * js) * CGFloat(pop)
-                    let x = size.width * (CGFloat(i) + 0.5 + CGFloat(jx) * 0.6) / CGFloat(Self.count)
-                    let y = size.height / 2 + CGFloat(jy) * 10 - CGFloat(t) * 2
+                    // Out of the glyphs: above the x-height on even stars, under the baseline on odd.
+                    let side: CGFloat = i % 2 == 0 ? -1 : 1
+                    let r = CGFloat(3.2 + 2.6 * js) * CGFloat(pop)
+                    let x = size.width * (CGFloat(i) + 0.5 + CGFloat(jx) * 0.5) / CGFloat(Self.count)
+                    let y = size.height / 2 + side * (9 + CGFloat(jy) * 4) - CGFloat(t) * 3
                     var star = ctx
                     star.translateBy(x: x, y: y)
-                    star.rotate(by: .degrees(45 * t))
+                    star.rotate(by: .degrees(40 * t))
                     star.opacity = pop
                     star.fill(Self.star(radius: r), with: .color(.white))
                 }
             }
-            .frame(width: max(width, 1) + 8, height: 22)
-            .offset(x: -4)
+            .frame(width: max(width, 1) + 12, height: Self.height)
+            .offset(x: -6)
         }
     }
 
