@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let reminder = Reminder(store: store, model: model)
         let card = CardController(model: model, store: store, panel: panel, toggle: { [weak hover] row in hover?.toggleCompletion(of: row) })
         hover.card = card
+        card.sounds = sounds
         let root = NotchView(
             store: store, model: model, sounds: sounds, reminder: reminder,
             onToggle: { [weak hover] row in hover?.toggleCompletion(of: row) },

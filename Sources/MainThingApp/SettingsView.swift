@@ -26,7 +26,7 @@ struct SettingsView: View {
                 }
                 reminderPicker
             }
-            // Shortcuts section
+            ShortcutsSection()
             Section("Updates") {
                 updates
             }
