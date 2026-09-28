@@ -59,6 +59,7 @@ public enum Launch {
         app.delegate = delegate
         // LSUIElement in Info.plist does this for the bundle. Setting it here too covers `swift run`.
         app.setActivationPolicy(.accessory)
+        EditMenu.install(on: app)
         app.run()
         exit(0)
     }

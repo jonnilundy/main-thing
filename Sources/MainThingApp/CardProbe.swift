@@ -53,6 +53,9 @@ enum CardProbe {
         let card = CardController(model: model, store: store, panel: panel, toggle: { row in hover.toggleCompletion(of: row) })
         card.takesKeyboard = false
         hover.card = card
+        EditMenu.install(on: app)
+        check("edit menu: Command V pastes into the field with the keyboard", EditMenu.item(forCommand: "v", in: app)?.action == #selector(NSText.paste(_:)))
+        check("edit menu: Command C, X, A and Z are there too", ["c", "x", "a", "z"].allSatisfy { EditMenu.item(forCommand: $0, in: app) != nil })
         store.onChange = { hover.listChanged() }
         let hosting = NotchHostingView(rootView: NotchView(store: store, model: model, onToggle: { row in hover.toggleCompletion(of: row) }, card: card))
         panel.contentView = hosting
