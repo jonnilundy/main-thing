@@ -1,0 +1,111 @@
+#!/bin/zsh
+# linear: Main Thing adapter for Linear.
+#
+#   linear resolve <url>    for https://linear.app/<workspace>/issue/<ID>/..., print
+#                           {"id":"ENG-123","title":"..."} from the Linear API; exit 3 for any other link
+#   linear complete <id>    move issue <id> (ENG-123) to its team's first completed state (Done)
+#
+# Needs LINEAR_API_KEY, a Linear personal API key, read from ~/.config/main-thing/linear.env
+# (KEY=value, one per line). When that file holds op:// references, the script runs itself
+# through `op run --env-file`, so the 1Password CLI resolves them and no secret sits on disk.
+# The key goes to curl on stdin, never on a command line, and is never printed.
+# LINEAR_API_URL overrides the GraphQL endpoint, for tests. The event payload on stdin is ignored.
+#
+# Install:  ln -s "$PWD/adapters/linear/linear" ~/.config/main-thing/adapters/linear
+set -u
+
+# The app runs adapters with a small PATH. Add the usual home of `op`.
+path=("$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/main-thing"
+env_file="$config/linear.env"
+script="$0"    # inside a zsh function $0 is the function name
+api="${LINEAR_API_URL:-https://api.linear.app/graphql}"
+
+fail() { print -r -- "linear: $*" >&2; exit 1; }
+
+# Loads the env file. Plain values are sourced. op:// references go through `op run`, which
+# re-runs this script with the values in place. `op run` puts every line in the environment,
+# so the re-run does not source the file again.
+load_env() {
+    [[ -n "${MAIN_THING_LINEAR_ENV_LOADED:-}" ]] && return 0
+    if [[ ! -f "$env_file" ]]; then
+        [[ -n "${LINEAR_API_KEY:-}" ]] && return 0
+        fail "$env_file is missing. Put LINEAR_API_KEY=<key or op:// reference> in it (chmod 600)"
+    fi
+    if /usr/bin/grep -q 'op://' "$env_file"; then
+        command -v op >/dev/null || fail "$env_file holds op:// references but the 1Password CLI (op) is not on PATH"
+        MAIN_THING_LINEAR_ENV_LOADED=1 exec op run --env-file "$env_file" -- "$script" "$@"
+    fi
+    set -a
+    source "$env_file"
+    set +a
+}
+
+# graphql <query> <variables JSON>: prints the "data" object. GraphQL errors and HTTP
+# failures go to stderr with exit 1.
+graphql() {
+    [[ -n "${LINEAR_API_KEY:-}" ]] || fail "LINEAR_API_KEY is not set (put it in $env_file)"
+    local body out code reply
+    body="$(/usr/bin/jq -cn --arg q "$1" --argjson v "$2" '{query: $q, variables: $v}')" || fail "could not build the request"
+    out="$(printf 'Authorization: %s\n' "$LINEAR_API_KEY" |
+        /usr/bin/curl -sS --max-time 4 -H @- -H 'Content-Type: application/json' \
+            --data-binary "$body" -w $'\n%{http_code}' "$api" 2>&1)" || fail "request failed: ${out%%$'\n'*}"
+    code="${out##*$'\n'}"
+    reply="${out%$'\n'*}"
+    local message
+    message="$(print -r -- "$reply" | /usr/bin/jq -r '.errors[0].message // empty' 2>/dev/null)"
+    [[ -n "$message" ]] && fail "Linear API: $message (HTTP $code)"
+    [[ "$code" == 200 ]] || fail "Linear API answered HTTP $code"
+    print -r -- "$reply" | /usr/bin/jq -ce '.data' || fail "Linear API reply has no data"
+}
+
+verb="${1:-}"
+case "$verb" in
+    resolve)
+        url="${2:-}"
+        [[ -n "$url" ]] || { echo "usage: linear resolve <url>" >&2; exit 2; }
+        link="${url%%[?#]*}"
+        rest="${link#*://}"
+        [[ "${(L)${link%%://*}}" == https && "${(L)${rest%%/*}}" == linear.app ]] || exit 3
+        parts=("${(@s:/:)rest}")
+        # linear.app / <workspace> / issue / <ID> [/ slug]
+        (( ${#parts} >= 4 )) && [[ -n "${parts[2]}" && "${parts[3]}" == issue ]] || exit 3
+        id="${(U)parts[4]}"
+        [[ "$id" =~ '^[A-Z0-9]+-[0-9]+$' ]] || exit 3
+        load_env "$@"
+        data="$(graphql 'query($id: String!) { issue(id: $id) { identifier title } }' "$(/usr/bin/jq -cn --arg id "$id" '{id: $id}')")" || exit 1
+        print -r -- "$data" | /usr/bin/jq -ce '.issue | select(.identifier and .title) | {id: .identifier, title: .title}' ||
+            fail "issue $id not found"
+        ;;
+    complete)
+        id="${2:-}"
+        [[ -n "$id" ]] || { echo "usage: linear complete <id>" >&2; exit 2; }
+        load_env "$@"
+        vars="$(/usr/bin/jq -cn --arg id "$id" '{id: $id}')"
+        data="$(graphql 'query($id: String!) { issue(id: $id) { id identifier state { type } team { states(filter: { type: { eq: "completed" } }) { nodes { id name position } } } } }' "$vars")" || exit 1
+        issue="$(print -r -- "$data" | /usr/bin/jq -r '.issue.id // empty')"
+        [[ -n "$issue" ]] || fail "issue $id not found"
+        if [[ "$(print -r -- "$data" | /usr/bin/jq -r '.issue.state.type')" == completed ]]; then
+            print -r -- "linear: $id is already completed" >&2
+            exit 0
+        fi
+        state="$(print -r -- "$data" | /usr/bin/jq -r '.issue.team.states.nodes | sort_by(.position) | first | .id // empty')"
+        [[ -n "$state" ]] || fail "the team of $id has no completed state"
+        vars="$(/usr/bin/jq -cn --arg id "$issue" --arg s "$state" '{id: $id, s: $s}')"
+        data="$(graphql 'mutation($id: String!, $s: String!) { issueUpdate(id: $id, input: { stateId: $s }) { success } }' "$vars")" || exit 1
+        [[ "$(print -r -- "$data" | /usr/bin/jq -r '.issueUpdate.success')" == true ]] || fail "issueUpdate for $id did not succeed"
+        ;;
+    -h|--help|help)
+        sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+        exit 0
+        ;;
+    "")
+        echo "usage: linear resolve <url> | linear complete <id>" >&2
+        exit 2
+        ;;
+    *)
+        echo "linear: unknown verb '$verb'. Only: resolve <url>, complete <id>" >&2
+        exit 2
+        ;;
+esac
