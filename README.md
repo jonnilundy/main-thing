@@ -45,6 +45,7 @@ main-thing help                                     # every command, the JSON sh
 In the notch:
 
 - Hover to open it. The current task stays on top, the rest follow in order.
+- On a MacBook with a camera notch, the card grows out of the camera notch as one shape. With an empty list only the camera notch shows; hover it to open the list and add a task.
 - Click a task to cross it off with a pen stroke. Click it again right away to keep it.
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
@@ -72,7 +73,7 @@ Main Thing uses hot keys for these, so it needs no Accessibility permission. If 
 - **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Discarding a task only deletes it from the list.
 - **Links.** Paste a link to a Linear issue (or a task in any tool with an adapter that resolves links), in the New task field, `main-thing add` or the API. Main Thing shows a short placeholder, the adapter for that tool fills in the title and the ref, and crossing it off closes it there. A link no adapter knows stays as the title.
 - **Hooks.** An executable in `~/.config/main-thing/hooks/` runs on every change, with the event as JSON on stdin.
-- **Sounds.** Crossing off a task plays Cuelume's Loading cue, and a pasted link turning into its title plays Sparkle. Pick another of the 17 Cuelume cues or the Pen scratch in the menu or in Settings, turn either sound off, or drop your own audio files into `~/.config/main-thing/sounds/`.
+- **Sounds.** Crossing off a task plays Cuelume's Loading cue, and a pasted link turning into its title plays Sparkle, with a small sparkle on the title. To pick another of the 17 Cuelume cues, the Pen scratch, your own file or Off, open Settings and change Sound or Link sound; picking one plays it once. Your own audio files go in `~/.config/main-thing/sounds/`.
 - **Updates.** Main Thing checks once a day, downloads in the background, and installs when you quit or pick Install Update from the menu. It never pops up a window on its own, and it only installs updates signed with the project's key.
 
 ## HTTP API
@@ -138,7 +139,7 @@ rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/A
 
 `scripts/test.sh` runs the checks, the hover and card probes, and a smoke test against a throwaway copy of the app in about 18 seconds. `scripts/test.sh --checks-only` skips the smoke test. `scripts/render-previews.sh <dir>` renders every notch state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
 
-The probes run the real notch view in an invisible panel of their own, on a list in memory, and never move the cursor. `MainThing --bench-hover gap [notch|menubar|menubar24]` steps down the open card 1pt at a time and reads back from the rendered view which row is drawn hovered, for a hardware notch, a Studio Display menu bar row or a 24pt menu bar. `MainThing --probe-card` clicks, drags, long presses, renames, discards and adds with events sent inside the app, and checks the list after each.
+The probes run the real notch view in an invisible panel of their own, on a list in memory, and never move the cursor. The card probe's text field checks briefly take the keyboard focus, so run `scripts/test.sh` on a machine or a virtual machine you are not typing on. `MainThing --bench-hover gap [notch|menubar|menubar24]` steps down the open card 1pt at a time and reads back from the rendered view which row is drawn hovered, for a hardware notch, a Studio Display menu bar row or a 24pt menu bar. `MainThing --probe-card` clicks, drags, long presses, renames, discards and adds with events sent inside the app, and checks the list after each.
 
 Hover performance: `MainThing --bench-hover [seconds] [closed]` sweeps the open rows (or moves beside the collapsed notch) with synthesized moves in its own invisible panel and prints the main thread time per move; the cursor never moves. `scripts/bench-trace.sh <out.trace>` records a SwiftUI Instruments trace of the bench, `scripts/sweep-trace.sh <out.trace>` records one of the installed app while you sweep the rows by hand, and `scripts/trace-summary.py <file.trace>` prints hitches, commits, body updates and main thread hot spots of either.
 
