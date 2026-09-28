@@ -6,6 +6,27 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.5.1</title>
+            <pubDate>Mon, 28 Sep 2026 22:58:00 +0000</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>0.5.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.5.1</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.5.1 fixes the double notch on MacBooks and polishes pasting a link.
+
+## Fixed
+
+- **One notch on MacBooks with a camera notch.** The card now grows out of the camera notch as one black shape, instead of a second shape under the menu bar. With an empty list only the camera notch shows; hover it to add a task.
+- **Cmd+V pastes into New task and Rename.**
+- **Return adds the task in place.** The typed text becomes the new row where it is, and the empty field shows below it, with no flicker.
+- **No cross off line on a task you just added**, until you move the pointer.
+
+## New
+
+- **A pasted Linear link sparkles** when it turns into the issue's title.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.5.1/MainThing-0.5.1.zip" length="2546674" type="application/octet-stream" sparkle:edSignature="uSyzxVozOiKrNwwb8fT5E9AmDvPyMx1aun1MIuBZQE7GUNYiwrQWsravzMrQfFb0SfDh2V9Q0PBk+i/mYua3Cg=="/>
+        </item>
+        <item>
             <title>Version 0.5.0</title>
             <pubDate>Mon, 28 Sep 2026 19:28:18 +0000</pubDate>
             <sparkle:version>6</sparkle:version>
