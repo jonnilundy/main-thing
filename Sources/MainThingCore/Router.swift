@@ -193,8 +193,29 @@ public enum MainThingRouter {
                 case .failure(let error):
                     return unchanged(.error(400, error.reason))
                 }
+            case "POST":
+                // Appends: the same body as PUT, added at the end of the list.
+                let source: String
+                switch MainThingRouter.source(of: request) {
+                case .success(let s): source = s
+                case .failure(let error): return unchanged(.error(400, error.reason))
+                }
+                switch BodyDecoding.tasks(from: request.body) {
+                case .success(let tasks):
+                    for (i, task) in tasks.enumerated() {
+                        if let ref = task.ref, list.key(ref: ref) != nil {
+                            return unchanged(.error(400, "item \(i): the ref \(ref) is already on the list"))
+                        }
+                    }
+                    let all = list.tasks + tasks
+                    var next = list
+                    next.replace(all)
+                    return Outcome(response: .json(200, JSONBody.tasks(next)), list: next, changed: true, action: .replace(all, source: source))
+                case .failure(let error):
+                    return unchanged(.error(400, error.reason))
+                }
             default:
-                return unchanged(methodNotAllowed(request.method, path, allow: "GET, PUT"))
+                return unchanged(methodNotAllowed(request.method, path, allow: "GET, PUT, POST"))
             }
 
         case "/tasks/done":
