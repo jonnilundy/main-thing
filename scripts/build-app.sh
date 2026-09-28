@@ -43,6 +43,9 @@ fi
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/*.wav "$APP/Contents/Resources/"
+# KeyboardShortcuts' strings (the Settings recorder). Its Bundle.module looks in Contents/Resources
+# and stops the app when the bundle is missing.
+cp -R ".build/release/KeyboardShortcuts_KeyboardShortcuts.bundle" "$APP/Contents/Resources/"
 cp "bin/main-thing" "$APP/Contents/Resources/main-thing"
 chmod 755 "$APP/Contents/Resources/main-thing"
 PLIST="$APP/Contents/Info.plist"
