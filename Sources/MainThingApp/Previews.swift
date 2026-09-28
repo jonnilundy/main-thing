@@ -33,7 +33,7 @@ private let sampleTitles = [
     "Draft the Q4 plan",
 ]
 
-/// A 14 inch MacBook Pro: the notch hangs below a 32pt menu bar under a 185pt housing.
+/// A 14 inch MacBook Pro: the card hangs below a 32pt menu bar, bridged to a 185pt housing.
 private let previewScreen = ScreenInfo(
     frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
     visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 950),
@@ -42,12 +42,40 @@ private let previewScreen = ScreenInfo(
     auxiliaryTopRight: CGRect(x: 848.5, y: 950, width: 663.5, height: 32)
 )
 
+/// A Studio Display: no hardware notch, the shape sits in the 30pt menu bar row.
+private let plainScreen = ScreenInfo(
+    frame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
+    visibleFrame: CGRect(x: 0, y: 0, width: 2560, height: 1410)
+)
+
 private let backdrop = Color(red: 0.16, green: 0.16, blue: 0.18)
+/// A light menu bar, so a gap between the camera notch and the card would show as a grey strip.
+private let menuBar = Color(white: 0.8)
+
+/// The desktop behind the notch. Under a hardware notch: the menu bar row with the camera housing
+/// in it, drawn under the app's shape, as the screen shows it.
+private struct Backdrop: View {
+    let geometry: NotchGeometry
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            backdrop
+            if let bridge = geometry.bridgeRect {
+                menuBar.frame(height: bridge.height)
+                UnevenRoundedRectangle(bottomLeadingRadius: 9, bottomTrailingRadius: 9, style: .continuous)
+                    .fill(.black)
+                    .frame(width: bridge.width, height: bridge.height)
+                    .offset(x: geometry.bridgeOffset)
+            }
+        }
+    }
+}
 
 /// The notch over the backdrop. `pending` and `hovered` are row indexes in `titles`.
 @MainActor
 private func notch(
     open: Bool,
+    screen: ScreenInfo = previewScreen,
     titles: [String] = sampleTitles,
     pending: [Int] = [],
     hovered: Int? = nil,
@@ -57,7 +85,7 @@ private func notch(
     edit: (NotchModel, TaskStore) -> Void = { _, _ in }
 ) -> some View {
     let store = TaskStore(previewTitles: titles)
-    let geometry = NotchGeometry(screen: previewScreen)
+    let geometry = NotchGeometry(screen: screen)
     let model = NotchModel(geometry: geometry, apiPort: APIPort.preferred)
     let rows = store.list.rows
     model.isOpen = open
@@ -70,8 +98,9 @@ private func notch(
         .environment(\.previewPins, pins)
         // The snapshot is taken at once: states set on appear land without their animation.
         .transaction { $0.animation = nil }
-        .frame(width: 520, height: height)
-        .background(backdrop)
+        // `height` is the card's room; the menu bar row comes on top under a hardware notch.
+        .frame(width: 520, height: height + geometry.cardTop)
+        .background(Backdrop(geometry: geometry))
 }
 
 #Preview("Collapsed", traits: .sizeThatFitsLayout) {
@@ -79,11 +108,30 @@ private func notch(
 }
 
 #Preview("Collapsed empty", traits: .sizeThatFitsLayout) {
+    // Under a hardware notch: nothing of ours, the camera notch alone.
     notch(open: false, titles: [], height: 64)
+}
+
+#Preview("Collapsed long title", traits: .sizeThatFitsLayout) {
+    // Wider than the camera notch: the join flares out to the card's width.
+    notch(open: false, titles: ["Write the launch post for the new API and send it to the team"] + sampleTitles.dropFirst(), height: 64)
 }
 
 #Preview("Open", traits: .sizeThatFitsLayout) {
     notch(open: true, height: 210)
+}
+
+#Preview("Open empty", traits: .sizeThatFitsLayout) {
+    // Opened from the camera with nothing on the list: the card grows out of the notch.
+    notch(open: true, titles: [], height: 120)
+}
+
+#Preview("No notch collapsed", traits: .sizeThatFitsLayout) {
+    notch(open: false, screen: plainScreen, height: 64)
+}
+
+#Preview("No notch open", traits: .sizeThatFitsLayout) {
+    notch(open: true, screen: plainScreen, height: 210)
 }
 
 #Preview("Open hovered row", traits: .sizeThatFitsLayout) {
