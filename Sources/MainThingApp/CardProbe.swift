@@ -241,6 +241,9 @@ enum CardProbe {
             card.submitAdd()
             check("Add: Return adds the task at the end", titles.last == "Book the flights" && titles.count == 6)
             check("Add: the field stays open, empty, for another", model.adding && model.addText.isEmpty)
+            check("Add: no hover line on the new row under a still pointer", model.quietPreviewKey == store.list.rows.last?.key)
+            send(.mouseMoved, CGPoint(x: title + 20, y: card.map.addTop + 12))
+            check("Add: the hover line comes back once the pointer moves", model.quietPreviewKey == nil)
             model.addText = "  "
             card.submitAdd()
             check("Add: a blank title adds nothing", titles.count == 6)

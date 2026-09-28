@@ -406,7 +406,8 @@ struct OpenContent: View {
                         pressed: model.pressed == .task(index),
                         held: lifted,
                         menuOpen: model.menu?.key == row.key,
-                        resolving: store.resolving[row.key] != nil
+                        resolving: store.resolving[row.key] != nil,
+                        quietPreview: model.quietPreviewKey == row.key
                     )
                     .equatable()
                     .accessibilityElement(children: .combine)
@@ -553,13 +554,15 @@ struct TaskRow: View, Equatable {
     var menuOpen = false
     /// Added as a link, waiting for its title.
     var resolving = false
+    /// Just added under a still pointer: no cross off preview until the pointer moves.
+    var quietPreview = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.previewPins) private var pins
 
     nonisolated static func == (a: TaskRow, b: TaskRow) -> Bool {
         a.row == b.row && a.number == b.number && a.struck == b.struck && a.width == b.width
             && a.hovered == b.hovered && a.pressed == b.pressed && a.held == b.held && a.menuOpen == b.menuOpen
-            && a.resolving == b.resolving
+            && a.resolving == b.resolving && a.quietPreview == b.quietPreview
     }
 
     var body: some View {
@@ -608,7 +611,7 @@ struct TaskRow: View, Equatable {
                         .frame(height: PreviewStroke.height)
                         .alignmentGuide(.firstTextBaseline) { _ in PreviewStroke.height }
                         // No cross off preview on a link still waiting for its title.
-                        .opacity(hovered && !held && !struck && !resolving ? 1 : 0)
+                        .opacity(hovered && !held && !struck && !resolving && !quietPreview ? 1 : 0)
                         // The click hides it at once, as the renderer did when the ink started.
                         .animation(nil, value: struck)
                 }

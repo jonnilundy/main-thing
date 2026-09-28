@@ -61,6 +61,9 @@ final class CardController {
 
     /// The card as it is laid out now.
     var map: CardMap { CardMap(model: model, store: store) }
+    /// The last pointer position in card coordinates, and where it was when a row was added.
+    private var lastPointer: CGPoint?
+    private var quietPreviewFrom: CGPoint?
 
     /// A panel point (origin top left) in card coordinates: y from the card's top, x from the body edge.
     func cardPoint(_ panelPoint: CGPoint) -> CGPoint {
@@ -92,6 +95,10 @@ final class CardController {
         // A held task is lifted on its own; nothing else lights up under it.
         if model.drag != nil { return }
         let p = cardPoint(panelPoint)
+        lastPointer = p
+        if model.quietPreviewKey != nil, let from = quietPreviewFrom, hypot(p.x - from.x, p.y - from.y) > 3 {
+            model.quietPreviewKey = nil
+        }
         if var menu = model.menu {
             // The menu's row stays lit while the menu is up; its items light under the pointer.
             let item = RowMenu.item(at: p, in: menu.frame)
@@ -403,6 +410,9 @@ final class CardController {
             model.addText = ""
             store.replace(tasks, source: EventSource.notch)
         }
+        // The new row lands under the pointer, which did not move to it: no hover line on it yet.
+        model.quietPreviewKey = store.list.rows.last?.key
+        quietPreviewFrom = lastPointer
         log.notice("added a task")
     }
 

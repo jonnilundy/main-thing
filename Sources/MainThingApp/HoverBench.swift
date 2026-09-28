@@ -107,6 +107,15 @@ enum HoverBench {
             // Wired after the enter: an enter reports the real cursor, which is somewhere else.
             if !closed { hosting.onMouseMove = { point in hover.evaluate(at: point, source: "tracking") } }
             if gap {
+                // The card grows to its open width with a spring; sampling the right column before it
+                // settles found no pill there now and then. Wait for the shape to hold still.
+                var settled = model.shapeRect
+                for _ in 0..<40 {
+                    try? await Task.sleep(for: .milliseconds(25))
+                    if model.shapeRect == settled, model.isOpen { break }
+                    settled = model.shapeRect
+                }
+                try? await Task.sleep(for: .milliseconds(150))
                 let dead = await probeGap(panel: panel, hosting: hosting, hover: hover, model: model, rows: rows, x: x, height: size.height, fixture: fixture ?? "screen")
                 exit(dead ? 5 : 0)
             }

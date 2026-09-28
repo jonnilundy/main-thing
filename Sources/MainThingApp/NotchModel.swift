@@ -76,6 +76,8 @@ final class NotchModel {
     var discarded: Discarded?
     /// A reorder or a rename just landed: rows come and go without their transitions.
     var quietRows = false
+    /// The row just added under a still pointer: no cross off preview on it until the pointer moves.
+    var quietPreviewKey: String?
     /// The row key (or "add", "undo") the pointer is on, for the haptics.
     @ObservationIgnored private var hoverKey: String?
 
