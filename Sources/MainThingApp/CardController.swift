@@ -34,6 +34,9 @@ final class CardController {
     var takesKeyboard = true
     /// The clock, for the Undo's 4 seconds.
     var now: () -> TimeInterval = { Date.timeIntervalSinceReferenceDate }
+    /// The link sound's player: the app's own, set at launch before the card is made. The bench
+    /// and the probe never set it, so their links resolve without a sound.
+    var sounds: Sounds? = SettingsWindow.sounds
     /// The New task field closed: a card the Add task shortcut opened can close with it.
     var onAddClosed: (() -> Void)?
 
@@ -47,6 +50,7 @@ final class CardController {
             self?.quiet()
             self?.model.rekey(from: old, to: new)
             self?.sparkle(new)
+            self?.sounds?.linkResolved()
         }
     }
 

@@ -49,7 +49,7 @@ In the notch:
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
 - Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 4 seconds.
-- Right click for the menu: Sound, Reminder, Launch at Login, Check for Updates, Settings.
+- Right click for the menu: Sound, Link Sound, Reminder, Launch at Login, Check for Updates, Settings.
 
 <img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task, a drag by its number moves another to second place, a new task is typed at the bottom, and a long press opens Rename and Discard" width="100%">
 
@@ -72,7 +72,7 @@ Main Thing uses hot keys for these, so it needs no Accessibility permission. If 
 - **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Discarding a task only deletes it from the list.
 - **Links.** Paste a link to a Linear issue (or a task in any tool with an adapter that resolves links), in the New task field, `main-thing add` or the API. Main Thing shows a short placeholder, the adapter for that tool fills in the title and the ref, and crossing it off closes it there. A link no adapter knows stays as the title.
 - **Hooks.** An executable in `~/.config/main-thing/hooks/` runs on every change, with the event as JSON on stdin.
-- **Sounds.** Pick a sound in the menu, or drop your own audio files into `~/.config/main-thing/sounds/`.
+- **Sounds.** Crossing off a task plays Cuelume's Loading cue, and a pasted link turning into its title plays Sparkle. Pick another of the 17 Cuelume cues or the Pen scratch in the menu or in Settings, turn either sound off, or drop your own audio files into `~/.config/main-thing/sounds/`.
 - **Updates.** Main Thing checks once a day, downloads in the background, and installs when you quit or pick Install Update from the menu. It never pops up a window on its own, and it only installs updates signed with the project's key.
 
 ## HTTP API
@@ -145,6 +145,8 @@ Hover performance: `MainThing --bench-hover [seconds] [closed]` sweeps the open 
 ## Credits
 
 [KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts) by Sindre Sorhus records and runs the global shortcuts. MIT license.
+
+[Cuelume](https://github.com/Danilaa1/cuelume) by Daniel Belyi designed the 17 cues. They are rendered once to `Resources/Sounds/cuelume/` by `scripts/render-cues/render.mjs`, with [its license](Resources/Sounds/cuelume/LICENSE). MIT license.
 
 ## License
 
