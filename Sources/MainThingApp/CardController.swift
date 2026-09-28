@@ -40,6 +40,11 @@ final class CardController {
         self.store = store
         self.panel = panel
         self.toggle = toggle
+        // A resolved link is the same row with a new key: swap it in place, no leave and enter.
+        store.willRekey = { [weak self] old, new in
+            self?.quiet()
+            self?.model.rekey(from: old, to: new)
+        }
     }
 
     private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }

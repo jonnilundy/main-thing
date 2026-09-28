@@ -26,6 +26,9 @@ final class TaskStore {
     @ObservationIgnored private var linkToken = 0
     /// True while the row with this key is being renamed: a late title never lands under the user.
     @ObservationIgnored var isEditing: (@MainActor (String) -> Bool)?
+    /// A resolved link gets a ref, so its row key changes from the title's to the ref's. Called
+    /// with the old and the new key right before the change lands.
+    @ObservationIgnored var willRekey: (@MainActor (String, String) -> Void)?
 
     struct PendingLink: Equatable {
         let url: String
@@ -128,6 +131,7 @@ final class TaskStore {
         switch result {
         case .resolved(let title, let ref, let adapter):
             if let tasks = list.resolving(key: key, title: title, ref: ref) {
+                willRekey?(key, "ref:\(ref)")
                 apply(tasks, source: "resolve", links: false)
                 log.notice("link resolved by \(adapter, privacy: .public) as \(ref, privacy: .public)")
             } else {

@@ -95,6 +95,13 @@ final class NotchModel {
     /// The pointer is over `slot`, which holds `key`. A light trackpad tick once per row the
     /// cursor enters, never while the rows animate under it. Only Force Touch trackpads make a
     /// sound of it. A new key in the same slot (a row left under a still cursor) is a new row.
+    /// A row's key changed (a link resolved): it is the same row, so the hover stays on it with no
+    /// new tick, and a quiet preview stays quiet.
+    func rekey(from old: String, to new: String) {
+        if hoverKey == old { hoverKey = new }
+        if quietPreviewKey == old { quietPreviewKey = new }
+    }
+
     func setHover(_ slot: CardSlot, key: String?, animated: Bool) {
         guard slot != hover || key != hoverKey else { return }
         if let old = hoverKey, old != key {
