@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import MainThingCore
 import SwiftUI
 import os
@@ -79,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         card.start()
         self.card = card
         hover.start()
+        installShortcuts(hover: hover)
 
         snapshotter = Snapshotter(store: store, model: model)
         snapshotter?.start()
@@ -94,6 +96,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         log.info("panel up at \(NSStringFromRect(geometry.panelFrame), privacy: .public), notch height \(geometry.notchHeight, privacy: .public), hardware notch \(geometry.hasHardwareNotch, privacy: .public), api ports \(server.candidates.map(String.init).joined(separator: ", "), privacy: .public)")
+    }
+
+    /// The global shortcuts, changed in Settings > Shortcuts. Carbon hot keys: they work from any
+    /// app and need no Accessibility permission.
+    private func installShortcuts(hover: HoverController) {
+        KeyboardShortcuts.onKeyDown(for: .showList) { [weak hover] in hover?.showList() }
+        KeyboardShortcuts.onKeyDown(for: .addTask) { [weak hover] in hover?.addTask() }
+        KeyboardShortcuts.onKeyDown(for: .crossOffMain) { [weak hover] in hover?.crossOffMain() }
     }
 
     /// Geometry for the chosen screen: the one with a hardware notch, else the primary.

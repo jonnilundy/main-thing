@@ -34,6 +34,8 @@ final class CardController {
     var takesKeyboard = true
     /// The clock, for the Undo's 4 seconds.
     var now: () -> TimeInterval = { Date.timeIntervalSinceReferenceDate }
+    /// The New task field closed: a card the Add task shortcut opened can close with it.
+    var onAddClosed: (() -> Void)?
 
     init(model: NotchModel, store: TaskStore, panel: NSPanel, toggle: @escaping (TaskList.Row) -> Void) {
         self.model = model
@@ -440,6 +442,7 @@ final class CardController {
         model.addText = ""
         withAnimation(reduceMotion ? Motion.reducedFade : Motion.fade) { model.adding = false }
         releaseKeyboard()
+        onAddClosed?()
     }
 
     /// A press elsewhere, or the keyboard went to another app: a rename keeps its new title, a

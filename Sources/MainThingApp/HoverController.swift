@@ -1,4 +1,5 @@
 import AppKit
+import KeyboardShortcuts
 import MainThingCore
 import Observation
 import os
@@ -25,7 +26,13 @@ final class HoverController {
     /// Last cursor position seen in an event, AppKit screen coordinates.
     private var lastScreenPoint: CGPoint
     /// The open card's pointer: every move goes on to it, for the rows' hover.
-    weak var card: CardController?
+    weak var card: CardController? {
+        didSet { card?.onAddClosed = { [weak self] in self?.addFieldClosed() } }
+    }
+    /// The card a shortcut opened, open off the shape until the pointer has been on it and left.
+    private var pin: ShortcutPin?
+    /// Escape as a hot key while Show list holds the card open: the app in front keeps the keyboard.
+    private var escape: Task<Void, Never>?
 
     init(panel: NSPanel, model: NotchModel, store: TaskStore, layout: PanelLayout, sounds: Sounds) {
         self.panel = panel
@@ -102,6 +109,21 @@ final class HoverController {
         let point = NotchHover.panelPoint(screenPoint: screenPoint, panelFrame: panel.frame)
         let inside = NotchHover.inside(point, shape: model.shapeRect, bridge: model.geometry.bridgeRect, isOpen: model.isOpen)
         log.debug("\(source, privacy: .public) screen (\(Int(screenPoint.x), privacy: .public),\(Int(screenPoint.y), privacy: .public)) panel (\(Int(point.x), privacy: .public),\(Int(point.y), privacy: .public)) shape \(NSStringFromRect(self.model.shapeRect), privacy: .public) inside \(inside, privacy: .public) open \(self.model.isOpen, privacy: .public)")
+        if var pin {
+            if pin.holds(inside: inside) {
+                self.pin = pin
+                setClickThrough(!inside)
+                if inside {
+                    card?.pointer(at: point)
+                } else if model.drag == nil {
+                    // Not `card.pointer(at: nil)`: that closes an empty New task field.
+                    model.setHover(.none, key: nil, animated: true)
+                }
+                return
+            }
+            log.notice("shortcut pin over: the pointer left the card")
+            endPin()
+        }
         setClickThrough(!inside)
         switch NotchHover.intent(isOpen: model.isOpen, inside: inside) {
         case .open: setOpen(true)
@@ -136,6 +158,7 @@ final class HoverController {
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public)) in \(ms, format: .fixed(precision: 1), privacy: .public) ms")
         if !open {
+            endPin()
             model.pending = PendingCompletions()
             card?.closed()
             layout.fitClosed()
@@ -169,6 +192,91 @@ final class HoverController {
                 self.store.complete(key: row.key, expected: row.title, source: EventSource.notch)
                 self.refresh()
             }
+        }
+    }
+
+    // MARK: Shortcuts
+
+    /// Show list: open the card and keep it open. Pressed again while it holds: close.
+    func showList() {
+        if pin != nil {
+            log.notice("shortcut: show list again, closing")
+            closePinned()
+            return
+        }
+        log.notice("shortcut: show list")
+        pinOpen(.list)
+    }
+
+    /// Add task: open the card with the New task field, the keyboard in it. Return and Escape
+    /// work as in a field opened with a click; the card closes with the field.
+    func addTask() {
+        log.notice("shortcut: add task")
+        pinOpen(.add)
+        card?.openAdd()
+    }
+
+    /// Cross off task 1, as a click on it does: the pen, the sound, and a second press in the
+    /// window keeps it.
+    func crossOffMain() {
+        guard let first = store.list.rows.first else {
+            log.notice("shortcut: cross off, the list is empty")
+            return
+        }
+        log.notice("shortcut: cross off main task")
+        toggleCompletion(of: first)
+    }
+
+    private func pinOpen(_ reason: ShortcutPin.Reason) {
+        if pin == nil { pin = ShortcutPin(reason) } else { pin?.reason = reason }
+        setOpen(true)
+        // The New task field takes its own Escape; a Carbon hot key would swallow it.
+        listenForEscape(reason == .list)
+        evaluate(at: NSEvent.mouseLocation, source: "shortcut")
+    }
+
+    private func endPin() {
+        pin = nil
+        listenForEscape(false)
+    }
+
+    /// The shortcut again, or Escape: a field keeps what it holds, as with a click elsewhere,
+    /// and the card closes.
+    private func closePinned() {
+        endPin()
+        card?.endFields(commit: true)
+        setOpen(false)
+    }
+
+    /// The New task field closed (Escape, or a click in another app) while Add task held the card:
+    /// the card stays only if the pointer is on it.
+    private func addFieldClosed() {
+        guard pin?.reason == .add else { return }
+        endPin()
+        evaluate(at: lastScreenPoint, source: "add closed")
+    }
+
+    private func listenForEscape(_ on: Bool) {
+        guard on != (escape != nil) else { return }
+        escape?.cancel()
+        escape = nil
+        guard on else { return }
+        escape = Task { @MainActor [weak self] in
+            for await _ in KeyboardShortcuts.events(.keyDown, for: .init(.escape)) {
+                self?.escapePressed()
+            }
+        }
+    }
+
+    /// Escape as it works in the card: it ends a rename or a New task field first, then closes.
+    private func escapePressed() {
+        log.notice("shortcut: escape")
+        if model.renaming != nil {
+            card?.cancelRename()
+        } else if model.adding {
+            card?.closeAdd()
+        } else {
+            closePinned()
         }
     }
 }
