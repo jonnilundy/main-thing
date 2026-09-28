@@ -43,6 +43,9 @@ fi
 cp "Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/*.wav "$APP/Contents/Resources/"
+# The Cuelume cues, rendered by scripts/render-cues, with their license.
+mkdir -p "$APP/Contents/Resources/Sounds"
+cp -R Resources/Sounds/cuelume "$APP/Contents/Resources/Sounds/"
 # KeyboardShortcuts' strings (the Settings recorder). Its Bundle.module looks in Contents/Resources
 # and stops the app when the bundle is missing.
 cp -R ".build/release/KeyboardShortcuts_KeyboardShortcuts.bundle" "$APP/Contents/Resources/"

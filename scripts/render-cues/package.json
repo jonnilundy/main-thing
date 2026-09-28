@@ -1,0 +1,13 @@
+{
+  "name": "main-thing-render-cues",
+  "private": true,
+  "description": "Renders the Cuelume cues to the sound files Main Thing ships. See render.mjs.",
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "cuelume": "0.2.2",
+    "playwright-core": "1.63.0"
+  }
+}
