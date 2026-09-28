@@ -33,6 +33,8 @@ Needs macOS 15 and Swift 6 (Xcode or its Command Line Tools). The script builds 
 
 ```sh
 main-thing set "Write the memo" "Review the plan"   # replace the list
+main-thing add "Book the room"                      # add a task at the end
+main-thing add https://linear.app/acme/issue/ENG-1  # a link: an adapter fills in the title
 main-thing                                          # print the current task
 main-thing list                                     # print the list, one task per line
 main-thing done                                     # cross off the current task
@@ -56,6 +58,7 @@ In the notch:
 - **Reminder flash.** Every few minutes a colored band sweeps across the current task. The color steps through 10 hues, so the same color coming back tells you how long you have been on the task. Hover the dot to read the time.
 - **Refs.** A task can carry its id in another tool, written `<adapter>:<id>`, for example `openbrain:qh75pbc`. `main-thing set --json -` and `main-thing list --json` keep refs.
 - **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Discarding a task only deletes it from the list.
+- **Links.** Paste a link to a task in another tool, in the New task field, `main-thing add` or the API. Main Thing shows a short placeholder, the adapter for that tool fills in the title and the ref, and crossing it off closes it there. A link no adapter knows stays as the title.
 - **Hooks.** An executable in `~/.config/main-thing/hooks/` runs on every change, with the event as JSON on stdin.
 - **Sounds.** Pick a sound in the menu, or drop your own audio files into `~/.config/main-thing/sounds/`.
 - **Updates.** Main Thing checks once a day, downloads in the background, and installs when you quit or pick Install Update from the menu. It never pops up a window on its own, and it only installs updates signed with the project's key.
@@ -68,6 +71,7 @@ The command wraps a local API at `http://main-thing.localhost` (port 7788 if por
 | --- | --- |
 | `GET /tasks` | The list |
 | `PUT /tasks` | Replace the list. Body: a JSON array of titles or `{"title","ref"}` objects |
+| `POST /tasks` | Add tasks at the end. Body: as for `PUT` |
 | `POST /tasks/done` | Cross off the first task. Body `{"index":N}` or `{"ref":"..."}` picks another |
 | `GET /health` | Is the app up, and on which port |
 
@@ -79,9 +83,10 @@ Loopback only. Requests with an `Origin` header are refused, so a web page canno
 
 ## Adapters
 
-An adapter is an executable at `~/.config/main-thing/adapters/<name>`. When a task with the ref `<name>:<id>` is crossed off, Main Thing runs `<name> complete <id>`.
+An adapter is an executable at `~/.config/main-thing/adapters/<name>`. When a task with the ref `<name>:<id>` is crossed off, Main Thing runs `<name> complete <id>`. When a new task is one link, Main Thing runs `<name> resolve <url>` to get its title and id.
 
 - Open Brain: [adapters/openbrain/README.md](adapters/openbrain/README.md)
+- Linear: [adapters/linear/README.md](adapters/linear/README.md)
 
 To write your own, see [adapters/README.md](adapters/README.md).
 
