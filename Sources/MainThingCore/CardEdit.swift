@@ -31,8 +31,12 @@ public struct CardMap: Equatable, Sendable {
     /// The add card shows (hovered, or its field open). Folded, its slot is only the bottom
     /// padding: the card keeps no blank row, and hovering the padding unfolds it.
     public var addOpen: Bool
+    /// Above the card's top edge is the bridge under the camera (a hardware notch). The pointer
+    /// there opens the card but is on no slot: a click on the camera crosses nothing off.
+    public var bridged: Bool
 
-    public init(notchHeight: CGFloat, taskCount: Int, undoRow: Int? = nil, notesHeight: CGFloat = 0, rowsMax: CGFloat? = nil, scroll: CGFloat = 0, addOpen: Bool = false) {
+    public init(notchHeight: CGFloat, taskCount: Int, undoRow: Int? = nil, notesHeight: CGFloat = 0, rowsMax: CGFloat? = nil, scroll: CGFloat = 0, addOpen: Bool = false, bridged: Bool = false) {
+        self.bridged = bridged
         self.notchHeight = notchHeight
         self.taskCount = max(taskCount, 0)
         self.undoRow = undoRow
@@ -88,9 +92,10 @@ public struct CardMap: Equatable, Sendable {
         return list
     }
 
-    /// The slot under a point `y` from the card's top. Above the first slot is the first; below
-    /// the last is the add card.
+    /// The slot under a point `y` from the card's top. Above the first slot is the first (on a
+    /// bridged card, above the top edge is the bridge: none); below the last is the add card.
     public func slot(atY y: CGFloat) -> CardSlot {
+        if bridged, y < 0 { return .none }
         let regions = self.regions
         var chosen = regions[0]
         for (index, region) in regions.enumerated() {

@@ -22,6 +22,8 @@ func runGeometryChecks() {
     let plain = s.collapsedShapeFrame(contentWidth: 100)
     check("studio: empty or short title gives the 185pt width", plain.width == 185 && plain.height == 30)
     check("studio: collapsed shape starts at the panel top", plain.minY == 0 && plain.maxY == 30)
+    check("studio: no bridge, card top 0", s.bridgeRect == nil && s.cardTop == 0 && s.bridgeOffset == 0)
+    check("studio: an empty list still draws the plain notch", s.drawsCollapsed(taskCount: 0) && s.drawsCollapsed(taskCount: 1))
     check("studio: collapsed shape centered in the panel", abs(plain.midX - 400) <= 0.5)
     let long = s.collapsedShapeFrame(contentWidth: 258)
     check("studio: a long title widens the shape", long.width == 258 + 16 && long.minY == 0)
@@ -40,13 +42,14 @@ func runGeometryChecks() {
     check("mbp: menu bar 32", m.menuBarHeight == 32)
     check("mbp: housing width 185", m.hardwareNotchWidth == 185)
     check("mbp: centered under the housing", m.centerX == 756 && m.panelFrame.midX == 756)
-    check("mbp: panel top is the menu bar bottom", m.panelFrame.maxY == 982 - 32)
-    check("mbp: panel x 356 y 690", m.panelFrame.origin == CGPoint(x: 356, y: 690))
+    check("mbp: panel top is the screen top", m.panelFrame.maxY == 982)
+    check("mbp: panel x 356 y 722", m.panelFrame.origin == CGPoint(x: 356, y: 722))
     check("mbp: collapsed height 30", m.notchHeight == 30)
-    check("mbp: at least the housing width", m.minimumWidth == 169)
+    check("mbp: card body at least the housing width", m.minimumWidth == 185)
+    check("mbp: card top is the menu bar bottom", m.cardTop == 32)
     let under = m.collapsedShapeFrame(contentWidth: 100)
-    check("mbp: nothing in the menu bar row", under.minY == 0 && m.panelFrame.maxY <= mbp.visibleFrame.maxY)
-    check("mbp: shape is the housing width", under.width == 185 && under.height == 30)
+    check("mbp: the card starts at the menu bar bottom", under.minY == 32 && m.panelFrame.maxY - under.minY == mbp.visibleFrame.maxY)
+    check("mbp: card body is the housing width", under.width - 2 * NotchGeometry.flare == 185 && under.height == 30)
 
     // A wider housing wins over the 185pt floor.
     let wide = ScreenInfo(
@@ -54,7 +57,7 @@ func runGeometryChecks() {
         auxiliaryTopLeft: CGRect(x: 0, y: 950, width: 656, height: 32),
         auxiliaryTopRight: CGRect(x: 856, y: 950, width: 656, height: 32)
     )
-    check("wide housing: minimum width follows the housing", NotchGeometry(screen: wide).minimumWidth == 200 - 16)
+    check("wide housing: minimum width follows the housing", NotchGeometry(screen: wide).minimumWidth == 200)
 
     // Primary notch screen placed with an offset origin.
     let offset = ScreenInfo(
@@ -66,8 +69,9 @@ func runGeometryChecks() {
     )
     let o = NotchGeometry(screen: offset)
     check("offset screen: centered under its housing", o.centerX == 3316)
-    check("offset screen: panel top is that screen's menu bar bottom", o.panelFrame.maxY == 1182 - 32)
-    check("offset screen: panel origin", o.panelFrame.origin == CGPoint(x: 2916, y: 890))
+    check("offset screen: panel top is that screen's top", o.panelFrame.maxY == 1182)
+    check("offset screen: panel origin", o.panelFrame.origin == CGPoint(x: 2916, y: 922))
+    check("offset screen: bridge over its housing", o.bridgeRect == CGRect(x: 3316 - 92.5 - 2916, y: 0, width: 185, height: 32))
 
     // Edge cases.
     let flat = ScreenInfo(frame: CGRect(x: 0, y: 0, width: 1000, height: 500), visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 500))

@@ -19,6 +19,17 @@ public enum NotchHover {
         return reach.contains(point)
     }
 
+    /// The same with a bridge (under a hardware notch, see `NotchGeometry.bridgeRect`): the bridge
+    /// is part of the shape, collapsed or open, even when the card draws nothing (an empty list).
+    /// The open slack never reaches above the card's top edge, so the menu bar row beside the
+    /// camera stays click through. Nil bridge: the plain rule.
+    public static func inside(_ point: CGPoint, shape: CGRect, bridge: CGRect?, isOpen: Bool, slack: CGFloat = slack) -> Bool {
+        guard let bridge else { return inside(point, shape: shape, isOpen: isOpen, slack: slack) }
+        if bridge.contains(point) { return true }
+        guard point.y >= shape.minY else { return false }
+        return inside(point, shape: shape, isOpen: isOpen, slack: slack)
+    }
+
     /// What to do on a cursor move. No delay: the first move inside the shape opens.
     public static func intent(isOpen: Bool, inside: Bool) -> Intent {
         switch (isOpen, inside) {
