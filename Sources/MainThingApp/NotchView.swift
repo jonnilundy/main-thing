@@ -259,7 +259,7 @@ struct Band: View {
                         .truncationMode(.tail)
                         .modifier(Ink(
                             progress: struck ? pins.ink ?? 1 : 0,
-                            preview: hovered && isOpen && !struck && !held && !menuOpen ? 1 : 0,
+                            preview: hovered && isOpen && !struck && !held && !menuOpen && !resolving ? 1 : 0,
                             key: current.key,
                             xHeight: NotchMetrics.nsFont.xHeight,
                             thickness: 3.2,
@@ -607,7 +607,8 @@ struct TaskRow: View, Equatable {
                         .fill(.white.opacity(NotchMetrics.previewOpacity))
                         .frame(height: PreviewStroke.height)
                         .alignmentGuide(.firstTextBaseline) { _ in PreviewStroke.height }
-                        .opacity(hovered && !held && !struck ? 1 : 0)
+                        // No cross off preview on a link still waiting for its title.
+                        .opacity(hovered && !held && !struck && !resolving ? 1 : 0)
                         // The click hides it at once, as the renderer did when the ink started.
                         .animation(nil, value: struck)
                 }

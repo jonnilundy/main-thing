@@ -391,10 +391,18 @@ final class CardController {
     }
 
     /// Return: the task goes to the end of the list, and the field empties for another.
+    /// Return: the typed text becomes the new last row right where it was, and the empty field
+    /// shows under it, in one frame. No entrance for the row and no slide for the field: with them
+    /// the field emptied first and the row faded in over it while the field slid away.
     func submitAdd() {
         guard let tasks = store.list.appending(model.addText) else { return }
-        model.addText = ""
-        store.replace(tasks, source: EventSource.notch)
+        quiet()
+        var swap = Transaction()
+        swap.disablesAnimations = true
+        withTransaction(swap) {
+            model.addText = ""
+            store.replace(tasks, source: EventSource.notch)
+        }
         log.notice("added a task")
     }
 
