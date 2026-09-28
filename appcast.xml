@@ -6,6 +6,22 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.6.0</title>
+            <pubDate>Mon, 28 Sep 2026 23:28:44 +0000</pubDate>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>0.6.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.6.0</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.6.0 adds keyboard shortcuts and a new set of sounds.
+
+## New
+
+- **Keyboard shortcuts that work from any app.** Show list is Control Option Space, Add task is Control Option N (the list opens with New task ready to type), and Cross off main task has no shortcut until you set one. Change them in Settings, under Shortcuts.
+- **17 new sounds** from Cuelume. Crossing off a task plays Loading on a new install. A choice you already made stays.
+- **Link sound.** A pasted link that turns into its title plays Sparkle. Pick another cue, or None, in Settings.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.6.0/MainThing-0.6.0.zip" length="2844360" type="application/octet-stream" sparkle:edSignature="qvSix1Wj4lGlT+mGjxen2hK0tebxI3DV6hHPr1eqWfQcs08xf+IU0jJLWJ137tRjsOwvSfrSYQyeEkDg/yfUDA=="/>
+        </item>
+        <item>
             <title>Version 0.5.1</title>
             <pubDate>Mon, 28 Sep 2026 22:58:00 +0000</pubDate>
             <sparkle:version>7</sparkle:version>
