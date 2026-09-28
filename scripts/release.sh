@@ -135,7 +135,13 @@ sed -i '' "s/^public let MainThingBuild = [0-9][0-9]*$/public let MainThingBuild
 
 # --- Check, build, package. ---
 
-scripts/test.sh
+# MAIN_THING_TESTS=checks: the full suite (windows, probes) already ran on another machine for
+# this tree; here only the build and the plain checks, which open no window.
+if [[ "${MAIN_THING_TESTS:-full}" == "checks" ]]; then
+    swift build --product main-thing-checks >/dev/null && "$(swift build --show-bin-path)/main-thing-checks" | /usr/bin/tail -1
+else
+    scripts/test.sh
+fi
 scripts/package.sh
 
 APP="$ROOT/build/MainThing.app"
