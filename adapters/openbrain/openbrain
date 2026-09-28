@@ -1,13 +1,15 @@
 #!/bin/zsh
-# openbrain: Main Thing adapter for Open Brain. Runs when a task with a ref
-# "openbrain:<id>" is completed in the notch, the API or the command.
+# openbrain: Main Thing adapter for Open Brain.
 #
 #   openbrain complete <id>    mark Open Brain task <id> done, via `ob task done <id>`
+#   openbrain resolve <url>    for <OPEN_BRAIN_WEB_URL>/task/<id>, print {"id":"<id>","title":"..."}
+#                              from `ob task get <id> --json`; exit 3 for any other link
 #
 # Needs the Open Brain CLI (`ob`) and OPEN_BRAIN_API_URL plus OPEN_BRAIN_API_KEY, read
 # from ~/.config/main-thing/openbrain.env (KEY=value, one per line). When that file
 # holds op:// references, the script runs itself through `op run --env-file`, so the
-# 1Password CLI resolves them. The event payload on stdin is ignored.
+# 1Password CLI resolves them. OPEN_BRAIN_WEB_URL (optional, a plain value) is the web
+# app's address; without it no link is claimed. The event payload on stdin is ignored.
 #
 # Install:  ln -s "$PWD/adapters/openbrain/openbrain" ~/.config/main-thing/adapters/openbrain
 set -u
@@ -16,8 +18,6 @@ set -u
 path=("$HOME/.volta/bin" "$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
 
 config="${XDG_CONFIG_HOME:-$HOME/.config}/main-thing"
-# Before 0.3 the folder was ~/.config/mainthing; the app moves it on first launch.
-[[ -d "$config" ]] || config="${XDG_CONFIG_HOME:-$HOME/.config}/mainthing"
 env_file="$config/openbrain.env"
 script="$0"    # inside a zsh function $0 is the function name
 
@@ -25,7 +25,10 @@ script="$0"    # inside a zsh function $0 is the function name
 # which re-runs this script with the values in place.
 load_env() {
     [[ -f "$env_file" ]] || return 0
-    if [[ -z "${MAIN_THING_OPENBRAIN_ENV_LOADED:-}" ]] && /usr/bin/grep -q 'op://' "$env_file"; then
+    # `op run` already put every line of the file in the environment. Sourcing it again would
+    # run the op:// references as shell words.
+    [[ -n "${MAIN_THING_OPENBRAIN_ENV_LOADED:-}" ]] && return 0
+    if /usr/bin/grep -q 'op://' "$env_file"; then
         command -v op >/dev/null || { echo "openbrain: $env_file holds op:// references but the 1Password CLI (op) is not on PATH" >&2; exit 1; }
         MAIN_THING_OPENBRAIN_ENV_LOADED=1 exec op run --env-file "$env_file" -- "$script" "$@"
     fi
@@ -34,27 +37,73 @@ load_env() {
     set +a
 }
 
+need_api() {
+    [[ -n "${OPEN_BRAIN_API_URL:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_URL is not set (put it in $env_file)" >&2; exit 1; }
+    [[ -n "${OPEN_BRAIN_API_KEY:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_KEY is not set (put it in $env_file)" >&2; exit 1; }
+    command -v ob >/dev/null || { echo "openbrain: the Open Brain CLI (ob) is not on PATH" >&2; exit 1; }
+}
+
+# OPEN_BRAIN_WEB_URL from the environment, else its plain line in the env file. Read without
+# `op run`, so a link that is not Open Brain's is turned down fast.
+web_url() {
+    if [[ -n "${OPEN_BRAIN_WEB_URL:-}" ]]; then
+        print -r -- "$OPEN_BRAIN_WEB_URL"
+    elif [[ -f "$env_file" ]]; then
+        /usr/bin/sed -n 's/^OPEN_BRAIN_WEB_URL=//p' "$env_file" | /usr/bin/tail -1 | /usr/bin/tr -d "\"'\r"
+    fi
+}
+
+# "https://Host/x" -> "https://host": scheme and host, lowercased.
+origin_of() {
+    local rest="${1#*://}"
+    print -r -- "${(L)${1%%://*}}://${(L)${rest%%/*}}"
+}
+
 verb="${1:-}"
 case "$verb" in
     complete)
         id="${2:-}"
         [[ -n "$id" ]] || { echo "usage: openbrain complete <id>" >&2; exit 2; }
         load_env "$@"
-        [[ -n "${OPEN_BRAIN_API_URL:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_URL is not set (put it in $env_file)" >&2; exit 1; }
-        [[ -n "${OPEN_BRAIN_API_KEY:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_KEY is not set (put it in $env_file)" >&2; exit 1; }
-        command -v ob >/dev/null || { echo "openbrain: the Open Brain CLI (ob) is not on PATH" >&2; exit 1; }
+        need_api
         exec ob task done "$id"
         ;;
+    resolve)
+        url="${2:-}"
+        [[ -n "$url" ]] || { echo "usage: openbrain resolve <url>" >&2; exit 2; }
+        web="$(web_url)"
+        web="${web%/}"
+        [[ "$web" == http*://* ]] || exit 3
+        link="${url%%[?#]*}"
+        link="${link%/}"
+        [[ "$link" == *://* && "$(origin_of "$link")" == "$(origin_of "$web")" ]] || exit 3
+        rest="${link#*://}"
+        [[ "$rest" == */* ]] || exit 3
+        link_path="/${rest#*/}"
+        # The web app may live under a path, https://example.com/brain: that prefix comes first.
+        web_rest="${web#*://}"
+        prefix=""
+        [[ "$web_rest" == */* ]] && prefix="/${web_rest#*/}"
+        [[ "$link_path" == "$prefix/task/"* ]] || exit 3
+        id="${link_path#$prefix/task/}"
+        [[ "$id" =~ '^[A-Za-z0-9_-]+$' ]] || exit 3
+        load_env "$@"
+        need_api
+        task_json="$(ob task get "$id" --json)" || { echo "openbrain: ob task get $id failed" >&2; exit 1; }
+        title="$(print -r -- "$task_json" | /usr/bin/jq -r '.title // empty')" || { echo "openbrain: ob task get $id --json did not print JSON" >&2; exit 1; }
+        [[ -n "$title" ]] || { echo "openbrain: task $id has no title" >&2; exit 1; }
+        /usr/bin/jq -cn --arg id "$id" --arg title "$title" '{id: $id, title: $title}'
+        ;;
     -h|--help|help)
-        sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
     "")
-        echo "usage: openbrain complete <id>" >&2
+        echo "usage: openbrain complete <id> | openbrain resolve <url>" >&2
         exit 2
         ;;
     *)
-        echo "openbrain: unknown verb '$verb'. Only: complete <id>" >&2
+        echo "openbrain: unknown verb '$verb'. Only: complete <id>, resolve <url>" >&2
         exit 2
         ;;
 esac
