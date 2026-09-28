@@ -549,6 +549,20 @@ struct SoundItem: View {
     }
 }
 
+/// One line of the Link Sound submenu: a checkmark on the current cue; picking one previews it.
+struct LinkSoundItem: View {
+    let cue: Cue?
+    let current: Cue?
+    let sounds: Sounds
+
+    var body: some View {
+        Toggle(LinkSound.displayName(cue), isOn: Binding(
+            get: { current == cue },
+            set: { on in if on { sounds.chooseLink(cue) } }
+        ))
+    }
+}
+
 /// One of rows 2..N: a 28pt pill with the row number in the marker lane and the title in the
 /// text lane, one line; a title wider than the card truncates with an ellipsis and shows in full
 /// as a tooltip. Hover (from the card's one tracker) fills the pill, lifts the title and the
@@ -962,7 +976,8 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu: Launch at Login, Sound, Reminder, Show Tasks File, Install Command Line Tool, Quit.
+/// Right click menu: Launch at Login, Sound, Link Sound, Reminder, Show Tasks File, Install
+/// Command Line Tool, Quit.
 struct NotchMenu: View {
     let store: TaskStore
     let sounds: Sounds?
@@ -988,13 +1003,28 @@ struct NotchMenu: View {
             // Read fresh every time the menu opens, so a file dropped into the folder shows up.
             let files = sounds.available()
             let current = SoundChoice.resolve(stored: Sounds.stored, available: files)
+            let groups = SoundChoice.groups(customFiles: files)
             Menu("Sound") {
-                SoundItem(choice: .pen, current: current, sounds: sounds)
-                ForEach(files, id: \.self) { file in
-                    SoundItem(choice: .custom(fileName: file), current: current, sounds: sounds)
+                ForEach(groups.indices, id: \.self) { index in
+                    if index > 0 { Divider() }
+                    Section {
+                        ForEach(groups[index].choices, id: \.stored) { choice in
+                            SoundItem(choice: choice, current: current, sounds: sounds)
+                        }
+                    } header: {
+                        if let title = groups[index].title { Text(title) }
+                    }
                 }
+            }
+            let link = Sounds.linkCue
+            Menu("Link Sound") {
+                LinkSoundItem(cue: nil, current: link, sounds: sounds)
                 Divider()
-                SoundItem(choice: .off, current: current, sounds: sounds)
+                Section("Cuelume") {
+                    ForEach(Cue.allCases, id: \.self) { cue in
+                        LinkSoundItem(cue: cue, current: link, sounds: sounds)
+                    }
+                }
             }
         }
         if reminder != nil {

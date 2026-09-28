@@ -3,13 +3,15 @@ import MainThingCore
 import ServiceManagement
 import SwiftUI
 
-/// The content of the Settings window. Sound and Reminder read and write the same UserDefaults
-/// keys as the right click menu, so a change in one shows in the other.
+/// The content of the Settings window. Sound, Link sound and Reminder read and write the same
+/// UserDefaults keys as the right click menu, so a change in one shows in the other.
 struct SettingsView: View {
     let sounds: Sounds?
     let updater: Updater?
 
-    @AppStorage(Sounds.key) private var storedSound: String = SoundChoice.penKey
+    /// Nil until a sound is picked: nothing stored is the default cue, not a stored value.
+    @AppStorage(Sounds.key) private var storedSound: String?
+    @AppStorage(LinkSound.key) private var storedLinkSound: String?
     @AppStorage(Reminder.key) private var storedReminder: Int = ReminderSchedule.defaultInterval
     @State private var loginStatus = LaunchAtLogin.status
     @State private var soundFiles: [String] = []
@@ -18,9 +20,13 @@ struct SettingsView: View {
         Form {
             Section("General") {
                 launchAtLogin
-                if let sounds { soundPicker(sounds) }
+                if let sounds {
+                    soundPicker(sounds)
+                    linkSoundPicker(sounds)
+                }
                 reminderPicker
             }
+            // Shortcuts section
             Section("Updates") {
                 updates
             }
@@ -60,7 +66,7 @@ struct SettingsView: View {
 
     private func soundPicker(_ sounds: Sounds) -> some View {
         let current = SoundChoice.resolve(stored: storedSound, available: soundFiles)
-        let choices: [SoundChoice] = [.pen] + soundFiles.map { .custom(fileName: $0) } + [.off]
+        let groups = SoundChoice.groups(customFiles: soundFiles)
         return Picker("Sound", selection: Binding(
             get: { current.stored },
             set: { value in
@@ -68,8 +74,28 @@ struct SettingsView: View {
                 sounds.choose(choice)
             }
         )) {
-            ForEach(choices, id: \.stored) { choice in
-                Text(choice.displayName).tag(choice.stored)
+            ForEach(groups.indices, id: \.self) { index in
+                if index > 0 { Divider() }
+                Section {
+                    ForEach(groups[index].choices, id: \.stored) { choice in
+                        Text(choice.displayName).tag(choice.stored)
+                    }
+                } header: {
+                    if let title = groups[index].title { Text(title) }
+                }
+            }
+        }
+    }
+
+    private func linkSoundPicker(_ sounds: Sounds) -> some View {
+        let current = LinkSound.resolve(stored: storedLinkSound)
+        return Picker("Link sound", selection: Binding(
+            get: { LinkSound.stored(current) },
+            set: { value in sounds.chooseLink(LinkSound.resolve(stored: value)) }
+        )) {
+            ForEach(LinkSound.options, id: \.self) { cue in
+                Text(LinkSound.displayName(cue)).tag(LinkSound.stored(cue))
+                if cue == nil { Divider() }
             }
         }
     }

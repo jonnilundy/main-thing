@@ -3,7 +3,7 @@ import MainThingCore
 import SwiftUI
 import os
 
-/// The Settings window: General (Launch at Login, Sound, Reminder) and Updates (version, Check
+/// The Settings window: General (Launch at Login, Sound, Link sound, Reminder) and Updates (version, Check
 /// Now, automatic checks, the last check). `SettingsWindow.show()` opens it or brings it forward;
 /// Cmd comma does the same while the app is active. It takes focus, since the user opened it.
 @MainActor

@@ -3,21 +3,29 @@ import Foundation
 import MainThingCore
 import os
 
-/// The cross off sound. "Pen" is the built in scratch, one per text line as the ink draws, with a
-/// lighter scratch on undo. A custom sound from `<config>/sounds/` plays once per cross off at
-/// stroke start, to its end; a new cross off stops it; undo is silent. Every sound is matched to
-/// the pen's loudness at volume 0.25 from its decoded samples. Silent when the system setting
-/// "Play user interface sound effects" is off or the choice is Off.
+/// The cross off sound and the link sound. "Pen" is the built in scratch, one per text line as the
+/// ink draws, with a lighter scratch on undo. A Cuelume cue from the bundle or a custom sound from
+/// `<config>/sounds/` plays once per cross off at stroke start, to its end; a new cross off stops
+/// it; undo is silent. The link sound, a cue or none, plays when a pasted link turns into its
+/// title. Every sound is matched to the pen's loudness at volume 0.25 from its decoded samples.
+/// Silent when the system setting "Play user interface sound effects" is off or the choice is Off.
 @MainActor
 final class Sounds {
     static let volume: Double = 0.25
-    static let key = "sound"
+    static let key = SoundChoice.key
 
-    /// The Sound menu choice, stored by file name. Pen for new installs. A missing file is Pen.
+    /// The Sound menu choice. Nothing stored, or a missing file, is the default cue.
     static var stored: String? { UserDefaults.standard.string(forKey: key) }
 
     static func store(_ choice: SoundChoice) {
         UserDefaults.standard.set(choice.stored, forKey: key)
+    }
+
+    /// The Link sound menu choice. Nothing stored is the default cue.
+    static var linkCue: Cue? { LinkSound.resolve(stored: UserDefaults.standard.string(forKey: LinkSound.key)) }
+
+    static func storeLink(_ cue: Cue?) {
+        UserDefaults.standard.set(LinkSound.stored(cue), forKey: LinkSound.key)
     }
 
     /// System Settings > Sound > "Play user interface sound effects". Off is 0 in the global domain.
@@ -40,6 +48,8 @@ final class Sounds {
     private var penRMS = 0.136
     /// Decoded custom sounds, by file name.
     private var custom: [String: AVAudioPlayer] = [:]
+    /// Decoded Cuelume cues from the bundle.
+    private var cues: [Cue: AVAudioPlayer] = [:]
     private var playing: AVAudioPlayer?
     /// Silence on a loop at volume 0: keeps the output device awake while the notch is open, so a
     /// cross off's sound starts at once instead of half a second later. Not always on: an active
@@ -100,7 +110,7 @@ final class Sounds {
             while true {
                 try? await Task.sleep(for: .seconds(3))
                 guard let self, !Task.isCancelled else { return }
-                let busy = (playing?.isPlaying ?? false)
+                let busy = (playing?.isPlaying ?? false) || cues.values.contains { $0.isPlaying }
                     || scratches.contains { $0.isPlaying } || unscratches.contains { $0.isPlaying }
                 if !busy {
                     if let keepAwake {
@@ -114,11 +124,14 @@ final class Sounds {
         }
     }
 
-    /// Decode, measure and prepare the chosen custom sound now, not at the first cross off.
+    /// Decode, measure and prepare the chosen sounds now, not at the first cross off or link.
     private func preload() {
-        if case .custom(let file) = choice, custom[file] == nil {
-            _ = player(for: file)
+        switch choice {
+        case .custom(let file) where custom[file] == nil: _ = player(for: file)
+        case .cue(let cue) where cues[cue] == nil: _ = player(for: cue)
+        default: break
         }
+        if let cue = Sounds.linkCue, cues[cue] == nil { _ = player(for: cue) }
     }
 
     private static func load(_ name: String, count: Int) -> [AVAudioPlayer] {
@@ -168,8 +181,21 @@ final class Sounds {
         switch choice {
         case .off: stopCustom()
         case .pen: scratch(lines: 1)
-        case .custom: playCustom(choice)
+        case .cue, .custom: playCustom(choice)
         }
+    }
+
+    /// The Link sound menu: sets the choice and plays it once as a preview.
+    func chooseLink(_ cue: Cue?) {
+        Sounds.storeLink(cue)
+        log.notice("link sound choice: \(LinkSound.displayName(cue), privacy: .public)")
+        if let cue, let player = player(for: cue) { start(player, label: "link \(cue.displayName)") }
+    }
+
+    /// A pasted link turned into its title: the link sound, once.
+    func linkResolved() {
+        guard Sounds.systemAllows, !muted, let cue = Sounds.linkCue, let player = player(for: cue) else { return }
+        start(player, label: "link \(cue.displayName)")
     }
 
     /// Gets the built in players ready on a background queue. Called at launch, never on open.
@@ -187,7 +213,7 @@ final class Sounds {
         switch choice {
         case .off:
             return
-        case .custom:
+        case .cue, .custom:
             playCustom(choice)
         case .pen:
             guard !scratches.isEmpty else { return }
@@ -202,7 +228,7 @@ final class Sounds {
         }
     }
 
-    /// The undo: the lighter pen scratch. Custom sounds have no undo sound.
+    /// The undo: the lighter pen scratch. Cues and custom sounds have no undo sound.
     func unscratch() {
         guard Sounds.systemAllows, !muted, choice == .pen else { return }
         guard let player = unscratches.first(where: { !$0.isPlaying }) ?? unscratches.first else { return }
@@ -211,13 +237,24 @@ final class Sounds {
         log.notice("sound Pen undo")
     }
 
+    /// A cue or a custom file, once, stopping the one before.
     private func playCustom(_ choice: SoundChoice) {
-        guard case .custom(let file) = choice, let player = player(for: file) else { return }
+        let player: AVAudioPlayer?
+        switch choice {
+        case .cue(let cue): player = self.player(for: cue)
+        case .custom(let file): player = self.player(for: file)
+        case .pen, .off: player = nil
+        }
+        guard let player else { return }
         stopCustom()
-        player.currentTime = 0
-        player.play()
+        start(player, label: choice.displayName)
         playing = player
-        log.notice("sound \(choice.displayName, privacy: .public) (\(file, privacy: .public)) volume \(player.volume, privacy: .public), \(player.duration, format: .fixed(precision: 2), privacy: .public) s")
+    }
+
+    private func start(_ player: AVAudioPlayer, label: String) {
+        player.currentTime = 0
+        let started = player.play()
+        log.notice("sound \(label, privacy: .public) started \(started, privacy: .public), volume \(player.volume, privacy: .public), \(player.duration, format: .fixed(precision: 2), privacy: .public) s")
     }
 
     private func stopCustom() {
@@ -228,16 +265,32 @@ final class Sounds {
     /// Decoded once per file, its volume set from its loudness against the pen.
     private func player(for file: String) -> AVAudioPlayer? {
         if let cached = custom[file] { return cached }
-        let url = folder.appendingPathComponent(file)
+        let player = loadMatched(folder.appendingPathComponent(file), name: file)
+        custom[file] = player
+        return player
+    }
+
+    /// A cue from the bundle's Resources/Sounds/cuelume, decoded once, matched like a custom file.
+    private func player(for cue: Cue) -> AVAudioPlayer? {
+        if let cached = cues[cue] { return cached }
+        guard let url = Bundle.main.url(forResource: cue.rawValue, withExtension: Cue.fileExtension, subdirectory: Cue.resourceDirectory) else {
+            log.error("no \(cue.fileName, privacy: .public) in the bundle")
+            return nil
+        }
+        let player = loadMatched(url, name: cue.fileName)
+        cues[cue] = player
+        return player
+    }
+
+    private func loadMatched(_ url: URL, name: String) -> AVAudioPlayer? {
         guard let player = try? AVAudioPlayer(contentsOf: url) else {
-            log.error("could not open \(file, privacy: .public)")
+            log.error("could not open \(name, privacy: .public)")
             return nil
         }
         let level = Sounds.measure(url) ?? (rms: penRMS, peak: 1)
         player.volume = SoundLevel.volume(rms: level.rms, peak: level.peak, referenceRMS: penRMS, referenceVolume: Sounds.volume)
         player.prepareToPlay()
-        log.notice("loaded \(file, privacy: .public): rms \(20 * log10(max(level.rms, 1e-6)), format: .fixed(precision: 1), privacy: .public) dBFS, peak \(20 * log10(max(level.peak, 1e-6)), format: .fixed(precision: 1), privacy: .public) dBFS, volume \(player.volume, privacy: .public)")
-        custom[file] = player
+        log.notice("loaded \(name, privacy: .public): rms \(20 * log10(max(level.rms, 1e-6)), format: .fixed(precision: 1), privacy: .public) dBFS, peak \(20 * log10(max(level.peak, 1e-6)), format: .fixed(precision: 1), privacy: .public) dBFS, volume \(player.volume, privacy: .public)")
         return player
     }
 }
