@@ -6,6 +6,26 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.5.0</title>
+            <pubDate>Mon, 28 Sep 2026 19:28:18 +0000</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.5.0</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.5.0 turns a pasted Linear link into a task.
+
+## New
+
+- **Paste a Linear link.** Paste an issue link into New task, `main-thing add` or the API. The task shows the issue's title, and crossing it off moves the issue to Done in Linear. Set up the Linear adapter first: see `adapters/linear/README.md`.
+- **Links for any tool.** Adapters have a new `resolve` step, so an adapter for another tool can turn its links into tasks too. See `adapters/README.md`.
+- **`main-thing add` and `POST /tasks`** add tasks to the end of the list.
+
+## Fixed
+
+- The Open Brain adapter no longer prints an error when it runs.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.5.0/MainThing-0.5.0.zip" length="2519146" type="application/octet-stream" sparkle:edSignature="H7J39G4ZfCkPntmJ6+Am96K7ujHGyZU6xlQaBvHA0XVJDfFDOKu4CPdj/jp01T8ZyC8/BmvXd7EX1aTBlvl8Cg=="/>
+        </item>
+        <item>
             <title>Version 0.4.1</title>
             <pubDate>Sat, 26 Sep 2026 20:07:46 +0000</pubDate>
             <sparkle:version>5</sparkle:version>
