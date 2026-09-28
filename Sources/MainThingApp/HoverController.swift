@@ -100,7 +100,7 @@ final class HoverController {
             return
         }
         let point = NotchHover.panelPoint(screenPoint: screenPoint, panelFrame: panel.frame)
-        let inside = NotchHover.inside(point, shape: model.shapeRect, isOpen: model.isOpen)
+        let inside = NotchHover.inside(point, shape: model.shapeRect, bridge: model.geometry.bridgeRect, isOpen: model.isOpen)
         log.debug("\(source, privacy: .public) screen (\(Int(screenPoint.x), privacy: .public),\(Int(screenPoint.y), privacy: .public)) panel (\(Int(point.x), privacy: .public),\(Int(point.y), privacy: .public)) shape \(NSStringFromRect(self.model.shapeRect), privacy: .public) inside \(inside, privacy: .public) open \(self.model.isOpen, privacy: .public)")
         setClickThrough(!inside)
         switch NotchHover.intent(isOpen: model.isOpen, inside: inside) {

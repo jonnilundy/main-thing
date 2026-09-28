@@ -5,6 +5,8 @@ import os
 
 /// The notch. Collapsed: a black shape at the top center with the current task inside.
 /// Open: every task flush left, the current one large; hover previews a cross off, a click draws it.
+/// Under a hardware notch the shape starts at the screen top: a bridge under the camera, then the
+/// card below the menu bar, one black shape (`NotchOutline`).
 struct NotchView: View {
     let store: TaskStore
     let model: NotchModel
@@ -22,7 +24,10 @@ struct NotchView: View {
                 // (it fired once with zero), so the shape rect goes through onGeometryChange instead.
                 .onGeometryChange(for: CGRect.self) { proxy in
                     proxy.frame(in: .global)
-                } action: { rect in
+                } action: { frame in
+                    // The frame holds the bridge row on top under a hardware notch; the card is the rest.
+                    let top = model.geometry.cardTop
+                    let rect = CGRect(x: frame.minX, y: frame.minY + top, width: frame.width, height: max(frame.height - top, 0))
                     viewLog.debug("shape rect \(NSStringFromRect(rect), privacy: .public)")
                     model.shapeRect = rect
                     if let started = model.openStartedAt, rect.height > model.geometry.notchHeight + 1 {
@@ -60,15 +65,19 @@ struct NotchBody: View {
         // The shape width springs between these. Content is laid out at its own final width,
         // never at the animating width, and the clip hides the overflow while the spring settles.
         let width = model.isOpen ? openWidth : collapsedWidth
+        // Under a hardware notch an empty list draws nothing collapsed: the camera notch alone.
+        // The card grows out of the camera from 0 tall when it opens.
+        let hidden = !model.isOpen && !geometry.drawsCollapsed(taskCount: rows.count)
         let shape = NotchShape(
             topRadius: NotchMetrics.flare,
-            bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius
+            bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius,
+            bridge: geometry.bridgeRect.map { NotchShape.Bridge(width: $0.width, height: $0.height, offset: geometry.bridgeOffset) }
         )
         VStack(spacing: 0) {
             // The band, hanging under the menu bar: the dot and task 1 in both states. Its frame
             // width is what animates, and the band is leading aligned, so the dot and the title
             // ride with the card's left edge and never re-align or swap.
-            BandSlot(store: store, model: model, width: width, card: card, onToggle: onToggle)
+            BandSlot(store: store, model: model, width: width, height: hidden ? 0 : geometry.notchHeight, card: card, onToggle: onToggle)
             if model.isOpen {
                 OpenContent(store: store, model: model, onToggle: onToggle, width: openWidth, card: card)
                     .transition(Motion.openContent(reduceMotion))
@@ -77,10 +86,13 @@ struct NotchBody: View {
         // The long press menu, on its row, card coordinates.
         .overlay(alignment: .topLeading) { MenuLayer(model: model, card: card) }
         .padding(.horizontal, NotchMetrics.flare)
+        // The bridge row under the camera: the shape fills it, the content starts below it.
+        .padding(.top, geometry.cardTop)
         // Pure black, no translucency: it must match a hardware notch.
         .background(shape.fill(.black))
         .clipShape(shape)
         .contentShape(shape)
+        .opacity(hidden ? 0 : 1)
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
@@ -94,6 +106,8 @@ struct BandSlot: View {
     let store: TaskStore
     let model: NotchModel
     let width: CGFloat
+    /// The band's height: the notch height, or 0 while an empty list draws nothing.
+    let height: CGFloat
     var card: CardController?
     let onToggle: (TaskList.Row) -> Void
 
@@ -104,7 +118,7 @@ struct BandSlot: View {
         Band(
             rows: rows,
             width: width,
-            height: model.geometry.notchHeight,
+            height: height,
             isOpen: model.isOpen,
             struck: first.map { model.pending.isPending($0.key) } ?? false,
             resolving: first.map { store.resolving[$0.key] != nil } ?? false,
@@ -1073,10 +1087,21 @@ enum NotchMetrics {
     }
 }
 
-/// A notch outline: flared top corners that meet the screen edge, rounded bottom corners.
+/// A notch outline: flared top corners that meet the screen edge, rounded bottom corners. With a
+/// bridge (a hardware notch) the rect's top `bridge.height` is the menu bar row: the bridge fills
+/// it under the camera and the card below joins it (`NotchOutline.bridged`).
 struct NotchShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
+    var bridge: Bridge? = nil
+
+    /// The camera notch's width, the menu bar row's height, and the bridge center's offset from
+    /// the rect's center.
+    struct Bridge: Equatable {
+        var width: CGFloat
+        var height: CGFloat
+        var offset: CGFloat
+    }
 
     var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(topRadius, bottomRadius) }
@@ -1087,6 +1112,13 @@ struct NotchShape: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
+        if let bridge {
+            let card = CGRect(x: rect.minX, y: rect.minY + bridge.height, width: rect.width, height: max(rect.height - bridge.height, 0))
+            return Path(outline: NotchOutline.bridged(
+                in: card, padding: topRadius, bottomRadius: bottomRadius,
+                bridgeWidth: bridge.width, bridgeHeight: bridge.height, bridgeOffset: bridge.offset
+            ))
+        }
         let t = min(topRadius, rect.height / 2)
         let b = min(bottomRadius, (rect.width - 2 * t) / 2, rect.height - t)
         var p = Path()
@@ -1112,6 +1144,24 @@ struct NotchShape: Shape {
         )
         p.closeSubpath()
         return p
+    }
+}
+
+extension Path {
+    /// A Core outline as a path.
+    init(outline: [OutlineSegment]) {
+        self.init()
+        for segment in outline {
+            switch segment {
+            case .move(let p): move(to: p)
+            case .line(let p): addLine(to: p)
+            case .quad(let to, let control): addQuadCurve(to: to, control: control)
+            case .arc(let center, let radius, let from, let to):
+                // y down: a falling angle turns the way SwiftUI calls clockwise, as the plain notch's corners.
+                addArc(center: center, radius: radius, startAngle: .degrees(from), endAngle: .degrees(to), clockwise: to < from)
+            case .close: closeSubpath()
+            }
+        }
     }
 }
 

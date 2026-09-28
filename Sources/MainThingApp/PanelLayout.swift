@@ -31,8 +31,9 @@ final class PanelLayout {
         // The rows under the band, an Undo row included.
         let map = CardMap(model: model, store: store)
         let content = OpenLayout.contentHeight(rows: map.rowItems, empty: map.isEmpty, notes: notes)
+        // Under a hardware notch the panel also holds the menu bar row above the card.
         let fit = OpenLayout.panelHeight(
-            notchHeight: geometry.notchHeight, contentHeight: content,
+            notchHeight: geometry.cardTop + geometry.notchHeight, contentHeight: content,
             screenHeight: geometry.screenFrame.height, minimum: NotchGeometry.panelSize.height
         )
         model.openWidth = width

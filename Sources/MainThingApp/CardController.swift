@@ -528,7 +528,8 @@ extension CardMap {
             notesHeight: CGFloat(notes) * (OpenLayout.noteSpacing + OpenLayout.noteHeight),
             rowsMax: model.rowsMaxHeight,
             scroll: model.rowsScroll,
-            addOpen: model.hover == .add || model.adding
+            addOpen: model.hover == .add || model.adding,
+            bridged: model.geometry.bridgeRect != nil
         )
     }
 }

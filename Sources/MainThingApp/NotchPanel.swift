@@ -2,7 +2,7 @@ import AppKit
 import MainThingCore
 import SwiftUI
 
-/// Borderless, non-activating panel that hangs under the menu bar on every space.
+/// Borderless, non-activating panel at the top of the screen on every space.
 final class NotchPanel: NSPanel {
     init(contentRect: NSRect) {
         super.init(
@@ -26,7 +26,9 @@ final class NotchPanel: NSPanel {
         level = NotchPanel.level
     }
 
-    /// One above the menu bar level, so the notch stays over full screen apps. The frame never overlaps the menu bar.
+    /// One above the menu bar level, so the notch stays over full screen apps and, under a hardware
+    /// notch, the bridge draws over the menu bar row under the camera. The frame covers the menu
+    /// bar row around the notch, but the hit test keeps everything outside the shape click through.
     /// A test copy may sit higher (`PanelLevel`).
     static let level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow))
         + PanelLevel.offset(environment: ProcessInfo.processInfo.environment, bundleID: Bundle.main.bundleIdentifier))

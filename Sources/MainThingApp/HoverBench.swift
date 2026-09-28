@@ -60,7 +60,7 @@ enum HoverBench {
         model.isOpen = !closed
         let rows = store.list.rows
         model.openWidth = PanelLayout.openWidth(rows: rows, geometry: geometry)
-        let height = geometry.notchHeight + OpenLayout.contentHeight(rows: rows.count - 1) + OpenLayout.bounceHeadroom
+        let height = geometry.cardTop + geometry.notchHeight + OpenLayout.contentHeight(rows: rows.count - 1) + OpenLayout.bounceHeadroom
         let size = CGSize(width: NotchGeometry.panelSize.width, height: max(ceil(height), NotchGeometry.panelSize.height))
         let frame = CGRect(origin: screen.frame.origin, size: size)
 
@@ -82,10 +82,11 @@ enum HoverBench {
         let card = CardController(model: model, store: store, panel: panel, toggle: { row in hover.toggleCompletion(of: row) })
         hover.card = card
 
-        // Row centers from the top of the panel: the band, then rows 2..N.
-        var centers = [geometry.notchHeight / 2]
+        // Row centers from the top of the panel: the band, then rows 2..N. Under a hardware notch
+        // the card starts below the menu bar row.
+        var centers = [geometry.cardTop + geometry.notchHeight / 2]
         for index in 0..<(rows.count - 1) {
-            centers.append(geometry.notchHeight + Lanes.topGap + Lanes.rowHeight * (CGFloat(index) + 0.5))
+            centers.append(geometry.cardTop + geometry.notchHeight + Lanes.topGap + Lanes.rowHeight * (CGFloat(index) + 0.5))
         }
         let top = centers.first!, bottom = centers.last!
         let x = size.width / 2
@@ -189,7 +190,8 @@ extension HoverBench {
             var addUnfolded = false
             let end = map.addTop + OpenLayout.addHeight / 2
             while probe <= end {
-                let point = CGPoint(x: column, y: height - probe)
+                // `probe` is from the card's top; the card starts `card.minY` down the panel.
+                let point = CGPoint(x: column, y: height - (card.minY + probe))
                 if let event = NSEvent.mouseEvent(
                     with: .mouseMoved, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                     windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 0, pressure: 0
