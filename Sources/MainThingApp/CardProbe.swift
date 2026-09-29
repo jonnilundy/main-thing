@@ -407,9 +407,16 @@ enum CardProbe {
             // The card closing during a pen stroke: the cross off is not lost
             // Open it the real way, with the pointer on the card: opened with the pointer outside, the
             // re-check after the undo's list change closed it again before the click.
-            send(.mouseMoved, CGPoint(x: title, y: y(1)))
-            if !model.isOpen { hover.setOpen(true) }
-            await wait(400)
+            // The step needs the card open under the click; a re-check after the list change can
+            // close it again, so keep the pointer on it until it is open and has settled.
+            for _ in 0..<6 {
+                send(.mouseMoved, CGPoint(x: title, y: y(1)))
+                if !model.isOpen { hover.setOpen(true) }
+                await wait(250)
+                if model.isOpen { break }
+            }
+            await wait(200)
+            send(.mouseMoved, CGPoint(x: title, y: y(2)))
             let stroked = store.list.rows[2]
             await click(CGPoint(x: title, y: y(2)))
             check("closing in the pen stroke: the click started the stroke", model.pending.isPending(stroked.key))
