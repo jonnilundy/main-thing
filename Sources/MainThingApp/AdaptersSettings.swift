@@ -137,7 +137,7 @@ final class AdaptersModel {
     }
 }
 
-/// The Adapters tab: one section per built-in adapter, then the custom ones in the folder.
+/// The Adapters tab: one section per built-in adapter. Custom adapters in the folder still run; they are not listed here.
 struct AdaptersSettings: View {
     let model: AdaptersModel
 
@@ -146,7 +146,6 @@ struct AdaptersSettings: View {
             ForEach(BuiltInAdapters.all) { adapter in
                 BuiltInAdapterSection(model: model, adapter: adapter)
             }
-            customSection
         }
         .formStyle(.grouped)
         // Taller than most screens allow with everything open, so it scrolls.
@@ -155,41 +154,6 @@ struct AdaptersSettings: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refresh() }
     }
 
-    /// Folder files a built-in adapter shadows never run, so they are not listed: they are the old
-    /// hand install of that built-in adapter, and showing them only raised questions.
-    private var visibleCustom: [InstalledEntry] {
-        model.custom.filter { $0.problem != EventRunner.shadowedProblem }
-    }
-
-    private var customSection: some View {
-        Section {
-            if visibleCustom.isEmpty {
-                Text("None in \(model.customFolder)")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(visibleCustom, id: \.path) { entry in
-                    LabeledContent(entry.name) {
-                        Text(customState(entry))
-                            .foregroundStyle(entry.problem == nil ? .primary : .secondary)
-                    }
-                }
-            }
-        } header: {
-            Text("Custom adapters")
-        } footer: {
-            if !visibleCustom.isEmpty {
-                Text("Executables in \(model.customFolder)")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private func customState(_ entry: InstalledEntry) -> String {
-        guard let problem = entry.problem else { return "May run" }
-        if problem == EventRunner.shadowedProblem { return "Shadowed by the built-in" }
-        return "Skipped: \(problem)"
-    }
 }
 
 /// One built-in adapter: Enable, its fields, Check and the last run.

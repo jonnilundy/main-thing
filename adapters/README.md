@@ -25,7 +25,7 @@ Linear: [linear/README.md](linear/README.md). This page is for custom adapters, 
   names in `~/.config/main-thing/adapters/` does not run; `main-thing adapters` lists it as
   "shadowed by the built-in adapter". Main Thing never deletes it.
 - Every other file in `~/.config/main-thing/adapters/` is a custom adapter and follows the contract
-  below. Settings, Adapters lists them under Custom adapters with whether each may run.
+  below. `main-thing adapters` lists them with whether each may run.
 
 ## The contract
 

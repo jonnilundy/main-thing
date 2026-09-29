@@ -69,7 +69,7 @@ Main Thing uses hot keys for these, so it needs no Accessibility permission. If 
 
 ## Keyboard
 
-When Show list or Add task opens the list, the list has the keyboard until it closes. The app in front stays in front. Opening the list with the pointer does not take the keyboard.
+When Show list or Add task opens the list, or you click in the list, the list has the keyboard until it closes. So Command Z right after a click undoes that cross off. The app in front stays in front. Only hovering the list does not take the keyboard.
 
 | Key | What it does |
 | --- | --- |
@@ -146,7 +146,7 @@ If you set an adapter up by hand before, with a file in `~/.config/main-thing/ad
 
 ### Custom adapters
 
-Any other executable at `~/.config/main-thing/adapters/<name>` is a custom adapter. It works as it always has. Settings, Adapters lists them under Custom adapters with whether each may run. The names `linear` and `openbrain` belong to the built-in adapters. To write your own, see [adapters/README.md](adapters/README.md).
+Any other executable at `~/.config/main-thing/adapters/<name>` is a custom adapter. It works as it always has. `main-thing adapters` lists them with whether each may run. The names `linear` and `openbrain` belong to the built-in adapters. To write your own, see [adapters/README.md](adapters/README.md).
 
 ## Use it with your agent
 

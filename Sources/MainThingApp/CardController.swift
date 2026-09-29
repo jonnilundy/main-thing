@@ -194,6 +194,9 @@ final class CardController {
         hold?.cancel()
         // Control click is the right click menu.
         guard event.window === panel, model.isOpen, !event.modifierFlags.contains(.control) else { return }
+        // A click gives the card the keyboard, as a click in any window does: Command Z then undoes
+        // the cross off it made, and the keys work. It goes back when the card closes.
+        if !keyboardControl { takeKeyboardControl() }
         let p = point(of: event)
         let slot = map.slot(atY: p.y)
         if let menu = model.menu {

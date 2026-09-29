@@ -405,8 +405,10 @@ enum CardProbe {
             check("closed: the Undo shortcut brings it back", titles.first == "Ship the launch post" && store.list.rows[0].ref == "probe:ship")
 
             // The card closing during a pen stroke: the cross off is not lost
-            hover.setOpen(true)
-            // Let the open card settle first: a click during the open spring can miss the row.
+            // Open it the real way, with the pointer on the card: opened with the pointer outside, the
+            // re-check after the undo's list change closed it again before the click.
+            send(.mouseMoved, CGPoint(x: title, y: y(1)))
+            if !model.isOpen { hover.setOpen(true) }
             await wait(400)
             let stroked = store.list.rows[2]
             await click(CGPoint(x: title, y: y(2)))
