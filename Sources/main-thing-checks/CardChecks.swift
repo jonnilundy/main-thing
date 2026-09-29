@@ -116,7 +116,8 @@ func runCardChecks() {
         let (tasks, gone) = list.discarding(key: key, at: 100)!
         check("discard removes the task by key", tasks == [TaskItem("Ship it", ref: "openbrain:a1"), "Call Sam"])
         check("the Undo remembers where it was", gone.task == "Write memo" && gone.index == 1 && gone.undoRow == 0)
-        check("the Undo stays 4 seconds", !gone.expired(at: 103.9) && gone.expired(at: 104))
+        check("the Undo stays 5 seconds", !gone.expired(at: 104.9) && gone.expired(at: 105))
+        check("a discard is a discard, not a cross off", gone.kind == .discard)
         check("undo puts it back where it was", gone.restored(into: tasks) == list.tasks)
         check("undo into a shorter list puts it at the end", gone.restored(into: []) == ["Write memo"])
         check("discard of a key not there does nothing", list.discarding(key: "Nope#0", at: 0) == nil)

@@ -279,20 +279,30 @@ public enum RowMenu {
     }
 }
 
-/// A task discarded from the long press menu: deleted with no done hook, and an Undo shows in its
-/// place for `seconds`. Undo puts it back where it was.
+/// A task that left the list from the card, crossed off or discarded, while it can come back:
+/// an Undo shows in its place for `seconds`. Undo puts it back where it was. A discard runs no
+/// done hook; a cross off runs its done hook and adapter only when the window ends (`UndoStack`).
 public struct Discarded: Equatable, Sendable {
-    public static let seconds: TimeInterval = 4
+    public static let seconds: TimeInterval = 5
+
+    public enum Kind: String, Equatable, Sendable {
+        /// Deleted from the long press menu or with the Delete key.
+        case discard
+        /// Crossed off from the card or a shortcut, not yet committed.
+        case done
+    }
 
     public let task: TaskItem
-    /// Its list index when it was discarded.
+    /// Its list index when it left.
     public let index: Int
     public let at: TimeInterval
+    public let kind: Kind
 
-    public init(task: TaskItem, index: Int, at: TimeInterval) {
+    public init(task: TaskItem, index: Int, at: TimeInterval, kind: Kind = .discard) {
         self.task = task
         self.index = index
         self.at = at
+        self.kind = kind
     }
 
     public func expired(at now: TimeInterval) -> Bool { now - at >= Discarded.seconds }
@@ -331,11 +341,11 @@ extension TaskList {
     }
 
     /// The list without the task `key`, and what Undo needs to put it back.
-    public func discarding(key: String, at now: TimeInterval) -> (tasks: [TaskItem], discarded: Discarded)? {
+    public func discarding(key: String, at now: TimeInterval, kind: Discarded.Kind = .discard) -> (tasks: [TaskItem], discarded: Discarded)? {
         guard let i = rows.firstIndex(where: { $0.key == key }) else { return nil }
         var result = tasks
         let task = result.remove(at: i)
-        return (result, Discarded(task: task, index: i, at: now))
+        return (result, Discarded(task: task, index: i, at: now, kind: kind))
     }
 
     /// A new task at the end. A blank title adds nothing.
