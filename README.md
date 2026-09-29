@@ -52,7 +52,7 @@ In the notch:
 - Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 4 seconds.
 - Right click for the menu: Launch at Login, Keyboard Shortcuts (every shortcut with its keys), Check for Updates, Settings and Quit. Settings has four tabs: General (sounds, reminder, the tasks file, the command line tool), Shortcuts, Adapters and Updates.
 
-<img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task, a drag by its number moves another to second place, a new task is typed at the bottom, and a long press opens Rename and Discard" width="100%">
+<img src="docs/demo.gif" alt="Hovering the notch opens the list. A task is typed at the bottom, and a pasted Linear link turns into the issue title. Then Control Option Space opens the list from the keyboard, the arrow keys move the highlight, Return crosses off a task, Command Z brings it back, and Escape closes the list. At the end the closed notch glows and sparkles for the reminder." width="100%">
 
 ## Shortcuts
 
