@@ -74,7 +74,7 @@ public enum BuiltInAdapters {
         summary: "Crossing off a task with an openbrain: ref marks it done in Open Brain.",
         fields: [
             AdapterField(
-                envName: "OPEN_BRAIN_API_URL", label: "API URL", secret: false, placeholder: "https://your-deployment.convex.site",
+                envName: "OPEN_BRAIN_API_URL", label: "API URL", secret: false, placeholder: "https://….convex.site",
                 help: "Your Open Brain deployment, the address the ob command uses.",
                 linkTitle: "Open Brain setup",
                 link: URL(string: "https://github.com/cpenned/open-brain#readme")!

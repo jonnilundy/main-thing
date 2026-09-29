@@ -194,3 +194,46 @@ private func notch(
         model.hover = .undo
     }
 }
+
+// The Settings tabs. Secrets in memory and defaults only registered, never written: a render
+// touches no Keychain item and no defaults file.
+
+@MainActor
+private func adaptersPreviewModel() -> AdaptersModel {
+    let defaults = UserDefaults(suiteName: "com.jonnilundy.mainthing.preview") ?? .standard
+    defaults.register(defaults: [
+        AdapterKeys.enabled("linear"): true,
+        AdapterKeys.enabled("openbrain"): true,
+        AdapterKeys.value("openbrain", "OPEN_BRAIN_API_URL"): "https://example-deployment.convex.site",
+    ])
+    let bundleID = "com.jonnilundy.mainthing.preview"
+    let secrets = MemorySecretStore([AdapterKeys.keychainService(bundleID: bundleID, adapter: "openbrain") + "/OPEN_BRAIN_API_KEY": "obr_preview"])
+    let settings = AdapterSettings(
+        defaults: defaults, secrets: secrets, bundleID: bundleID,
+        bundledDirectory: URL(fileURLWithPath: "/var/empty"), configDirectory: URL(fileURLWithPath: "/var/empty")
+    )
+    let model = AdaptersModel(settings: settings, store: nil)
+    model.previewRuns = [
+        "linear": RunRecord(at: Date().addingTimeInterval(-300), exit: 1, ms: 412, stderr: "linear: Linear API: Authentication required (HTTP 400)"),
+        "openbrain": RunRecord(at: Date().addingTimeInterval(-20), exit: 0, ms: 230),
+    ]
+    model.pin(.failed("Linear API: Authentication required (HTTP 400)"), for: BuiltInAdapters.linear)
+    model.pin(.ok("Connected to example-deployment.convex.site"), for: BuiltInAdapters.openBrain)
+    return model
+}
+
+#Preview("Settings General", traits: .sizeThatFitsLayout) {
+    GeneralSettings(sounds: nil)
+}
+
+#Preview("Settings Shortcuts", traits: .sizeThatFitsLayout) {
+    ShortcutsSettings()
+}
+
+#Preview("Settings Adapters", traits: .sizeThatFitsLayout) {
+    AdaptersSettings(model: adaptersPreviewModel())
+}
+
+#Preview("Settings Updates", traits: .sizeThatFitsLayout) {
+    UpdatesSettings(updater: nil)
+}

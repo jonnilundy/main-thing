@@ -148,7 +148,9 @@ struct AdaptersSettings: View {
             }
             customSection
         }
-        .settingsTab()
+        .formStyle(.grouped)
+        // Taller than most screens allow with everything open, so it scrolls.
+        .frame(width: settingsWidth, height: 600)
         .onAppear { model.refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refresh() }
     }
@@ -160,17 +162,20 @@ struct AdaptersSettings: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(model.custom, id: \.path) { entry in
-                    LabeledContent {
+                    LabeledContent(entry.name) {
                         Text(customState(entry))
                             .foregroundStyle(entry.problem == nil ? .primary : .secondary)
-                    } label: {
-                        Text(entry.name)
-                        Text(abbreviated(entry.path))
                     }
                 }
             }
         } header: {
             Text("Custom adapters")
+        } footer: {
+            if !model.custom.isEmpty {
+                Text("Executables in \(model.customFolder)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -178,11 +183,6 @@ struct AdaptersSettings: View {
         guard let problem = entry.problem else { return "May run" }
         if problem == EventRunner.shadowedProblem { return "Shadowed by the built-in" }
         return "Skipped: \(problem)"
-    }
-
-    private func abbreviated(_ path: String) -> String {
-        let home = NSHomeDirectory()
-        return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
     }
 }
 
@@ -243,10 +243,10 @@ private struct BuiltInAdapterSection: View {
     @ViewBuilder private var lastRunRow: some View {
         if let run = model.lastRun(adapter) {
             LabeledContent {
-                Text(run.ok ? "OK" : run.timedOut ? "Timed out" : "Failed, exit \(run.exit.map(String.init) ?? "signal")")
+                Text((run.ok ? "OK" : run.timedOut ? "Timed out" : "Failed, exit \(run.exit.map(String.init) ?? "signal")") + ", " + ago(run.at))
                     .foregroundStyle(run.ok ? Color.secondary : Color.red)
             } label: {
-                Text("Last run \(run.at.formatted(.relative(presentation: .named)))")
+                Text("Last run")
                 if !run.stderr.isEmpty {
                     Text(AdapterCheck.firstLine(run.stderr, adapter: adapter.name))
                 }
@@ -255,6 +255,11 @@ private struct BuiltInAdapterSection: View {
             LabeledContent("Last run", value: "Not yet")
         }
     }
+}
+
+/// "just now", "5 minutes ago".
+private func ago(_ date: Date) -> String {
+    Date().timeIntervalSince(date) < 60 ? "just now" : date.formatted(.relative(presentation: .numeric))
 }
 
 /// The help line under a field: what it is, and a link to where to get it.
@@ -276,7 +281,7 @@ private struct PlainFieldRow: View {
         LabeledContent {
             TextField("", text: $draft, prompt: Text(field.placeholder))
                 .labelsHidden()
-                .frame(width: 210)
+                .frame(width: 250)
                 .onSubmit(save)
                 .onChange(of: draft) { _, value in
                     if value.trimmingCharacters(in: .whitespaces) != model.plainValue(adapter, field) { save() }
@@ -311,7 +316,7 @@ private struct SecretFieldRow: View {
                 HStack(spacing: 8) {
                     SecureField("", text: $draft, prompt: Text(field.placeholder))
                         .labelsHidden()
-                        .frame(width: 150)
+                        .frame(width: 190)
                         .onSubmit(save)
                     Button("Save", action: save)
                         .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
