@@ -74,12 +74,16 @@ public struct EventJob: Equatable, Sendable {
     public var name: String
     public var path: String
     public var arguments: [String]
+    /// A built-in adapter: its script is in the app bundle and gets its settings as environment
+    /// variables.
+    public var builtIn: Bool
 
-    public init(kind: Kind, name: String, path: String, arguments: [String] = []) {
+    public init(kind: Kind, name: String, path: String, arguments: [String] = [], builtIn: Bool = false) {
         self.kind = kind
         self.name = name
         self.path = path
         self.arguments = arguments
+        self.builtIn = builtIn
     }
 
     /// How the failure line and the status report name it: "openbrain" or "list-changed hook".
@@ -105,13 +109,18 @@ public enum EventPlan {
     }
 
     /// The jobs one event runs, in order: the adapter for the completed task's ref first, when
-    /// `adapters/<name>` exists, then `hooks/<event>` when it exists. `exists` answers for a path.
-    public static func jobs(for payload: EventPayload, configDirectory: URL, exists: (String) -> Bool) -> [EventJob] {
+    /// one answers for its name (`AdapterLookup`: an enabled built-in, or `adapters/<name>`), then
+    /// `hooks/<event>` when it exists. `exists` answers for a path.
+    public static func jobs(for payload: EventPayload, configDirectory: URL, lookup: AdapterLookup = .folderOnly, exists: (String) -> Bool) -> [EventJob] {
         var jobs: [EventJob] = []
         if payload.event == .taskCompleted, let ref = payload.task?.ref, let parsed = TaskRef(ref) {
-            let path = adaptersDirectory(configDirectory).appendingPathComponent(parsed.adapter).path
-            if exists(path) {
+            switch lookup.source(for: parsed.adapter, configDirectory: configDirectory, exists: exists) {
+            case .builtIn(let path)?:
+                jobs.append(EventJob(kind: .adapter, name: parsed.adapter, path: path, arguments: ["complete", parsed.id], builtIn: true))
+            case .folder(let path)?:
                 jobs.append(EventJob(kind: .adapter, name: parsed.adapter, path: path, arguments: ["complete", parsed.id]))
+            case nil:
+                break
             }
         }
         let hook = hooksDirectory(configDirectory).appendingPathComponent(payload.event.rawValue).path
@@ -145,12 +154,13 @@ public struct FileFacts: Equatable, Sendable {
 }
 
 /// The rule for running a hook or adapter: a regular file, owned by the user, executable by the
-/// owner, writable by nobody else. Returns why not, or nil when it may run.
+/// owner, writable by nobody else. Returns why not, or nil when it may run. A script inside the
+/// app bundle may also be owned by root, as an app installed by an administrator is.
 public enum RunPermission {
-    public static func problem(_ facts: FileFacts?, currentUID: UInt32) -> String? {
+    public static func problem(_ facts: FileFacts?, currentUID: UInt32, allowRoot: Bool = false) -> String? {
         guard let facts else { return "not found" }
         if !facts.isRegularFile { return "not a regular file" }
-        if facts.ownerUID != currentUID { return "owned by uid \(facts.ownerUID), not by you" }
+        if facts.ownerUID != currentUID && !(allowRoot && facts.ownerUID == 0) { return "owned by uid \(facts.ownerUID), not by you" }
         if facts.mode & 0o100 == 0 { return "not executable by the owner" }
         if facts.mode & 0o022 != 0 { return "group or world writable" }
         return nil
@@ -197,12 +207,15 @@ public struct InstalledEntry: Equatable, Sendable, Encodable {
     /// Why it will be skipped, from `RunPermission`, or nil when it may run.
     public var problem: String?
     public var lastRun: RunRecord?
+    /// True for an adapter that ships in the app. Left out of the JSON otherwise.
+    public var builtIn: Bool?
 
-    public init(name: String, path: String, problem: String? = nil, lastRun: RunRecord? = nil) {
+    public init(name: String, path: String, problem: String? = nil, lastRun: RunRecord? = nil, builtIn: Bool? = nil) {
         self.name = name
         self.path = path
         self.problem = problem
         self.lastRun = lastRun
+        self.builtIn = builtIn
     }
 }
 

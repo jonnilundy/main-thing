@@ -99,15 +99,16 @@ extension TaskList {
 }
 
 extension EventPlan {
-    /// The adapters to ask about a link, in name order: each file in `adapters/` whose name is a
-    /// valid adapter name, called as `<name> resolve <url>`.
-    public static func resolveJobs(url: String, adapterNames: [String], configDirectory: URL) -> [EventJob] {
-        adapterNames
-            .filter { name in !name.isEmpty && name.allSatisfy { $0.isASCII && ($0.isLowercase || $0.isNumber || $0 == "-") } }
-            .sorted()
-            .map { name in
-                EventJob(kind: .adapter, name: name, path: adaptersDirectory(configDirectory).appendingPathComponent(name).path,
-                         arguments: ["resolve", url])
+    /// The adapters to ask about a link, in name order (`AdapterLookup.resolveNames`), each called
+    /// as `<name> resolve <url>`: valid names in `adapters/` that are not built-in, and the
+    /// enabled built-ins from the app bundle.
+    public static func resolveJobs(url: String, adapterNames: [String], configDirectory: URL, lookup: AdapterLookup = .folderOnly) -> [EventJob] {
+        lookup.resolveNames(folderNames: adapterNames).map { name in
+            if let path = lookup.enabledBuiltIns[name] {
+                return EventJob(kind: .adapter, name: name, path: path, arguments: ["resolve", url], builtIn: true)
             }
+            return EventJob(kind: .adapter, name: name, path: adaptersDirectory(configDirectory).appendingPathComponent(name).path,
+                            arguments: ["resolve", url])
+        }
     }
 }
