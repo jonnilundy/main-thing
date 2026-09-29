@@ -406,9 +406,11 @@ enum CardProbe {
 
             // The card closing during a pen stroke: the cross off is not lost
             hover.setOpen(true)
-            await wait(100)
+            // Let the open card settle first: a click during the open spring can miss the row.
+            await wait(400)
             let stroked = store.list.rows[2]
             await click(CGPoint(x: title, y: y(2)))
+            check("closing in the pen stroke: the click started the stroke", model.pending.isPending(stroked.key))
             hover.setOpen(false)
             check("closing in the pen stroke: the task is crossed off, not dropped", !store.list.rows.contains(stroked) && store.undoTop?.task == stroked.task)
             hover.undoShortcut()
