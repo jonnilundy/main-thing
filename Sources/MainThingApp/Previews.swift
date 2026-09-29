@@ -15,6 +15,10 @@ struct PreviewPins {
     var add = false
     /// The Undo row shows as hovered.
     var undo = false
+    /// The reminder nudge's hop and halo this far to their peak, 0...1.
+    var nudge: Double?
+    /// The nudge's sparkles this many seconds after they start.
+    var nudgeSparkles: Double?
 }
 
 extension EnvironmentValues {
@@ -81,6 +85,8 @@ private func notch(
     hovered: Int? = nil,
     ink: Double? = nil,
     sweep: Double? = nil,
+    nudge: Double? = nil,
+    nudgeSparkles: Double? = nil,
     height: CGFloat,
     edit: (NotchModel, TaskStore) -> Void = { _, _ in }
 ) -> some View {
@@ -92,7 +98,7 @@ private func notch(
     model.forceOpen = open
     model.openWidth = PanelLayout.openWidth(rows: rows, geometry: geometry)
     for index in pending { _ = model.pending.toggle(rows[index].key) }
-    let pins = PreviewPins(hovered: hovered.map { rows[$0].key }, ink: ink, sweep: sweep)
+    let pins = PreviewPins(hovered: hovered.map { rows[$0].key }, ink: ink, sweep: sweep, nudge: nudge, nudgeSparkles: nudgeSparkles)
     edit(model, store)
     return NotchView(store: store, model: model)
         .environment(\.previewPins, pins)
@@ -145,6 +151,19 @@ private func notch(
 
 #Preview("Reminder shimmer", traits: .sizeThatFitsLayout) {
     notch(open: false, sweep: 0.5, height: 64)
+}
+
+#Preview("Reminder nudge", traits: .sizeThatFitsLayout) {
+    // At its peak: the shape grown from the top, the halo in the step's color, sparkles on the
+    // title, the band a third of the way across. Step 3 of the color clock.
+    notch(open: false, sweep: 0.3, nudge: 1, nudgeSparkles: 0.35, height: 64) { model, _ in
+        model.flashCore = Reminder.color(ColorClock.color(step: 3))
+        model.flashEdge = Reminder.color(ColorClock.edge(of: ColorClock.color(step: 3)))
+    }
+}
+
+#Preview("No notch reminder nudge", traits: .sizeThatFitsLayout) {
+    notch(open: false, screen: plainScreen, sweep: 0.3, nudge: 1, nudgeSparkles: 0.35, height: 64)
 }
 
 #Preview("Drag in progress", traits: .sizeThatFitsLayout) {

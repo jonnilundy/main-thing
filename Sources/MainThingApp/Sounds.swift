@@ -7,7 +7,7 @@ import os
 /// ink draws, with a lighter scratch on undo. A Cuelume cue from the bundle or a custom sound from
 /// `<config>/sounds/` plays once per cross off at stroke start, to its end; a new cross off stops
 /// it; undo is silent. The link sound, a cue or none, plays when a pasted link turns into its
-/// title. Every sound is matched to the pen's loudness at volume 0.25 from its decoded samples.
+/// title. The reminder sound, a cue or none (the default), plays with each reminder nudge. Every sound is matched to the pen's loudness at volume 0.25 from its decoded samples.
 /// Silent when the system setting "Play user interface sound effects" is off or the choice is Off.
 @MainActor
 final class Sounds {
@@ -26,6 +26,13 @@ final class Sounds {
 
     static func storeLink(_ cue: Cue?) {
         UserDefaults.standard.set(LinkSound.stored(cue), forKey: LinkSound.key)
+    }
+
+    /// The Reminder sound choice. Nothing stored is None.
+    static var reminderCue: Cue? { ReminderSound.resolve(stored: UserDefaults.standard.string(forKey: ReminderSound.key)) }
+
+    static func storeReminder(_ cue: Cue?) {
+        UserDefaults.standard.set(ReminderSound.stored(cue), forKey: ReminderSound.key)
     }
 
     /// System Settings > Sound > "Play user interface sound effects". Off is 0 in the global domain.
@@ -132,6 +139,7 @@ final class Sounds {
         default: break
         }
         if let cue = Sounds.linkCue, cues[cue] == nil { _ = player(for: cue) }
+        if let cue = Sounds.reminderCue, cues[cue] == nil { _ = player(for: cue) }
     }
 
     private static func load(_ name: String, count: Int) -> [AVAudioPlayer] {
@@ -203,8 +211,31 @@ final class Sounds {
         playing = player
     }
 
+    /// A reminder sound option once, stopping the one before, storing nothing.
+    func preview(reminder cue: Cue?) {
+        stopCustom()
+        guard let cue, let player = player(for: cue) else { return }
+        start(player, label: "reminder \(cue.displayName)")
+        playing = player
+    }
+
     func previewDone() { preview(choice) }
     func previewLink() { preview(link: Sounds.linkCue) }
+    func previewReminder() { preview(reminder: Sounds.reminderCue) }
+
+    /// A reminder nudge: the reminder sound, once. The notch is collapsed, so the output may be
+    /// asleep, and starting it then blocks for about half a second: it starts on the audio queue,
+    /// never on the main thread, so the hop does not wait for it.
+    func reminderNudge() {
+        guard Sounds.systemAllows, !muted, let cue = Sounds.reminderCue, let player = player(for: cue) else { return }
+        player.currentTime = 0
+        let box = PlayerBox([player])
+        let log = self.log
+        audioQueue.async {
+            let started = box.players.first?.play() ?? false
+            log.notice("sound reminder \(cue.displayName, privacy: .public) started \(started, privacy: .public)")
+        }
+    }
 
     /// The Link sound menu: sets the choice and plays it once as a preview.
     func chooseLink(_ cue: Cue?) {

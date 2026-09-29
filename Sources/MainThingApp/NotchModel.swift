@@ -44,6 +44,12 @@ final class NotchModel {
     /// Reminder sweeps so far. Bumped inside the shimmer animation; the fraction on the way from
     /// n to n + 1 is the band's progress across the title, and each bump pulses the dot once.
     var sweep = 0
+    /// Reminder nudges so far: each bump hops the collapsed shape and fades its halo in and out
+    /// (`ReminderNudge`). Bumped with a sweep, only while the card is collapsed.
+    var nudge = 0
+    /// When the last nudge's sparkles started, while they run. Nil the rest of the time, so the
+    /// title draws nothing extra between nudges.
+    var nudgeSparkle: Date?
     /// The color clock: the dot's color now, the flash colors of the step last reached, and the
     /// tooltip for the dot. Set by `Reminder`.
     var dotColor: Color = NotchMetrics.pink

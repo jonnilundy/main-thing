@@ -92,6 +92,13 @@ struct NotchBody: View {
         .background(shape.fill(.black))
         .clipShape(shape)
         .contentShape(shape)
+        // The reminder nudge: the halo outside the clip, under the black, then the hop of it all.
+        .background { NudgeGlow(shape: shape, color: model.flashCore, trigger: model.nudge) }
+        .modifier(NudgeHop(trigger: model.nudge, scale: ReminderNudge.hopScale(
+            width: width + 2 * NotchMetrics.flare,
+            height: geometry.cardTop + (hidden ? 0 : geometry.notchHeight),
+            menuBarWidth: geometry.bridgeRect?.width ?? width + 2 * NotchMetrics.flare
+        )))
         .opacity(hidden ? 0 : 1)
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
@@ -123,6 +130,8 @@ struct BandSlot: View {
             struck: first.map { model.pending.isPending($0.key) } ?? false,
             resolving: first.map { store.resolving[$0.key] != nil } ?? false,
             sweep: model.sweep,
+            nudgeSparkle: model.nudgeSparkle,
+            nudgeColor: model.flashCore,
             dotColor: model.dotColor,
             flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
             taskTime: model.taskTime,
@@ -175,6 +184,10 @@ struct Band: View {
     var resolving = false
     /// Reminder sweeps so far; each bump runs the shimmer and the dot pulse.
     let sweep: Int
+    /// While the reminder nudge's sparkles run: when they started.
+    var nudgeSparkle: Date? = nil
+    /// The step's color, for the sparkles' glow.
+    var nudgeColor: Color = .white
     /// The color clock: the dot now, the band of the step last reached, the dot's tooltip.
     let dotColor: Color
     let flash: Gradient
@@ -284,6 +297,7 @@ struct Band: View {
                         ))
                         .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
                         .opacity(resolving ? NotchMetrics.resolvingOpacity : 1)
+                        .overlay(alignment: .leading) { nudgeSparkles(current) }
                         .frame(width: menuOpen ? min(NotchMetrics.titleWidth(for: current.title), RowMenu.titleLimit(cardWidth: width)) : NotchMetrics.titleWidth(for: current.title), alignment: .leading)
                         .id(current.key)
                         .transition(quiet ? .identity : Motion.push(reduceMotion))
@@ -292,6 +306,19 @@ struct Band: View {
         }
         .padding(.leading, Lanes.slotStart - pill.minX)
         .frame(width: pill.width, height: pill.height, alignment: .leading)
+    }
+
+    /// The reminder nudge's sparkles along the title, white with a glow of the step's color.
+    /// Only in the tree while they run. Reduce Motion: none.
+    @ViewBuilder private func nudgeSparkles(_ current: TaskList.Row) -> some View {
+        if !reduceMotion, nudgeSparkle != nil || pins.nudgeSparkles != nil {
+            SparkleBurst(
+                start: nudgeSparkle ?? Date(), width: NotchMetrics.titleWidth(for: current.title), seed: current.key,
+                style: .nudge, glow: nudgeColor, pinned: pins.nudgeSparkles
+            )
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 }
 
@@ -1038,6 +1065,9 @@ enum NotchMetrics {
     static let dotSize: CGFloat = 7
     static let dotGlow: CGFloat = 8
     static let dotGlowOpacity: Double = 0.7
+    /// The reminder nudge's halo: the outline's stroke and its blur.
+    static let glowWidth: CGFloat = 8
+    static let glowBlur: CGFloat = 8
     /// The other tasks in the open state, and their row numbers.
     static let rowFont = Font.system(size: 13)
     @MainActor static let rowNSFont = NSFont.systemFont(ofSize: 13)
@@ -1163,45 +1193,75 @@ extension Path {
 }
 
 /// The sparkle when a pasted link turns into its title: seven four point stars with a soft glow
-/// pop above and below the title from left to right, turn a little and fade, within 300ms. Drawn
-/// only while it runs.
+/// pop above and below the title from left to right, turn a little and fade, within 300ms. The
+/// reminder nudge's are larger and slower (`Style.nudge`). Drawn only while it runs; a preview
+/// pins one moment (`pinned`, seconds after the start) and draws it without a timeline.
 struct SparkleBurst: View {
-    static let count = 7
-    static let stagger = 0.013
-    static let life = 0.22
-    static var duration: Double { Double(count - 1) * stagger + life }
-    static let height: CGFloat = 36
+    struct Style {
+        var count: Int
+        var delay: Double = 0
+        var stagger: Double
+        var life: Double
+        /// Star radius, times the link's.
+        var size: CGFloat = 1
+        /// How far above the x-height and under the baseline the stars sit, at least.
+        var offset: CGFloat = 9
+        var height: CGFloat = 36
+        var duration: Double { delay + Double(count - 1) * stagger + life }
+
+        static let link = Style(count: 7, stagger: 0.013, life: 0.22)
+        static let nudge: Style = {
+            let t = ReminderNudge.timing(reduceMotion: false)
+            return Style(count: t.sparkleCount, delay: t.sparkleDelay, stagger: t.sparkleStagger, life: t.sparkleLife, size: 1.3, offset: 7)
+        }()
+    }
+
+    static var duration: Double { Style.link.duration }
 
     let start: Date
     let width: CGFloat
     let seed: String
+    var style: Style = .link
+    /// The glow around each star.
+    var glow: Color = .white
+    var pinned: Double? = nil
 
     var body: some View {
-        TimelineView(.animation) { context in
-            let elapsed = context.date.timeIntervalSince(start)
-            Canvas { ctx, size in
-                var rng = SeededJitter(seed)
-                ctx.addFilter(.shadow(color: .white.opacity(0.9), radius: 3))
-                for i in 0..<Self.count {
-                    let jx = rng.next() - 0.5, jy = rng.next(), js = rng.next()
-                    let t = (elapsed - Double(i) * Self.stagger) / Self.life
-                    guard t > 0, t < 1 else { continue }
-                    let pop = sin(Double.pi * t)
-                    // Out of the glyphs: above the x-height on even stars, under the baseline on odd.
-                    let side: CGFloat = i % 2 == 0 ? -1 : 1
-                    let r = CGFloat(3.2 + 2.6 * js) * CGFloat(pop)
-                    let x = size.width * (CGFloat(i) + 0.5 + CGFloat(jx) * 0.5) / CGFloat(Self.count)
-                    let y = size.height / 2 + side * (9 + CGFloat(jy) * 4) - CGFloat(t) * 3
-                    var star = ctx
-                    star.translateBy(x: x, y: y)
-                    star.rotate(by: .degrees(40 * t))
-                    star.opacity = pop
-                    star.fill(Self.star(radius: r), with: .color(.white))
-                }
+        if let pinned {
+            burst(elapsed: pinned)
+        } else {
+            TimelineView(.animation) { context in
+                burst(elapsed: context.date.timeIntervalSince(start))
             }
-            .frame(width: max(width, 1) + 12, height: Self.height)
-            .offset(x: -6)
         }
+    }
+
+    private func burst(elapsed: Double) -> some View {
+        let style = self.style
+        let glow = self.glow
+        let seed = self.seed
+        return Canvas { ctx, size in
+            var rng = SeededJitter(seed)
+            ctx.addFilter(.shadow(color: glow.opacity(0.9), radius: 3 * style.size))
+            for i in 0..<style.count {
+                let jx = rng.next() - 0.5, jy = rng.next(), js = rng.next()
+                let t = (elapsed - style.delay - Double(i) * style.stagger) / style.life
+                guard t > 0, t < 1 else { continue }
+                let pop = sin(Double.pi * t)
+                // Out of the glyphs: above the x-height on even stars, under the baseline on odd.
+                let side: CGFloat = i % 2 == 0 ? -1 : 1
+                let r = CGFloat(3.2 + 2.6 * js) * style.size * CGFloat(pop)
+                let x = size.width * (CGFloat(i) + 0.5 + CGFloat(jx) * 0.5) / CGFloat(style.count)
+                let y = size.height / 2 + side * (style.offset + CGFloat(jy) * 4) - CGFloat(t) * 3
+                var star = ctx
+                star.translateBy(x: x, y: y)
+                star.rotate(by: .degrees(40 * t))
+                star.opacity = pop
+                star.fill(Self.star(radius: r), with: .color(.white))
+            }
+        }
+        .frame(width: max(width, 1) + 12, height: style.height)
+        .offset(x: -6)
     }
 
     static func star(radius r: CGFloat) -> Path {
@@ -1212,6 +1272,62 @@ struct SparkleBurst: View {
         p.addLine(to: CGPoint(x: 0, y: r)); p.addLine(to: CGPoint(x: -w, y: w)); p.addLine(to: CGPoint(x: -r, y: 0))
         p.addLine(to: CGPoint(x: -w, y: -w)); p.closeSubpath()
         return p
+    }
+}
+
+/// The reminder nudge's hop: the collapsed shape, with everything in it, grows `scale` from its
+/// top center and springs back with one bounce. The top stays on the screen's top edge, so the
+/// shape stays on the menu bar and, under a hardware notch, the bridge and the card grow as one
+/// shape. Keyframes from the trigger: nothing runs between nudges. Reduce Motion: no hop.
+struct NudgeHop: ViewModifier {
+    let trigger: Int
+    let scale: (x: CGFloat, y: CGFloat)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.previewPins) private var pins
+
+    func body(content: Content) -> some View {
+        let timing = ReminderNudge.timing(reduceMotion: reduceMotion)
+        let scale = self.scale
+        let pinned = pins.nudge
+        return content.keyframeAnimator(initialValue: 0.0, trigger: trigger) { view, hop in
+            let h = CGFloat(pinned ?? hop)
+            view.scaleEffect(x: 1 + (scale.x - 1) * h, y: 1 + (scale.y - 1) * h, anchor: .top)
+        } keyframes: { _ in
+            // Up fast with no bounce, then back with one bounce, each spring from the value and
+            // speed it has; the last step lands exactly on rest.
+            SpringKeyframe(timing.hop > 0 ? 1 : 0, duration: max(timing.hopRise, 0.01), spring: Spring(duration: 0.16, bounce: 0))
+            SpringKeyframe(0, duration: max(timing.hopSettle, 0.01), spring: Spring(duration: 0.42, bounce: 0.45))
+            LinearKeyframe(0, duration: 0.02)
+        }
+    }
+}
+
+/// The reminder nudge's halo: the outline, stroked in the step's color and blurred, under the
+/// black shape, so only its outer half shows around the notch. It fades in, holds and fades out
+/// on `ReminderNudge.glowOpacity`, driven by keyframes from the trigger; at rest it is clear and
+/// nothing redraws. Reduce Motion: slower and softer.
+struct NudgeGlow: View {
+    let shape: NotchShape
+    let color: Color
+    let trigger: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.previewPins) private var pins
+
+    var body: some View {
+        let timing = ReminderNudge.timing(reduceMotion: reduceMotion)
+        let pinned = pins.nudge
+        shape
+            .stroke(color, lineWidth: NotchMetrics.glowWidth)
+            .blur(radius: NotchMetrics.glowBlur)
+            .keyframeAnimator(initialValue: 0.0, trigger: trigger) { glow, elapsed in
+                glow.opacity(pinned.map { $0 * timing.glowPeak } ?? ReminderNudge.glowOpacity(at: elapsed, timing: timing))
+            } keyframes: { _ in
+                // A clock in seconds, the curve is Core's; back to 0 at the end, clear at both ends.
+                LinearKeyframe(timing.glow, duration: timing.glow)
+                LinearKeyframe(0, duration: 0.001)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

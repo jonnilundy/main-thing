@@ -53,10 +53,12 @@ final class Reminder {
     private var task: Task<Void, Never>?
     private var observer: NSKeyValueObservation?
     private var anchor: ColorClock.Anchor?
+    private let sounds: Sounds?
 
-    init(store: TaskStore, model: NotchModel) {
+    init(store: TaskStore, model: NotchModel, sounds: Sounds? = nil) {
         self.store = store
         self.model = model
+        self.sounds = sounds
     }
 
     func start() {
@@ -141,6 +143,32 @@ final class Reminder {
         model.flashCore = Reminder.color(core)
         model.flashEdge = Reminder.color(ColorClock.edge(of: core))
         withAnimation(Motion.shimmer) { model.sweep += 1 }
+        nudge(locked: locked)
+    }
+
+    /// With the sweep, while the card is collapsed: the hop, the halo, the sparkles and the
+    /// reminder sound. The views run the hop and the halo off the counter; the sparkles run while
+    /// their start is set, and it is cleared when they are over.
+    private func nudge(locked: Bool) {
+        let open = model.isOpen
+        let editing = model.renaming != nil || model.adding
+        guard ReminderNudge.shouldNudge(open: open, editing: editing, locked: locked) else {
+            log.notice("reminder nudge skipped: open \(open, privacy: .public) editing \(editing, privacy: .public)")
+            return
+        }
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        model.nudge += 1
+        log.notice("reminder nudge \(self.model.nudge, privacy: .public) reduce motion \(reduceMotion, privacy: .public)")
+        let timing = ReminderNudge.timing(reduceMotion: reduceMotion)
+        if timing.sparkleCount > 0 {
+            let start = Date()
+            model.nudgeSparkle = start
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(Int(timing.sparkles * 1000) + 50))
+                if self?.model.nudgeSparkle == start { self?.model.nudgeSparkle = nil }
+            }
+        }
+        sounds?.reminderNudge()
     }
 
     static func color(_ c: OKLCH) -> Color {
