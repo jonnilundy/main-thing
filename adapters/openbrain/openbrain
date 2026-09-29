@@ -1,32 +1,40 @@
 #!/bin/zsh
 # openbrain: Main Thing adapter for Open Brain.
 #
-#   openbrain complete <id>    mark Open Brain task <id> done, via `ob task done <id>`
+#   openbrain complete <id>    mark Open Brain task <id> done: PATCH /v1/tasks/<id> {"status":"done"}
+#   openbrain check            read one task (GET /v1/tasks?limit=1); exit 0 when the URL and key work
 #
-# Needs the Open Brain CLI (`ob`) and OPEN_BRAIN_API_URL plus OPEN_BRAIN_API_KEY, read
-# from ~/.config/main-thing/openbrain.env (KEY=value, one per line). When that file
-# holds op:// references, the script runs itself through `op run --env-file`, so the
-# 1Password CLI resolves them. The event payload on stdin is ignored.
-#
-# Install:  ln -s "$PWD/adapters/openbrain/openbrain" ~/.config/main-thing/adapters/openbrain
+# Talks to the Open Brain HTTP API with curl, the same /v1 API the `ob` CLI uses. Needs
+# OPEN_BRAIN_API_URL (https://<deployment>.convex.site) and OPEN_BRAIN_API_KEY (an obr_ key with
+# tasks:read and tasks:write). Main Thing ships this adapter and passes both from Settings
+# (the key is stored in the Keychain) in the environment. When either is not set, both are read
+# from openbrain.env in the config folder, ~/.config/main-thing/openbrain.env (KEY=value, one per
+# line). When that file holds op:// references, the script runs itself through
+# `op run --env-file`, so the 1Password CLI resolves them. The key goes to curl on stdin, never
+# on a command line, and is never printed. MAIN_THING_CONFIG_DIR sets the config folder.
+# The event payload on stdin is ignored.
 set -u
 
-# The app runs adapters with a small PATH. Add the usual homes of `ob` and `op`.
-path=("$HOME/.volta/bin" "$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
+# The app runs adapters with a small PATH. Add the usual home of `op`.
+path=("$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/main-thing"
+config="${MAIN_THING_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/main-thing}"
 env_file="$config/openbrain.env"
 script="$0"    # inside a zsh function $0 is the function name
 
-# Loads the env file. Plain values are sourced. op:// references go through `op run`,
-# which re-runs this script with the values in place.
+fail() { print -r -- "openbrain: $*" >&2; exit 1; }
+
+# Both values in the environment (from Main Thing's Settings) win, and the env file is not read.
+# Otherwise the env file: plain values are sourced, op:// references go through `op run`, which
+# re-runs this script with the values in place.
 load_env() {
-    [[ -f "$env_file" ]] || return 0
+    [[ -n "${OPEN_BRAIN_API_URL:-}" && -n "${OPEN_BRAIN_API_KEY:-}" ]] && return 0
     # `op run` already put every line of the file in the environment. Sourcing it again would
     # run the op:// references as shell words.
     [[ -n "${MAIN_THING_OPENBRAIN_ENV_LOADED:-}" ]] && return 0
+    [[ -f "$env_file" ]] || return 0
     if /usr/bin/grep -q 'op://' "$env_file"; then
-        command -v op >/dev/null || { echo "openbrain: $env_file holds op:// references but the 1Password CLI (op) is not on PATH" >&2; exit 1; }
+        command -v op >/dev/null || fail "$env_file holds op:// references but the 1Password CLI (op) is not on PATH"
         MAIN_THING_OPENBRAIN_ENV_LOADED=1 exec op run --env-file "$env_file" -- "$script" "$@"
     fi
     set -a
@@ -35,9 +43,31 @@ load_env() {
 }
 
 need_api() {
-    [[ -n "${OPEN_BRAIN_API_URL:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_URL is not set (put it in $env_file)" >&2; exit 1; }
-    [[ -n "${OPEN_BRAIN_API_KEY:-}" ]] || { echo "openbrain: OPEN_BRAIN_API_KEY is not set (put it in $env_file)" >&2; exit 1; }
-    command -v ob >/dev/null || { echo "openbrain: the Open Brain CLI (ob) is not on PATH" >&2; exit 1; }
+    [[ -n "${OPEN_BRAIN_API_URL:-}" ]] || fail "no API URL. Add it in Main Thing Settings, Adapters, or put OPEN_BRAIN_API_URL in $env_file"
+    [[ -n "${OPEN_BRAIN_API_KEY:-}" ]] || fail "no API key. Add it in Main Thing Settings, Adapters, or put OPEN_BRAIN_API_KEY in $env_file"
+    base="$OPEN_BRAIN_API_URL"
+    while [[ "$base" == */ ]]; do base="${base%/}"; done
+    base="${base%/v1}"
+    [[ "$base" == http://* || "$base" == https://* ]] || fail "the API URL must start with https://"
+}
+
+# api <method> <path> [JSON body]: prints the reply body. HTTP failures go to stderr with the
+# API's error message and exit 1.
+api() {
+    local out code reply message
+    local -a data
+    [[ -n "${3:-}" ]] && data=(-H 'Content-Type: application/json' --data-binary "$3")
+    out="$(printf 'Authorization: Bearer %s\n' "$OPEN_BRAIN_API_KEY" |
+        /usr/bin/curl -sS --max-time 8 -X "$1" -H @- -H 'X-Client: main-thing' "${data[@]}" \
+            -w $'\n%{http_code}' "$base$2" 2>&1)" || fail "request failed: ${out%%$'\n'*}"
+    code="${out##*$'\n'}"
+    reply="${out%$'\n'*}"
+    if [[ "$code" != 2?? ]]; then
+        message="$(print -r -- "$reply" | /usr/bin/jq -r '.error.message // .error // empty' 2>/dev/null)"
+        [[ -n "$message" ]] && fail "Open Brain API: $message (HTTP $code)"
+        fail "Open Brain API answered HTTP $code"
+    fi
+    print -r -- "$reply"
 }
 
 verb="${1:-}"
@@ -45,20 +75,28 @@ case "$verb" in
     complete)
         id="${2:-}"
         [[ -n "$id" ]] || { echo "usage: openbrain complete <id>" >&2; exit 2; }
+        [[ "$id" =~ '^[A-Za-z0-9_-]+$' ]] || fail "task id '$id' is not an Open Brain id"
         load_env "$@"
         need_api
-        exec ob task done "$id"
+        api PATCH "/v1/tasks/$id" '{"status":"done"}' >/dev/null
+        ;;
+    check)
+        load_env "$@"
+        need_api
+        api GET "/v1/tasks?limit=1" >/dev/null
+        host="${base#*://}"
+        print -r -- "Connected to ${host%%/*}"
         ;;
     -h|--help|help)
-        sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
     "")
-        echo "usage: openbrain complete <id>" >&2
+        echo "usage: openbrain complete <id> | openbrain check" >&2
         exit 2
         ;;
     *)
-        echo "openbrain: unknown verb '$verb'. Only: complete <id>" >&2
+        echo "openbrain: unknown verb '$verb'. Only: complete <id>, check" >&2
         exit 2
         ;;
 esac

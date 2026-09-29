@@ -4,35 +4,36 @@
 #   linear resolve <url>    for https://linear.app/<workspace>/issue/<ID>/..., print
 #                           {"id":"ENG-123","title":"..."} from the Linear API; exit 3 for any other link
 #   linear complete <id>    move issue <id> (ENG-123) to its team's first completed state (Done)
+#   linear check            ask Linear who the key belongs to; exit 0 and print it when the key works
 #
-# Needs LINEAR_API_KEY, a Linear personal API key, read from ~/.config/main-thing/linear.env
-# (KEY=value, one per line). When that file holds op:// references, the script runs itself
-# through `op run --env-file`, so the 1Password CLI resolves them and no secret sits on disk.
+# Needs LINEAR_API_KEY, a Linear personal API key. Main Thing ships this adapter and passes the
+# key from Settings (stored in the Keychain) in the environment. When LINEAR_API_KEY is not set,
+# it is read from linear.env in the config folder, ~/.config/main-thing/linear.env (KEY=value,
+# one per line). When that file holds op:// references, the script runs itself through
+# `op run --env-file`, so the 1Password CLI resolves them and no secret sits on disk.
 # The key goes to curl on stdin, never on a command line, and is never printed.
-# LINEAR_API_URL overrides the GraphQL endpoint, for tests. The event payload on stdin is ignored.
-#
-# Install:  ln -s "$PWD/adapters/linear/linear" ~/.config/main-thing/adapters/linear
+# MAIN_THING_CONFIG_DIR sets the config folder. LINEAR_API_URL overrides the GraphQL endpoint,
+# for tests. The event payload on stdin is ignored.
 set -u
 
 # The app runs adapters with a small PATH. Add the usual home of `op`.
 path=("$HOME/.local/bin" /opt/homebrew/bin /usr/local/bin $path)
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/main-thing"
+config="${MAIN_THING_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/main-thing}"
 env_file="$config/linear.env"
 script="$0"    # inside a zsh function $0 is the function name
 api="${LINEAR_API_URL:-https://api.linear.app/graphql}"
 
 fail() { print -r -- "linear: $*" >&2; exit 1; }
 
-# Loads the env file. Plain values are sourced. op:// references go through `op run`, which
+# A key in the environment (from Main Thing's Settings) wins, and the env file is not read.
+# Otherwise the env file: plain values are sourced, op:// references go through `op run`, which
 # re-runs this script with the values in place. `op run` puts every line in the environment,
 # so the re-run does not source the file again.
 load_env() {
+    [[ -n "${LINEAR_API_KEY:-}" ]] && return 0
     [[ -n "${MAIN_THING_LINEAR_ENV_LOADED:-}" ]] && return 0
-    if [[ ! -f "$env_file" ]]; then
-        [[ -n "${LINEAR_API_KEY:-}" ]] && return 0
-        fail "$env_file is missing. Put LINEAR_API_KEY=<key or op:// reference> in it (chmod 600)"
-    fi
+    [[ -f "$env_file" ]] || fail "no API key. Add it in Main Thing Settings, Adapters, or put LINEAR_API_KEY in $env_file"
     if /usr/bin/grep -q 'op://' "$env_file"; then
         command -v op >/dev/null || fail "$env_file holds op:// references but the 1Password CLI (op) is not on PATH"
         MAIN_THING_LINEAR_ENV_LOADED=1 exec op run --env-file "$env_file" -- "$script" "$@"
@@ -45,7 +46,7 @@ load_env() {
 # graphql <query> <variables JSON>: prints the "data" object. GraphQL errors and HTTP
 # failures go to stderr with exit 1.
 graphql() {
-    [[ -n "${LINEAR_API_KEY:-}" ]] || fail "LINEAR_API_KEY is not set (put it in $env_file)"
+    [[ -n "${LINEAR_API_KEY:-}" ]] || fail "no API key. Add it in Main Thing Settings, Adapters, or put LINEAR_API_KEY in $env_file"
     local body out code reply
     body="$(/usr/bin/jq -cn --arg q "$1" --argjson v "$2" '{query: $q, variables: $v}')" || fail "could not build the request"
     out="$(printf 'Authorization: %s\n' "$LINEAR_API_KEY" |
@@ -96,16 +97,23 @@ case "$verb" in
         data="$(graphql 'mutation($id: String!, $s: String!) { issueUpdate(id: $id, input: { stateId: $s }) { success } }' "$vars")" || exit 1
         [[ "$(print -r -- "$data" | /usr/bin/jq -r '.issueUpdate.success')" == true ]] || fail "issueUpdate for $id did not succeed"
         ;;
+    check)
+        load_env "$@"
+        data="$(graphql 'query { viewer { name email } }' '{}')" || exit 1
+        who="$(print -r -- "$data" | /usr/bin/jq -r '.viewer | select(.name) | .name + (if .email then " (" + .email + ")" else "" end)')"
+        [[ -n "$who" ]] || fail "Linear API reply has no viewer"
+        print -r -- "Signed in as $who"
+        ;;
     -h|--help|help)
-        sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+        sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
     "")
-        echo "usage: linear resolve <url> | linear complete <id>" >&2
+        echo "usage: linear resolve <url> | linear complete <id> | linear check" >&2
         exit 2
         ;;
     *)
-        echo "linear: unknown verb '$verb'. Only: resolve <url>, complete <id>" >&2
+        echo "linear: unknown verb '$verb'. Only: resolve <url>, complete <id>, check" >&2
         exit 2
         ;;
 esac
