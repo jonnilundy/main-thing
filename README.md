@@ -92,7 +92,7 @@ A cross off in the notch (a click, Return, or Cross off main task) is final only
 
 ## Features
 
-- **Reminder flash.** Every few minutes a colored band sweeps across the current task. The color steps through 10 hues, so the same color coming back tells you how long you have been on the task. Hover the dot to read the time.
+- **Reminder flash.** Every few minutes a colored band sweeps across the current task. The color steps through 10 hues, so the same color coming back tells you how long you have been on the task. Hover the dot to read the time. With each sweep the collapsed notch hops, glows in that color and sparkles, and can play a sound (Settings, General, Reminder sound). Reduce Motion keeps only a slow glow.
 - **Refs.** A task can carry its id in another tool, written `<adapter>:<id>`, for example `openbrain:qh75pbc`. `main-thing set --json -` and `main-thing list --json` keep refs.
 - **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Linear and Open Brain are built in: turn them on in Settings, Adapters. Discarding a task only deletes it from the list.
 - **Links.** Paste a link to a Linear issue (or a task in any tool with an adapter that resolves links), in the New task field, `main-thing add` or the API. Main Thing shows a short placeholder, the adapter for that tool fills in the title and the ref, and crossing it off closes it there. A link no adapter knows stays as the title.
