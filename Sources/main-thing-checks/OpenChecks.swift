@@ -121,6 +121,50 @@ func runOpenChecks() {
         check("halfway the band is centered on the title", abs((mid.start + mid.end) / 2 - 100) < 1e-9 && mid.end - mid.start == 70)
     }
 
+    section("ReminderNudge")
+    do {
+        let full = ReminderNudge.timing(reduceMotion: false)
+        let reduced = ReminderNudge.timing(reduceMotion: true)
+        check("the nudge takes 1.2 to 1.6s", (1.2...1.6).contains(full.total) && (1.2...1.6).contains(reduced.total))
+        check("the halo ends with the sweep, the hop and the sparkles before it", abs(full.glow - ReminderSchedule.sweepDuration) < 1e-9 && full.hop < full.total && full.sparkles < full.total)
+        check("reduce motion: no hop, no sparkles, a slower softer halo", reduced.hop == 0 && reduced.sparkleCount == 0 && reduced.sparkles == 0
+            && reduced.glowIn > full.glowIn && reduced.glowOut < reduced.glow && reduced.glowPeak < full.glowPeak)
+        check("the halo is dark before and after", ReminderNudge.glowOpacity(at: 0, timing: full) == 0 && ReminderNudge.glowOpacity(at: full.glow, timing: full) == 0 && ReminderNudge.glowOpacity(at: -1, timing: full) == 0)
+        check("the halo holds its peak", ReminderNudge.glowOpacity(at: full.glowIn + full.glowHold / 2, timing: full) == full.glowPeak)
+        let rise = stride(from: 0.0, through: full.glowIn, by: 0.01).map { ReminderNudge.glowOpacity(at: $0, timing: full) }
+        let fall = stride(from: full.glowIn + full.glowHold, through: full.glow, by: 0.01).map { ReminderNudge.glowOpacity(at: $0, timing: full) }
+        check("the halo only rises, then only falls", zip(rise, rise.dropFirst()).allSatisfy { $0 <= $1 } && zip(fall, fall.dropFirst()).allSatisfy { $0 >= $1 })
+        // Ease out, never ease in: the first tenth of the rise covers more than a tenth of it.
+        check("the halo eases out coming and going", ReminderNudge.glowOpacity(at: full.glowIn * 0.1, timing: full) > full.glowPeak * 0.1
+            && ReminderNudge.glowOpacity(at: full.glowIn + full.glowHold + full.glowOut * 0.1, timing: full) < full.glowPeak * 0.9)
+
+        // A plain notch: 185 wide in a 30pt menu bar row, all of it in the row.
+        let plain = ReminderNudge.hopScale(width: 185, height: 30, menuBarWidth: 185)
+        check("hop: 7 percent taller, from the top", abs(plain.y - 1.07) < 1e-9)
+        check("hop: a plain notch reaches at most 3pt into the menu bar on a side", ReminderNudge.sideGrowth(menuBarWidth: 185, scaleX: plain.x) <= 3 + 1e-9 && plain.x > 1)
+        let wide = ReminderNudge.hopScale(width: 420, height: 30, menuBarWidth: 420)
+        check("hop: a long title's notch still reaches only 3pt", abs(ReminderNudge.sideGrowth(menuBarWidth: 420, scaleX: wide.x) - 3) < 1e-9)
+        let small = ReminderNudge.hopScale(width: 60, height: 30, menuBarWidth: 60)
+        check("hop: never wider than 7 percent", abs(small.x - 1.07) < 1e-9)
+        // A hardware notch: a 201pt card under a 185pt bridge, 32 + 30 tall. The bridge and the
+        // card scale together, so they stay one joined shape; the bridge widens at most 3pt a side.
+        let notch = ReminderNudge.hopScale(width: 201, height: 62, menuBarWidth: 185)
+        check("hop: the bridge reaches at most 3pt past the camera on a side", ReminderNudge.sideGrowth(menuBarWidth: 185, scaleX: notch.x) <= 3 + 1e-9)
+        check("hop: the card is never wider than 7 percent more", notch.x <= 1.07 && notch.y == 1.07)
+        check("hop: an empty shape does not grow", ReminderNudge.hopScale(width: 0, height: 0, menuBarWidth: 0).y == 1)
+
+        check("nudge: collapsed and unlocked", ReminderNudge.shouldNudge(open: false, editing: false, locked: false))
+        check("nudge: skipped while the card is open", !ReminderNudge.shouldNudge(open: true, editing: false, locked: false))
+        check("nudge: skipped while a field is open", !ReminderNudge.shouldNudge(open: false, editing: true, locked: false))
+        check("nudge: skipped while the screen is locked", !ReminderNudge.shouldNudge(open: false, editing: false, locked: true))
+
+        check("reminder sound key", ReminderSound.key == "reminderSound" && ReminderSound.key != LinkSound.key && ReminderSound.key != SoundChoice.key)
+        check("reminder sound: nothing stored is None", ReminderSound.resolve(stored: nil) == nil && ReminderSound.resolve(stored: "") == nil && ReminderSound.resolve(stored: "none") == nil)
+        check("reminder sound: an unknown value is None", ReminderSound.resolve(stored: "cuelume:gong") == nil && ReminderSound.resolve(stored: "chalk.mp3") == nil)
+        check("reminder sound: a cue round trips", Cue.allCases.allSatisfy { ReminderSound.resolve(stored: ReminderSound.stored($0)) == $0 } && ReminderSound.stored(nil) == "none")
+        check("reminder sound options: None, then the 17 cues", ReminderSound.options.count == 18 && ReminderSound.options.first == .some(nil) && Array(ReminderSound.options.dropFirst()) == Cue.allCases.map { $0 })
+    }
+
     section("ColorClock")
     do {
         let pink = ColorClock.brand
