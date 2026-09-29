@@ -188,7 +188,7 @@ final class HoverController {
     }
 
     /// A click on a row. The row is struck through at once, with a haptic tick; after
-    /// `completionDelay` it leaves and an Undo shows in its place for 5 seconds. The done hook and
+    /// `completionDelay` it leaves and an Undo shows in its place for 4 seconds. The done hook and
     /// the adapter run for that task when the Undo window ends, not before. A second click inside
     /// the pen stroke restores the row and nothing is sent anywhere.
     func toggleCompletion(of row: TaskList.Row) {

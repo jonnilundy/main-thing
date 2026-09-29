@@ -508,14 +508,14 @@ final class CardController {
 
     // MARK: Cross off, discard and Undo
 
-    /// A cross off whose pen stroke is done: the row leaves and an Undo shows in its place for 5
+    /// A cross off whose pen stroke is done: the row leaves and an Undo shows in its place for 4
     /// seconds. The done hook and the adapter run when that window ends (`TaskStore.completeHeld`).
     @discardableResult
     func completeHeld(key: String, expected: String?) -> Bool {
         edit { store.completeHeld(key: key, expected: expected, source: EventSource.notch) != nil }
     }
 
-    /// Deletes the task: no done hook, no adapter, no sound. An Undo shows in its place for 5 seconds.
+    /// Deletes the task: no done hook, no adapter, no sound. An Undo shows in its place for 4 seconds.
     func discard(_ key: String) {
         if model.renaming == key { cancelRename() }
         edit { store.discard(key: key, source: EventSource.notch) != nil }

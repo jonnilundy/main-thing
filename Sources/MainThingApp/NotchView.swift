@@ -442,7 +442,8 @@ struct OpenContent: View {
             .transition(model.quietRows ? .identity : Motion.row(reduceMotion, index: position))
         case .undo:
             if let gone = model.discarded {
-                UndoRow(title: gone.task.title, kind: gone.kind, width: width, hovered: model.hover == .undo || pins.undo, pressed: model.pressed == .undo)
+                UndoRow(title: gone.task.title, kind: gone.kind, width: width, hovered: model.hover == .undo || pins.undo, pressed: model.pressed == .undo,
+                        start: Date(timeIntervalSinceReferenceDate: gone.at), color: model.dotColor)
                     .equatable()
                     .accessibilityAction { card?.undo() }
                     .transition(.opacity.animation(reduceMotion ? Motion.reducedFade : Motion.fade))
@@ -718,7 +719,8 @@ struct InlineField: View {
     }
 }
 
-/// Where a task was crossed off or discarded, for 5 seconds: its title faint, and Undo. A click
+/// Where a task was crossed off or discarded, for 4 seconds: its title faint, and Undo. The word
+/// is filled with the dot's color, which drains from right to left as the seconds run out. A click
 /// anywhere on the row puts the task back.
 struct UndoRow: View, Equatable {
     let title: String
@@ -726,6 +728,9 @@ struct UndoRow: View, Equatable {
     let width: CGFloat
     let hovered: Bool
     let pressed: Bool
+    /// When the window started, and the color that counts it down.
+    var start: Date = .distantPast
+    var color: Color = NotchMetrics.pink
 
     var body: some View {
         let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
@@ -738,10 +743,7 @@ struct UndoRow: View, Equatable {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Undo")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
-                .opacity(Lanes.rowTitleOpacity(hovered: true, increaseContrast: contrast))
+            UndoCountdown(start: start, color: color, baseOpacity: Lanes.numberOpacity(hovered: true, increaseContrast: contrast))
         }
         .padding(.leading, Lanes.pillPadding)
         .padding(.trailing, Lanes.pillTrailingPadding)
@@ -752,6 +754,37 @@ struct UndoRow: View, Equatable {
         .accessibilityElement(children: .combine)
         .accessibilityLabel((kind == .done ? "Undo cross off of " : "Undo discard of ") + title)
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// The word Undo as its own countdown: dim white underneath, the countdown color on top, cut from
+/// the right as the window runs out. Under Reduce Motion it stays full, with no animation.
+struct UndoCountdown: View {
+    let start: Date
+    let color: Color
+    let baseOpacity: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
+            let left = reduceMotion ? 1 : min(max(1 - context.date.timeIntervalSince(start) / Discarded.seconds, 0), 1)
+            word
+                .foregroundStyle(.white)
+                .opacity(baseOpacity)
+                .overlay(alignment: .leading) {
+                    word
+                        .foregroundStyle(color)
+                        .mask(alignment: .leading) {
+                            GeometryReader { box in
+                                Rectangle().frame(width: box.size.width * left)
+                            }
+                        }
+                }
+        }
+    }
+
+    private var word: some View {
+        Text("Undo").font(.system(size: 12, weight: .semibold))
     }
 }
 

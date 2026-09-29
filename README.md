@@ -49,7 +49,7 @@ In the notch:
 - Click a task to cross it off with a pen stroke. Click it again right away to keep it.
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
-- Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 5 seconds.
+- Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 4 seconds.
 - Right click for the menu: Launch at Login, Keyboard Shortcuts (every shortcut with its keys), Check for Updates, Settings and Quit. Settings has four tabs: General (sounds, reminder, the tasks file, the command line tool), Shortcuts, Adapters and Updates.
 
 <img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task, a drag by its number moves another to second place, a new task is typed at the bottom, and a long press opens Rename and Discard" width="100%">
@@ -86,9 +86,9 @@ The highlight looks the same as the hover. The pointer and the keys do not fight
 
 ## Undo
 
-A task you cross off or discard in the notch can come back for 5 seconds. Undo shows in its place. Click it, or press Command Z while the list has the keyboard (after a click in it, or after Show list or Add task). Each undo brings back the newest task still in its 5 seconds, at its old place and with its ref. If the list is closed, the task just comes back to the list.
+A task you cross off or discard in the notch can come back for 4 seconds. Undo shows in its place, and its color drains from the word as the seconds run out. Click it, or press Command Z while the list has the keyboard (after a click in it, or after Show list or Add task). Each undo brings back the newest task still in its 4 seconds, at its old place and with its ref. If the list is closed, the task just comes back to the list.
 
-A cross off in the notch (a click, Return, or Cross off main task) is final only when its 5 seconds end. The list changes at once and `list-changed` goes out, but `task-completed`, with its hook and its adapter (for example, Linear complete), goes out at the end. So an undo never has to reopen anything in another tool. If you quit Main Thing in those 5 seconds, it sends the waiting cross offs before it exits. `main-thing done` and `POST /tasks/done` are final at once, as before.
+A cross off in the notch (a click, Return, or Cross off main task) is final only when its 4 seconds end. The list changes at once and `list-changed` goes out, but `task-completed`, with its hook and its adapter (for example, Linear complete), goes out at the end. So an undo never has to reopen anything in another tool. If you quit Main Thing in those 4 seconds, it sends the waiting cross offs before it exits. `main-thing done` and `POST /tasks/done` are final at once, as before.
 
 ## Features
 

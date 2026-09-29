@@ -16,7 +16,7 @@ func runUndoChecks() {
         stack.push(memo)
         shorter = TaskList(afterMemo)
         check("the Undo row shows the newest", stack.top(at: 101) == memo)
-        check("the next window ends 5 seconds after the oldest", stack.nextExpiry == 105)
+        check("the next window ends 4 seconds after the oldest", stack.nextExpiry == 104)
         var undoing = stack
         let first = undoing.undo(at: 102)
         check("undo takes the newest first", first == memo)
@@ -27,10 +27,10 @@ func runUndoChecks() {
         check("nothing left to undo", undoing.undo(at: 102) == nil)
 
         var ending = stack
-        check("at 104.9 nothing has ended", ending.expire(at: 104.9).isEmpty && ending.entries.count == 2)
-        check("at 105 the cross off ends, the discard still shows", ending.expire(at: 105) == [ship] && ending.top(at: 105) == memo)
-        check("an entry past its window cannot be undone", ending.undo(at: 106.5) == nil)
-        check("at 106 the discard ends too", ending.expire(at: 106) == [memo] && ending.isEmpty)
+        check("at 103.9 nothing has ended", ending.expire(at: 103.9).isEmpty && ending.entries.count == 2)
+        check("at 104 the cross off ends, the discard still shows", ending.expire(at: 104) == [ship] && ending.top(at: 104) == memo)
+        check("an entry past its window cannot be undone", ending.undo(at: 105.5) == nil)
+        check("at 105 the discard ends too", ending.expire(at: 105) == [memo] && ending.isEmpty)
 
         var quitting = stack
         check("quit drains every entry, oldest first", quitting.drain() == [ship, memo] && quitting.isEmpty)

@@ -391,7 +391,7 @@ enum CardProbe {
             check("keys: with the card closed, keys are not the card's", model.hover == .none)
         }
 
-        /// The Undo windows: 5 seconds, a cross off commits at the end, a discard is just gone; undo
+        /// The Undo windows: 4 seconds, a cross off commits at the end, a discard is just gone; undo
         /// with the card closed; the card closing in a pen stroke; quit.
         func windows() async {
             store.replace(start, source: "probe")
@@ -439,7 +439,7 @@ enum CardProbe {
             check("quit: the held cross off commits and its done hook runs before the app exits", dones() == 1 && log().contains("probe:quit"))
             check("quit: nothing is left to undo", real.undoTop == nil && real.undoLast() == nil)
 
-            // Every window ends after 5 seconds
+            // Every window ends after 4 seconds
             hover.setOpen(true)
             await wait(100)
             sent.payloads = []
@@ -450,10 +450,10 @@ enum CardProbe {
             check("windows: the newest shows, the cross off", model.discarded?.kind == .done && model.discarded?.task.ref == "probe:ship")
             // Wide margins: the probes share the machine with a build, and the window rule itself is
             // a pure check in main-thing-checks.
-            await wait(3000)
-            check("windows: at 3.5s both are still held, no done went out", store.undo.entries.count == 2 && !sent.events.contains(.taskCompleted) && dones() == 1)
             await wait(2400)
-            check("windows: after 5s the Undo is gone", model.discarded == nil && store.undo.isEmpty && titles.count == 3)
+            check("windows: at 2.9s both are still held, no done went out", store.undo.entries.count == 2 && !sent.events.contains(.taskCompleted) && dones() == 1)
+            await wait(1900)
+            check("windows: after 4s the Undo is gone", model.discarded == nil && store.undo.isEmpty && titles.count == 3)
             check("windows: the cross off committed once, with its ref, from the notch",
                   sent.payloads.filter { $0.event == .taskCompleted }.map { $0.task?.ref } == ["probe:ship"] && sent.payloads.last?.source == EventSource.notch)
             check("windows: the discard sent nothing when its window ended", sent.events == [.listChanged, .listChanged, .taskCompleted])

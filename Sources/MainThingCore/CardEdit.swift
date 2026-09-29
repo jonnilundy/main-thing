@@ -283,7 +283,7 @@ public enum RowMenu {
 /// an Undo shows in its place for `seconds`. Undo puts it back where it was. A discard runs no
 /// done hook; a cross off runs its done hook and adapter only when the window ends (`UndoStack`).
 public struct Discarded: Equatable, Sendable {
-    public static let seconds: TimeInterval = 5
+    public static let seconds: TimeInterval = 4
 
     public enum Kind: String, Equatable, Sendable {
         /// Deleted from the long press menu or with the Delete key.
