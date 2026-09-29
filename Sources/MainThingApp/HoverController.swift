@@ -13,6 +13,9 @@ import os
 /// can still report the old position inside the handler for a warped cursor.
 @MainActor
 final class HoverController {
+    /// The running app's controller, for the right click menu's shortcut items.
+    private(set) static weak var shared: HoverController?
+
     /// From the click to the row leaving: the strikethrough draws for 150ms, then 250ms more.
     static let completionDelay: Duration = .milliseconds(400)
 
@@ -50,6 +53,7 @@ final class HoverController {
     }
 
     func start() {
+        HoverController.shared = self
         let global = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged], handler: { [weak self] event in
             MainActor.assumeIsolated {
                 self?.evaluate(at: HoverController.screenPoint(of: event), source: "global")

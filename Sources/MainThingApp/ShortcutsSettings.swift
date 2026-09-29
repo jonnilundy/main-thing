@@ -27,3 +27,45 @@ struct ShortcutsSection: View {
         }
     }
 }
+
+/// The Keyboard Shortcuts submenu of the right click menu: every shortcut with its keys, for
+/// reference. The global ones show the keys set in Settings and run when picked; the keys of the
+/// open list are listed, greyed, since they only work in the list.
+struct KeyboardShortcutsMenu: View {
+    var body: some View {
+        Menu("Keyboard Shortcuts") {
+            Section("From any app") {
+                global("Show List", .showList) { HoverController.shared?.showList() }
+                global("Add Task", .addTask) { HoverController.shared?.addTask() }
+                global("Cross Off Main Task", .crossOffMain) { HoverController.shared?.crossOffMain() }
+                global("Undo", .undo) { HoverController.shared?.undoShortcut() }
+            }
+            Section("In the open list") {
+                key("Move the Highlight", .downArrow)
+                key("Next Row", .tab)
+                key("Cross Off, or Add", .return)
+                key("Rename", "e")
+                key("Discard", .delete)
+                key("Move Task Up", .upArrow, [.option])
+                key("Move Task Down", .downArrow, [.option])
+                key("New Task", "n")
+                key("Undo", "z", [.command])
+                key("Close", .escape)
+            }
+            Divider()
+            Button("Edit Shortcuts…") { SettingsWindow.show(tab: .shortcuts) }
+        }
+    }
+
+    private func global(_ title: String, _ name: KeyboardShortcuts.Name, action: @escaping () -> Void) -> some View {
+        let shortcut = name.shortcut?.toSwiftUI
+        return Button(shortcut == nil ? title + " (not set)" : title, action: action)
+            .keyboardShortcut(shortcut)
+    }
+
+    private func key(_ title: String, _ key: KeyEquivalent, _ modifiers: EventModifiers = []) -> some View {
+        Button(title) {}
+            .keyboardShortcut(key, modifiers: modifiers)
+            .disabled(true)
+    }
+}

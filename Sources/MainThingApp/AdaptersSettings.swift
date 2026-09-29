@@ -155,13 +155,19 @@ struct AdaptersSettings: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.refresh() }
     }
 
+    /// Folder files a built-in adapter shadows never run, so they are not listed: they are the old
+    /// hand install of that built-in adapter, and showing them only raised questions.
+    private var visibleCustom: [InstalledEntry] {
+        model.custom.filter { $0.problem != EventRunner.shadowedProblem }
+    }
+
     private var customSection: some View {
         Section {
-            if model.custom.isEmpty {
+            if visibleCustom.isEmpty {
                 Text("None in \(model.customFolder)")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(model.custom, id: \.path) { entry in
+                ForEach(visibleCustom, id: \.path) { entry in
                     LabeledContent(entry.name) {
                         Text(customState(entry))
                             .foregroundStyle(entry.problem == nil ? .primary : .secondary)
@@ -171,7 +177,7 @@ struct AdaptersSettings: View {
         } header: {
             Text("Custom adapters")
         } footer: {
-            if !model.custom.isEmpty {
+            if !visibleCustom.isEmpty {
                 Text("Executables in \(model.customFolder)")
                     .font(.callout)
                     .foregroundStyle(.secondary)

@@ -977,7 +977,7 @@ struct NotchMenu: View {
                 }
             ))
         }
-        Button("Keyboard Shortcuts…") { SettingsWindow.show(tab: .shortcuts) }
+        KeyboardShortcutsMenu()
         Divider()
         UpdateMenuItems()
         Button("Settings…") { SettingsWindow.show() }
