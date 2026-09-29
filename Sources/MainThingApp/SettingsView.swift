@@ -14,6 +14,7 @@ struct GeneralSettings: View {
     /// Nil until a sound is picked: nothing stored is the default cue, not a stored value.
     @AppStorage(Sounds.key) private var storedSound: String?
     @AppStorage(LinkSound.key) private var storedLinkSound: String?
+    @AppStorage(ReminderSound.key) private var storedReminderSound: String?
     @AppStorage(Reminder.key) private var storedReminder: Int = ReminderSchedule.defaultInterval
     @State private var loginStatus = LaunchAtLogin.status
     @State private var soundFiles: [String] = []
@@ -27,6 +28,9 @@ struct GeneralSettings: View {
                     linkSoundPicker(sounds)
                 }
                 reminderPicker
+                if let sounds {
+                    reminderSoundPicker(sounds)
+                }
                 LabeledContent("Tasks file") {
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([TaskStore.defaultFileURL]) }
                 }
@@ -101,6 +105,25 @@ struct GeneralSettings: View {
                 selected: LinkSound.stored(current),
                 onSelect: { value in Sounds.storeLink(LinkSound.resolve(stored: value)) },
                 onHover: { value in sounds.preview(link: LinkSound.resolve(stored: value)) }
+            )
+        }
+    }
+
+    /// None or a cue, with each reminder nudge. Pointing at an option plays it, as for Link sound.
+    private func reminderSoundPicker(_ sounds: Sounds) -> some View {
+        let current = ReminderSound.resolve(stored: storedReminderSound)
+        var entries: [SoundPopUp.Entry] = []
+        for cue in ReminderSound.options {
+            entries.append(.option(title: ReminderSound.displayName(cue), value: ReminderSound.stored(cue)))
+            if cue == nil { entries.append(.divider) }
+        }
+        return LabeledContent("Reminder sound") {
+            PlayButton(label: "Play the reminder sound") { sounds.previewReminder() }
+            SoundPopUp(
+                entries: entries,
+                selected: ReminderSound.stored(current),
+                onSelect: { value in Sounds.storeReminder(ReminderSound.resolve(stored: value)) },
+                onHover: { value in sounds.preview(reminder: ReminderSound.resolve(stored: value)) }
             )
         }
     }
