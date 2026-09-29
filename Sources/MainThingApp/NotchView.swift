@@ -1066,8 +1066,8 @@ enum NotchMetrics {
     static let dotGlow: CGFloat = 8
     static let dotGlowOpacity: Double = 0.7
     /// The reminder nudge's halo: the outline's stroke and its blur.
-    static let glowWidth: CGFloat = 8
-    static let glowBlur: CGFloat = 8
+    static let glowWidth: CGFloat = 10
+    static let glowBlur: CGFloat = 9
     /// The other tasks in the open state, and their row numbers.
     static let rowFont = Font.system(size: 13)
     @MainActor static let rowNSFont = NSFont.systemFont(ofSize: 13)

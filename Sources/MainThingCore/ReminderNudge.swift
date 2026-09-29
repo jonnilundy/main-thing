@@ -73,7 +73,7 @@ public enum ReminderNudge {
         }
         return Timing(
             hopRise: 0.16, hopSettle: 0.64,
-            glowIn: 0.2, glowHold: 0.35, glowOut: 0.85, glowPeak: 0.9,
+            glowIn: 0.2, glowHold: 0.35, glowOut: 0.85, glowPeak: 1,
             sparkleDelay: 0.1, sparkleCount: 9, sparkleStagger: 0.045, sparkleLife: 0.4
         )
     }
