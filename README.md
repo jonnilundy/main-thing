@@ -63,7 +63,6 @@ These shortcuts work from any app. To change one, open Settings, go to Shortcuts
 | Show list | Control Option Space | Opens the list and gives it the keyboard (see [Keyboard](#keyboard)). It stays open until the pointer goes on it and leaves, you press the shortcut again, or you press Escape. |
 | Add task | Control Option N | Opens the list with the New task field ready for typing. Return adds the task, Escape closes the field and the list. |
 | Cross off main task | None | Crosses off task 1, the same as a click on it. It changes your list, so you set it yourself. |
-| Undo | Control Option Z | Brings back the last task you crossed off or discarded, while its 5 seconds last. See [Undo](#undo). |
 
 Main Thing uses hot keys for these, so it needs no Accessibility permission. If Control Option Space already switches your input source, record another shortcut.
 
@@ -87,7 +86,7 @@ The highlight looks the same as the hover. The pointer and the keys do not fight
 
 ## Undo
 
-A task you cross off or discard in the notch can come back for 5 seconds. Undo shows in its place. Click it, press Command Z while the list has the keyboard, or press the Undo shortcut from any app. Each undo brings back the newest task still in its 5 seconds, at its old place and with its ref. If the list is closed, the task just comes back to the list.
+A task you cross off or discard in the notch can come back for 5 seconds. Undo shows in its place. Click it, or press Command Z while the list has the keyboard (after a click in it, or after Show list or Add task). Each undo brings back the newest task still in its 5 seconds, at its old place and with its ref. If the list is closed, the task just comes back to the list.
 
 A cross off in the notch (a click, Return, or Cross off main task) is final only when its 5 seconds end. The list changes at once and `list-changed` goes out, but `task-completed`, with its hook and its adapter (for example, Linear complete), goes out at the end. So an undo never has to reopen anything in another tool. If you quit Main Thing in those 5 seconds, it sends the waiting cross offs before it exits. `main-thing done` and `POST /tasks/done` are final at once, as before.
 

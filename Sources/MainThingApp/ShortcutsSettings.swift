@@ -12,8 +12,6 @@ extension KeyboardShortcuts.Name {
     static let addTask = Self("addTask", initial: .init(.n, modifiers: [.control, .option]))
     /// Cross off task 1, as a click does. No initial shortcut: it changes the list.
     static let crossOffMain = Self("crossOffMain")
-    /// Undo the last cross off or discard still in its 5 second window, from any app.
-    static let undo = Self("undo", initial: .init(.z, modifiers: [.control, .option]))
 }
 
 /// The Shortcuts section of Settings: a recorder per action. Click one to record, the x clears it.
@@ -23,7 +21,6 @@ struct ShortcutsSection: View {
             KeyboardShortcuts.Recorder("Show list", name: .showList)
             KeyboardShortcuts.Recorder("Add task", name: .addTask)
             KeyboardShortcuts.Recorder("Cross off main task", name: .crossOffMain)
-            KeyboardShortcuts.Recorder("Undo", name: .undo)
         }
     }
 }
@@ -38,7 +35,6 @@ struct KeyboardShortcutsMenu: View {
                 global("Show List", .showList) { HoverController.shared?.showList() }
                 global("Add Task", .addTask) { HoverController.shared?.addTask() }
                 global("Cross Off Main Task", .crossOffMain) { HoverController.shared?.crossOffMain() }
-                global("Undo", .undo) { HoverController.shared?.undoShortcut() }
             }
             Section("In the open list") {
                 key("Move the Highlight", .downArrow)

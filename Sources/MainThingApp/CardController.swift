@@ -521,7 +521,7 @@ final class CardController {
         edit { store.discard(key: key, source: EventSource.notch) != nil }
     }
 
-    /// Command Z, the Undo row, or the Undo shortcut: a pen stroke still drawing is kept, as a
+    /// Command Z or the Undo row: a pen stroke still drawing is kept, as a
     /// second click keeps it; else the newest cross off or discard in its window comes back where
     /// it was. With the card closed the task just returns to the list.
     func undo() {
@@ -668,7 +668,7 @@ final class CardController {
     }
 
     /// The card closed: no hover, no press, no menu; fields end and the keyboard goes back. An
-    /// Undo keeps its window: Command Z is gone with the keyboard, the Undo shortcut still works.
+    /// Undo keeps its window: Command Z works again once the card has the keyboard.
     func closed() {
         press = nil
         menuPress = nil

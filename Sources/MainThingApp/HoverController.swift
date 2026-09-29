@@ -68,7 +68,6 @@ final class HoverController {
         monitors = [global, local].compactMap { $0 }
         // Undo, from any app. Registered here with the card it acts on; the other shortcuts are in
         // `AppDelegate.installShortcuts`.
-        KeyboardShortcuts.onKeyDown(for: .undo) { [weak self] in self?.undoShortcut() }
         log.notice("monitors installed: global \(global != nil, privacy: .public) local \(local != nil, privacy: .public)")
         observeList()
         evaluate(at: NSEvent.mouseLocation, source: "start")
@@ -258,9 +257,9 @@ final class HoverController {
         toggleCompletion(of: first)
     }
 
-    /// Undo from any app: the newest cross off or discard still in its window comes back.
+    /// Undo with or without the card: the newest cross off or discard still in its window comes back.
     func undoShortcut() {
-        log.notice("shortcut: undo")
+        log.notice("undo")
         if let card { card.undo() } else { store.undoLast() }
     }
 
