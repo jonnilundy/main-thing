@@ -6,6 +6,29 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.6.1</title>
+            <pubDate>Tue, 29 Sep 2026 20:09:13 +0000</pubDate>
+            <sparkle:version>9</sparkle:version>
+            <sparkle:shortVersionString>0.6.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.6.1</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.6.1 adds full keyboard control, undo, and a reminder you will notice.
+
+## New
+
+- **Keyboard control.** After Show list, Add task or a click in the list, the list has the keyboard: arrows and Tab move, Return crosses off, E renames, Delete discards, Option and the arrows move a task, N adds, Escape closes.
+- **Undo.** A task you cross off or discard can come back for 4 seconds. The word Undo fills with white as the time runs out. Click it or press Command Z. A cross off reaches its hook and adapter (for example Linear) only when the 4 seconds end.
+- **Adapters in Settings.** A new Adapters tab turns Linear and Open Brain on, keeps their keys in the macOS Keychain, and checks the connection. Both adapters are built in now. If you set one up by hand before, it turns on by itself and keeps working.
+- **A stronger reminder.** Every few minutes the notch hops, glows in the reminder color and sparkles. An optional Reminder sound is in Settings.
+- **Hear sounds before you pick them.** Move the pointer through the sound menus in Settings, or press the play button.
+- **Settings in tabs**, a shorter right click menu, and a Keyboard Shortcuts submenu that lists every shortcut.
+
+## Fixed
+
+- A reminder no longer fires twice in a row.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.6.1/MainThing-0.6.1.zip" length="3057238" type="application/octet-stream" sparkle:edSignature="YQZnDmmELWLh6YfOuoz89GP2sanza9q2agp2vlnE3VAWYZoygLO5TfsLRVA3wqjDrD8ti2mR2TWn4ULmiF+7AA=="/>
+        </item>
+        <item>
             <title>Version 0.6.0</title>
             <pubDate>Mon, 28 Sep 2026 23:28:44 +0000</pubDate>
             <sparkle:version>8</sparkle:version>
