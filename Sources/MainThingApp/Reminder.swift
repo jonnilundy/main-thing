@@ -102,15 +102,18 @@ final class Reminder {
         log.notice("reminder every \(Int(interval), privacy: .public)s, tick \(ColorClock.tick(interval: interval), privacy: .public)s")
         show(interval: interval)
         task = Task { @MainActor [weak self] in
+            // A flash may fire up to 20ms early; the next one is counted from it, never the same one again.
+            var flashed = -TimeInterval.infinity
             while !Task.isCancelled {
                 guard let self else { return }
                 let elapsed = self.elapsed
                 let tick = ColorClock.tick(interval: interval)
-                let flashAt = ColorClock.nextFlash(elapsed: elapsed, interval: interval)
+                let flashAt = ColorClock.nextFlash(elapsed: max(elapsed, flashed), interval: interval)
                 let wait = min(tick, (flashAt ?? .infinity) - elapsed)
                 try? await Task.sleep(for: .seconds(max(wait, 0.05)))
                 guard !Task.isCancelled else { return }
                 if let flashAt, self.elapsed + 0.02 >= flashAt {
+                    flashed = flashAt
                     self.flash(step: ColorClock.state(elapsed: flashAt, interval: interval).step)
                 }
                 self.show(interval: interval)
