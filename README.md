@@ -86,7 +86,7 @@ The highlight looks the same as the hover. The pointer and the keys do not fight
 
 ## Undo
 
-A task you cross off or discard in the notch can come back for 4 seconds. Undo shows in its place, and its color drains from the word as the seconds run out. Click it, or press Command Z while the list has the keyboard (after a click in it, or after Show list or Add task). Each undo brings back the newest task still in its 4 seconds, at its old place and with its ref. If the list is closed, the task just comes back to the list.
+A task you cross off or discard in the notch can come back for 4 seconds. Undo shows in its place, and the word fills with white as the seconds run out. Click it, or press Command Z while the list has the keyboard (after a click in it, or after Show list or Add task). Each undo brings back the newest task still in its 4 seconds, at its old place and with its ref. If the list is closed, the task just comes back to the list.
 
 A cross off in the notch (a click, Return, or Cross off main task) is final only when its 4 seconds end. The list changes at once and `list-changed` goes out, but `task-completed`, with its hook and its adapter (for example, Linear complete), goes out at the end. So an undo never has to reopen anything in another tool. If you quit Main Thing in those 4 seconds, it sends the waiting cross offs before it exits. `main-thing done` and `POST /tasks/done` are final at once, as before.
 
