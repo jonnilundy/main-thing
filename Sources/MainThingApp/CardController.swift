@@ -12,8 +12,13 @@ import os
 /// drag from a task's number or dot reorders. A long press opens the Rename and Discard menu. The
 /// rows are plain views with no gestures or buttons of their own, so a press means one thing.
 ///
+/// Keys: while the card has the keyboard from a shortcut (Show list, Add task) and no field is
+/// open, a local monitor maps each key press (`CardKeys`) to the same edits the pointer makes. The
+/// keyboard highlight is `NotchModel.hover`, the pointer's own highlight: the last input wins.
+///
 /// Every edit is a `replace` on the store with source `notch`, the path the API takes. Edits go by
-/// row key, so a list the API changed meanwhile still gets them on the right task.
+/// row key, so a list the API changed meanwhile still gets them on the right task. A cross off and
+/// a discard go through the store's undo stack: the Undo row shows the newest one.
 @MainActor
 final class CardController {
     private let model: NotchModel
@@ -22,23 +27,37 @@ final class CardController {
     private let toggle: (TaskList.Row) -> Void
     private let log = Logger(subsystem: MainThingBundleID, category: "card")
     private var monitor: Any?
+    private var keyMonitor: Any?
     private var resignObserver: (any NSObjectProtocol)?
     private var press: CardPress?
     /// A press on the open menu, and the item it went down on.
     private var menuPress: RowMenu.Item??
     private var hold: Task<Void, Never>?
-    private var undoExpiry: Task<Void, Never>?
     private var quietEnd: Task<Void, Never>?
     /// A field may take the keyboard. The probe turns this off, so it never takes typing from the
     /// app in front.
     var takesKeyboard = true
-    /// The clock, for the Undo's 4 seconds.
-    var now: () -> TimeInterval = { Date.timeIntervalSinceReferenceDate }
     /// The link sound's player: the app's own, set at launch before the card is made. The bench
     /// and the probe never set it, so their links resolve without a sound.
     var sounds: Sounds? = SettingsWindow.sounds
     /// The New task field closed: a card the Add task shortcut opened can close with it.
     var onAddClosed: (() -> Void)?
+    /// Escape with no field open while the card has the keyboard: close the card.
+    var onEscape: (() -> Void)?
+    /// The panel lost the keyboard to another app while the card had it.
+    var onKeyboardLost: (() -> Void)?
+    /// The card has the keyboard from a shortcut: keys move the highlight and act on it. Opening
+    /// the card with the pointer never takes the keyboard.
+    private(set) var keyboardControl = false
+    /// The highlight came from a key. The pointer takes it back once it moves, not before: a list
+    /// change re-reads a still pointer, and that must not move the highlight.
+    private(set) var keyHighlight = false
+    /// Where the pointer was (screen) at the last key, and where it is now.
+    private var keyAnchor: CGPoint?
+    private var lastScreenPoint: CGPoint?
+    /// Set while an edit here changes the undo stack: the Undo row changes in the edit's own
+    /// animation, not in a fade of its own.
+    private var editing = false
 
     init(model: NotchModel, store: TaskStore, panel: NSPanel, toggle: @escaping (TaskList.Row) -> Void) {
         self.model = model
@@ -52,6 +71,7 @@ final class CardController {
             self?.sparkle(new)
             self?.sounds?.linkResolved()
         }
+        store.onUndoChange = { [weak self] in self?.syncUndo() }
     }
 
     private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
@@ -62,11 +82,24 @@ final class CardController {
             MainActor.assumeIsolated { self?.handle(event) }
             return event
         }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let used = MainActor.assumeIsolated { self?.key(event) ?? false }
+            return used ? nil : event
+        }
         // A click in another app takes the keyboard back: the field keeps what was typed, as
         // Finder does with a rename.
         resignObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: panel, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.endFields(commit: true) }
+            MainActor.assumeIsolated { self?.keyboardTaken() }
         }
+    }
+
+    private func keyboardTaken() {
+        let had = keyboardControl
+        keyboardControl = false
+        keyHighlight = false
+        endFields(commit: true)
+        releaseKeyboard()
+        if had { onKeyboardLost?() }
     }
 
     // MARK: Where the pointer is
@@ -92,6 +125,15 @@ final class CardController {
         }
     }
 
+    /// Every cursor position the app sees, screen coordinates, before `pointer(at:)`. A pointer
+    /// that moved since the last key takes the highlight back.
+    func notePointer(screen point: CGPoint) {
+        lastScreenPoint = point
+        guard keyHighlight else { return }
+        if let anchor = keyAnchor, hypot(point.x - anchor.x, point.y - anchor.y) <= 2 { return }
+        keyHighlight = false
+    }
+
     private func slot(ofKey key: String) -> CardSlot {
         store.list.rows.firstIndex { $0.key == key }.map(CardSlot.task) ?? .none
     }
@@ -101,9 +143,11 @@ final class CardController {
     func pointer(at panelPoint: CGPoint?) {
         guard let panelPoint, model.isOpen else {
             if model.adding, model.addText.trimmingCharacters(in: .whitespaces).isEmpty { closeAdd() }
-            if model.drag == nil { model.setHover(.none, key: nil, animated: !reduceMotion) }
+            if model.drag == nil, !keyHighlight { model.setHover(.none, key: nil, animated: !reduceMotion) }
             return
         }
+        // The keyboard has the highlight until the pointer moves.
+        if keyHighlight { return }
         // A held task is lifted on its own; nothing else lights up under it.
         if model.drag != nil { return }
         let p = cardPoint(panelPoint)
@@ -374,7 +418,7 @@ final class CardController {
     /// back without hiding the panel. Ordering it out and in did too, but left the notch off the
     /// screen for about 250ms.
     private func releaseKeyboard() {
-        guard model.renaming == nil, !model.adding else { return }
+        guard model.renaming == nil, !model.adding, !keyboardControl else { return }
         (panel as? NotchPanel)?.allowsKey = false
         guard panel.isKeyWindow else { return }
         panel.resignKey()
@@ -459,34 +503,142 @@ final class CardController {
         }
     }
 
-    // MARK: Discard and Undo
+    // MARK: Cross off, discard and Undo
 
-    /// Deletes the task: no done hook, no adapter, no sound. An Undo shows in its place for 4 seconds.
-    func discard(_ key: String) {
-        guard let (tasks, gone) = store.list.discarding(key: key, at: now()) else { return }
-        if model.renaming == key { cancelRename() }
-        withAnimation(reduceMotion ? Motion.reducedFade : Motion.content(false)) {
-            model.discarded = gone
-            store.replace(tasks, source: EventSource.notch)
-        }
-        undoExpiry?.cancel()
-        undoExpiry = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(Discarded.seconds))
-            guard let self, !Task.isCancelled, let shown = self.model.discarded, shown == gone, shown.expired(at: self.now()) else { return }
-            withAnimation(self.reduceMotion ? Motion.reducedFade : Motion.fade) { self.model.discarded = nil }
-        }
-        log.notice("discarded row \(gone.index + 1, privacy: .public)")
+    /// A cross off whose pen stroke is done: the row leaves and an Undo shows in its place for 5
+    /// seconds. The done hook and the adapter run when that window ends (`TaskStore.completeHeld`).
+    @discardableResult
+    func completeHeld(key: String, expected: String?) -> Bool {
+        edit { store.completeHeld(key: key, expected: expected, source: EventSource.notch) != nil }
     }
 
-    /// Puts the discarded task back where it was.
+    /// Deletes the task: no done hook, no adapter, no sound. An Undo shows in its place for 5 seconds.
+    func discard(_ key: String) {
+        if model.renaming == key { cancelRename() }
+        edit { store.discard(key: key, source: EventSource.notch) != nil }
+    }
+
+    /// Command Z, the Undo row, or the Undo shortcut: a pen stroke still drawing is kept, as a
+    /// second click keeps it; else the newest cross off or discard in its window comes back where
+    /// it was. With the card closed the task just returns to the list.
     func undo() {
-        guard let gone = model.discarded else { return }
-        undoExpiry?.cancel()
-        withAnimation(reduceMotion ? Motion.reducedFade : Motion.content(false)) {
-            model.discarded = nil
-            store.replace(gone.restored(into: store.list.tasks), source: EventSource.notch)
+        if let key = model.pending.keys.last, let row = store.list.rows.first(where: { $0.key == key }) {
+            toggle(row)
+            return
         }
-        log.notice("undo: row \(gone.index + 1, privacy: .public) back")
+        edit { store.undoLast() != nil }
+    }
+
+    /// A store edit that changes the undo stack, in one animation with the Undo row.
+    @discardableResult
+    private func edit(_ change: () -> Bool) -> Bool {
+        editing = true
+        defer { editing = false }
+        var changed = false
+        withAnimation(reduceMotion ? Motion.reducedFade : Motion.content(false)) { changed = change() }
+        return changed
+    }
+
+    /// The Undo row shows the store's newest entry. A window that ran out fades it.
+    private func syncUndo() {
+        let top = store.undoTop
+        guard model.discarded != top else { return }
+        if editing {
+            model.discarded = top
+        } else {
+            withAnimation(reduceMotion ? Motion.reducedFade : Motion.fade) { model.discarded = top }
+        }
+    }
+
+    // MARK: Keys
+
+    /// A shortcut opened the card: it takes the keyboard, and keys work until it closes.
+    func takeKeyboardControl() {
+        keyboardControl = true
+        takeKeyboard()
+    }
+
+    /// A key press in the panel. True when the card used it; the monitor then drops it.
+    private func key(_ event: NSEvent) -> Bool {
+        guard keyboardControl, model.isOpen, event.window === panel else { return false }
+        // A field takes its own keys: Return saves or adds, Escape closes it, Command Z undoes typing.
+        if fieldSlot != nil { return false }
+        let modifiers = KeyModifiers(event.modifierFlags)
+        guard let action = CardKeys.action(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers, modifiers: modifiers) else {
+            // Command shortcuts go on (Command comma opens Settings); other keys would only beep.
+            return !modifiers.contains(.command) && !modifiers.contains(.control)
+        }
+        perform(action)
+        return true
+    }
+
+    /// What a key does, on the highlighted slot.
+    func perform(_ action: CardKey) {
+        if model.menu != nil {
+            dismissMenu()
+            if action == .escape { return }
+        }
+        let rows = store.list.rows
+        let highlighted: TaskList.Row? = {
+            guard case .task(let index) = model.hover, rows.indices.contains(index) else { return nil }
+            return rows[index]
+        }()
+        switch action {
+        case .step(let by):
+            highlight(CardKeys.step(from: model.hover, by: by, taskCount: rows.count, wraps: false))
+        case .cycle(let by):
+            highlight(CardKeys.step(from: model.hover, by: by, taskCount: rows.count, wraps: true))
+        case .activate:
+            if let highlighted {
+                toggle(highlighted)
+            } else if model.hover == .add {
+                openAdd()
+            } else if model.hover == .undo {
+                undo()
+            }
+        case .rename:
+            if let highlighted { startRename(highlighted.key) }
+        case .discard:
+            if let highlighted {
+                discard(highlighted.key)
+                highlight(CardKeys.clamp(model.hover, taskCount: store.list.count))
+            }
+        case .moveTask(let by):
+            if let highlighted { move(highlighted.key, by: by) }
+        case .newTask:
+            highlight(.add)
+            openAdd()
+        case .undo:
+            undo()
+        case .escape:
+            onEscape?()
+        }
+        log.notice("key: \(String(describing: action), privacy: .public)")
+    }
+
+    /// The keyboard highlight moves to `slot`, with the pointer's own look.
+    private func highlight(_ slot: CardSlot) {
+        keyHighlight = true
+        keyAnchor = lastScreenPoint
+        model.setHover(slot, key: nil, animated: !reduceMotion)
+        let row: String? = switch slot {
+        case .task(let index) where index > 0: store.list.key(at: index)
+        case .add: store.list.rows.last?.key
+        default: nil
+        }
+        if let row { model.scrollTarget = .init(key: row, serial: (model.scrollTarget?.serial ?? 0) + 1) }
+    }
+
+    /// Option Up or Down: the task moves one place, the store path a drag takes, and the highlight
+    /// goes with it.
+    private func move(_ key: String, by: Int) {
+        guard let from = store.list.rows.firstIndex(where: { $0.key == key }) else { return }
+        let to = min(max(from + by, 0), store.list.count - 1)
+        guard let tasks = store.list.moving(key: key, to: to) else { return }
+        quiet()
+        withAnimation(spring) { store.replace(tasks, source: EventSource.notch) }
+        highlight(.task(to))
+        log.notice("reorder by key: row \(from + 1, privacy: .public) to \(to + 1, privacy: .public)")
     }
 
     // MARK: The list and the card
@@ -500,6 +652,10 @@ final class CardController {
             cancelRename()
         }
         if let menu = model.menu, !keys.contains(menu.key) { dismissMenu() }
+        if keyHighlight {
+            let clamped = CardKeys.clamp(model.hover, taskCount: store.list.count)
+            if clamped != model.hover { model.setHover(clamped, key: nil, animated: false) }
+        }
         if press?.kind == .reordering, let drag = model.drag,
            store.list.rows.firstIndex(where: { $0.key == drag.key }) != drag.from {
             // The list moved under a held task: let go of it rather than drop it in a wrong place.
@@ -508,7 +664,8 @@ final class CardController {
         }
     }
 
-    /// The card closed: no hover, no press, no menu; fields and the Undo end.
+    /// The card closed: no hover, no press, no menu; fields end and the keyboard goes back. An
+    /// Undo keeps its window: Command Z is gone with the keyboard, the Undo shortcut still works.
     func closed() {
         press = nil
         menuPress = nil
@@ -516,10 +673,11 @@ final class CardController {
         model.pressed = .none
         model.menu = nil
         model.drag = nil
+        keyboardControl = false
+        keyHighlight = false
         cancelRename()
         closeAdd()
-        undoExpiry?.cancel()
-        model.discarded = nil
+        releaseKeyboard()
         model.setHover(.none, key: nil, animated: false)
     }
 }
@@ -538,5 +696,16 @@ extension CardMap {
             addOpen: model.hover == .add || model.adding,
             bridged: model.geometry.bridgeRect != nil
         )
+    }
+}
+
+extension KeyModifiers {
+    /// The modifier keys of an NSEvent that a card key looks at.
+    init(_ flags: NSEvent.ModifierFlags) {
+        self = []
+        if flags.contains(.command) { insert(.command) }
+        if flags.contains(.option) { insert(.option) }
+        if flags.contains(.shift) { insert(.shift) }
+        if flags.contains(.control) { insert(.control) }
     }
 }

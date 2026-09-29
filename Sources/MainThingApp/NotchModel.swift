@@ -72,8 +72,12 @@ final class NotchModel {
     /// The add card is a text field, and the text in it.
     var adding = false
     var addText = ""
-    /// The last discarded task, while its Undo shows.
+    /// The newest task crossed off or discarded, while its Undo shows (`TaskStore.undo`).
     var discarded: Discarded?
+    /// The row the keyboard highlight went to: the rows scroll to show it. Each move is a new
+    /// target, so going back to a row scrolls to it again.
+    var scrollTarget: ScrollTarget?
+    struct ScrollTarget: Equatable { var key: String; var serial: Int }
     /// A reorder or a rename just landed: rows come and go without their transitions.
     var quietRows = false
     /// The row just added under a still pointer: no cross off preview on it until the pointer moves.

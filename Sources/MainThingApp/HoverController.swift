@@ -27,7 +27,11 @@ final class HoverController {
     private var lastScreenPoint: CGPoint
     /// The open card's pointer: every move goes on to it, for the rows' hover.
     weak var card: CardController? {
-        didSet { card?.onAddClosed = { [weak self] in self?.addFieldClosed() } }
+        didSet {
+            card?.onAddClosed = { [weak self] in self?.addFieldClosed() }
+            card?.onEscape = { [weak self] in self?.keyEscape() }
+            card?.onKeyboardLost = { [weak self] in self?.keyboardLost() }
+        }
     }
     /// The card a shortcut opened, open off the shape until the pointer has been on it and left.
     private var pin: ShortcutPin?
@@ -41,6 +45,8 @@ final class HoverController {
         self.layout = layout
         self.sounds = sounds
         self.lastScreenPoint = NSEvent.mouseLocation
+        // At quit the pen strokes still drawing are crossed off first, then everything held commits.
+        store.beforeQuit = { [weak self] in self?.finishStrokes() }
     }
 
     func start() {
@@ -56,6 +62,9 @@ final class HoverController {
             return event
         })
         monitors = [global, local].compactMap { $0 }
+        // Undo, from any app. Registered here with the card it acts on; the other shortcuts are in
+        // `AppDelegate.installShortcuts`.
+        KeyboardShortcuts.onKeyDown(for: .undo) { [weak self] in self?.undoShortcut() }
         log.notice("monitors installed: global \(global != nil, privacy: .public) local \(local != nil, privacy: .public)")
         observeList()
         evaluate(at: NSEvent.mouseLocation, source: "start")
@@ -101,6 +110,7 @@ final class HoverController {
     /// move inside the shape opens the notch.
     func evaluate(at screenPoint: CGPoint, source: String) {
         lastScreenPoint = screenPoint
+        card?.notePointer(screen: screenPoint)
         if model.forceOpen {
             if !model.isOpen { setOpen(true) }
             setClickThrough(false)
@@ -115,7 +125,7 @@ final class HoverController {
                 setClickThrough(!inside)
                 if inside {
                     card?.pointer(at: point)
-                } else if model.drag == nil {
+                } else if model.drag == nil, card?.keyHighlight != true {
                     // Not `card.pointer(at: nil)`: that closes an empty New task field.
                     model.setHover(.none, key: nil, animated: true)
                 }
@@ -159,7 +169,8 @@ final class HoverController {
         log.notice("open = \(open, privacy: .public) at screen (\(Int(self.lastScreenPoint.x), privacy: .public),\(Int(self.lastScreenPoint.y), privacy: .public)) in \(ms, format: .fixed(precision: 1), privacy: .public) ms")
         if !open {
             endPin()
-            model.pending = PendingCompletions()
+            // A pen stroke still drawing is a cross off: it finishes now instead of being dropped.
+            finishStrokes()
             card?.closed()
             layout.fitClosed()
         }
@@ -174,9 +185,9 @@ final class HoverController {
     }
 
     /// A click on a row. The row is struck through at once, with a haptic tick; after
-    /// `completionDelay` it leaves, and that removal is the completion: events and the adapter run
-    /// for that task then, not before. A second click inside the window restores the row and
-    /// nothing is sent anywhere.
+    /// `completionDelay` it leaves and an Undo shows in its place for 5 seconds. The done hook and
+    /// the adapter run for that task when the Undo window ends, not before. A second click inside
+    /// the pen stroke restores the row and nothing is sent anywhere.
     func toggleCompletion(of row: TaskList.Row) {
         switch model.pending.toggle(row.key) {
         case .cancelled:
@@ -189,10 +200,26 @@ final class HoverController {
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: HoverController.completionDelay)
                 guard let self, self.model.pending.finish(row.key) else { return }
-                self.store.complete(key: row.key, expected: row.title, source: EventSource.notch)
-                self.refresh()
+                self.crossOff(key: row.key, expected: row.title)
             }
         }
+    }
+
+    /// The pen stroke is done: the row leaves into the undo stack.
+    private func crossOff(key: String, expected: String?) {
+        if let card {
+            card.completeHeld(key: key, expected: expected)
+        } else {
+            store.completeHeld(key: key, expected: expected, source: EventSource.notch)
+        }
+        refresh()
+    }
+
+    /// Every pen stroke still drawing crosses its task off now: the card closes or the app quits.
+    private func finishStrokes() {
+        let keys = model.pending.keys
+        model.pending = PendingCompletions()
+        for key in keys { crossOff(key: key, expected: nil) }
     }
 
     // MARK: Shortcuts
@@ -227,11 +254,19 @@ final class HoverController {
         toggleCompletion(of: first)
     }
 
+    /// Undo from any app: the newest cross off or discard still in its window comes back.
+    func undoShortcut() {
+        log.notice("shortcut: undo")
+        if let card { card.undo() } else { store.undoLast() }
+    }
+
     private func pinOpen(_ reason: ShortcutPin.Reason) {
         if pin == nil { pin = ShortcutPin(reason) } else { pin?.reason = reason }
         setOpen(true)
-        // The New task field takes its own Escape; a Carbon hot key would swallow it.
-        listenForEscape(reason == .list)
+        // The card takes the keyboard: the arrows, Return and Escape reach it as keys. A Carbon
+        // Escape hot key would swallow Escape before the card saw it.
+        card?.takeKeyboardControl()
+        listenForEscape(false)
         evaluate(at: NSEvent.mouseLocation, source: "shortcut")
     }
 
@@ -246,6 +281,18 @@ final class HoverController {
         endPin()
         card?.endFields(commit: true)
         setOpen(false)
+    }
+
+    /// Escape with no field open, while the card has the keyboard: the card closes.
+    private func keyEscape() {
+        log.notice("key: escape, closing")
+        closePinned()
+    }
+
+    /// Another app took the keyboard while Show list holds the card: Escape goes back to being a
+    /// hot key, so it still closes the card.
+    private func keyboardLost() {
+        if pin?.reason == .list { listenForEscape(true) }
     }
 
     /// The New task field closed (Escape, or a click in another app) while Add task held the card:

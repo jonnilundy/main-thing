@@ -330,7 +330,7 @@ struct Dot: View {
 }
 
 /// The body of the open card under the band: rows 2..N as pills in the same lanes, dim so the
-/// main thing stays the focus, an Undo row where a task was just discarded, and the add card at
+/// main thing stays the focus, an Undo row where a task was just crossed off or discarded, and the add card at
 /// the very bottom. Past 60 percent of the screen the rows scroll.
 struct OpenContent: View {
     let store: TaskStore
@@ -355,7 +355,7 @@ struct OpenContent: View {
                     .padding(.leading, Lanes.textStart - Lanes.pillInset)
                     .transition(.opacity)
             } else {
-                RowsBlock(maxHeight: model.rowsMaxHeight, onScroll: { model.rowsScroll = $0 }) {
+                RowsBlock(maxHeight: model.rowsMaxHeight, scrollTarget: model.scrollTarget, onScroll: { model.rowsScroll = $0 }) {
                     VStack(alignment: .leading, spacing: 0) {
                         // By key, so a row that moves or leaves keeps its identity and the rest slide.
                         ForEach(RowItem.items(map: map, rows: rows)) { entry in
@@ -442,7 +442,7 @@ struct OpenContent: View {
             .transition(model.quietRows ? .identity : Motion.row(reduceMotion, index: position))
         case .undo:
             if let gone = model.discarded {
-                UndoRow(title: gone.task.title, width: width, hovered: model.hover == .undo || pins.undo, pressed: model.pressed == .undo)
+                UndoRow(title: gone.task.title, kind: gone.kind, width: width, hovered: model.hover == .undo || pins.undo, pressed: model.pressed == .undo)
                     .equatable()
                     .accessibilityAction { card?.undo() }
                     .transition(.opacity.animation(reduceMotion ? Motion.reducedFade : Motion.fade))
@@ -492,28 +492,37 @@ struct Note: View {
 struct RowsBlock<Content: View>: View {
     private let fadeHeight: CGFloat = 18
     let maxHeight: CGFloat?
+    /// The row the keyboard highlight went to: scrolled into view.
+    var scrollTarget: NotchModel.ScrollTarget? = nil
     /// How far the rows are scrolled, for the pointer map.
     var onScroll: (CGFloat) -> Void = { _ in }
     @ViewBuilder let content: Content
     @State private var topClipped = false
     @State private var bottomClipped = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if let maxHeight {
-            ScrollView(.vertical) {
-                content
-                    .onGeometryChange(for: CGRect.self) { proxy in
-                        proxy.frame(in: .named("rows"))
-                    } action: { frame in
-                        topClipped = frame.minY < -1
-                        bottomClipped = frame.maxY > maxHeight + 1
-                    }
-            }
-            .coordinateSpace(name: "rows")
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top
-            } action: { _, offset in
-                onScroll(offset)
+            ScrollViewReader { reader in
+                ScrollView(.vertical) {
+                    content
+                        .onGeometryChange(for: CGRect.self) { proxy in
+                            proxy.frame(in: .named("rows"))
+                        } action: { frame in
+                            topClipped = frame.minY < -1
+                            bottomClipped = frame.maxY > maxHeight + 1
+                        }
+                }
+                .coordinateSpace(name: "rows")
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.contentOffset.y + geometry.contentInsets.top
+                } action: { _, offset in
+                    onScroll(offset)
+                }
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    withAnimation(reduceMotion ? nil : Motion.edgeFade) { reader.scrollTo(target.key) }
+                }
             }
             .scrollIndicators(.automatic)
             .frame(maxHeight: maxHeight)
@@ -737,10 +746,11 @@ struct InlineField: View {
     }
 }
 
-/// Where a discarded task was, for 4 seconds: its title faint and struck through by nothing,
-/// and Undo. A click anywhere on the row puts the task back.
+/// Where a task was crossed off or discarded, for 5 seconds: its title faint, and Undo. A click
+/// anywhere on the row puts the task back.
 struct UndoRow: View, Equatable {
     let title: String
+    var kind: Discarded.Kind = .discard
     let width: CGFloat
     let hovered: Bool
     let pressed: Bool
@@ -768,7 +778,7 @@ struct UndoRow: View, Equatable {
         .opacity(pressed ? 0.85 : 1)
         .animation(Motion.press, value: pressed)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Undo discard of " + title)
+        .accessibilityLabel((kind == .done ? "Undo cross off of " : "Undo discard of ") + title)
         .accessibilityAddTraits(.isButton)
     }
 }
