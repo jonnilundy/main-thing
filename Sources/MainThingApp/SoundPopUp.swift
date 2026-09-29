@@ -20,7 +20,7 @@ struct SoundPopUp: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSPopUpButton {
-        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        let button = FitPopUpButton(frame: .zero, pullsDown: false)
         button.target = context.coordinator
         button.action = #selector(Coordinator.picked(_:))
         button.setContentHuggingPriority(.required, for: .horizontal)
@@ -51,6 +51,7 @@ struct SoundPopUp: NSViewRepresentable {
         if let item = menu.items.first(where: { ($0.representedObject as? String) == selected }), button.selectedItem !== item {
             button.select(item)
         }
+        button.invalidateIntrinsicContentSize()
     }
 
     @MainActor
@@ -60,6 +61,7 @@ struct SoundPopUp: NSViewRepresentable {
         private var hovered: String?
 
         @objc func picked(_ sender: NSPopUpButton) {
+            sender.invalidateIntrinsicContentSize()
             guard let value = sender.selectedItem?.representedObject as? String else { return }
             parent?.onSelect(value)
         }
@@ -71,6 +73,20 @@ struct SoundPopUp: NSViewRepresentable {
         }
 
         func menuDidClose(_ menu: NSMenu) { hovered = nil }
+    }
+}
+
+/// Sized to the selected option, as a SwiftUI Picker is, not to the widest one: the chevrons sit
+/// right after the title, and the right edge lines up with the other rows.
+final class FitPopUpButton: NSPopUpButton {
+    override var intrinsicContentSize: NSSize {
+        var size = super.intrinsicContentSize
+        guard let font, let selected = selectedItem?.title else { return size }
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let widest = itemArray.map { ($0.title as NSString).size(withAttributes: attributes).width }.max() ?? 0
+        let chrome = size.width - widest
+        size.width = ceil((selected as NSString).size(withAttributes: attributes).width + chrome)
+        return size
     }
 }
 

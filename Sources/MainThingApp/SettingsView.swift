@@ -23,16 +23,16 @@ struct GeneralSettings: View {
             Section {
                 launchAtLogin
                 if let sounds {
-                    HStack {
-                        soundPicker(sounds)
-                        PlayButton(label: "Play the done sound") { sounds.previewDone() }
-                    }
-                    HStack {
-                        linkSoundPicker(sounds)
-                        PlayButton(label: "Play the link sound") { sounds.previewLink() }
-                    }
+                    soundPicker(sounds)
+                    linkSoundPicker(sounds)
                 }
                 reminderPicker
+                LabeledContent("Tasks file") {
+                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([TaskStore.defaultFileURL]) }
+                }
+                LabeledContent("Command line tool") {
+                    Button("Install") { CommandLineTool.installFromMenu() }
+                }
             }
         }
         .settingsTab()
@@ -77,6 +77,7 @@ struct GeneralSettings: View {
         }
         let files = soundFiles
         return LabeledContent("Sound") {
+            PlayButton(label: "Play the done sound") { sounds.previewDone() }
             SoundPopUp(
                 entries: entries,
                 selected: current.stored,
@@ -94,6 +95,7 @@ struct GeneralSettings: View {
             if cue == nil { entries.append(.divider) }
         }
         return LabeledContent("Link sound") {
+            PlayButton(label: "Play the link sound") { sounds.previewLink() }
             SoundPopUp(
                 entries: entries,
                 selected: LinkSound.stored(current),

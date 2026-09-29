@@ -17,7 +17,7 @@ The current task sits at the top of the screen, all day. Hover to see the rest o
 3. Right click Main Thing in Applications, choose Open, then click Open. macOS asks this once, because the app is not signed with an Apple developer certificate.
 4. If macOS still refuses, open System Settings, go to Privacy & Security, and click Open Anyway next to Main Thing.
 
-The notch appears at the top of the screen. Right click it and choose Install Command Line Tool to get the `main-thing` command.
+The notch appears at the top of the screen. To get the `main-thing` command, right click the notch, choose Settings, and click Install next to Command line tool.
 
 ### Build from source
 
@@ -50,7 +50,7 @@ In the notch:
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
 - Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 5 seconds.
-- Right click for the menu: Sound, Link Sound, Reminder, Launch at Login, Check for Updates, Settings. Settings has four tabs: General, Shortcuts, Adapters and Updates.
+- Right click for the menu: Launch at Login, Keyboard Shortcuts, Check for Updates, Settings and Quit. Settings has four tabs: General (sounds, reminder, the tasks file, the command line tool), Shortcuts, Adapters and Updates.
 
 <img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task, a drag by its number moves another to second place, a new task is typed at the bottom, and a long press opens Rename and Discard" width="100%">
 

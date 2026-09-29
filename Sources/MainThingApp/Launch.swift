@@ -31,7 +31,7 @@ public enum Launch {
         }
 
         // `MainThing --install-cli` links ~/.local/bin/main-thing to the command in the bundle and exits.
-        // The same thing as Install Command Line Tool in the notch menu, for scripts.
+        // The same thing as Install in Settings, next to Command line tool, for scripts.
         if CommandLine.arguments.contains("--install-cli") {
             do {
                 print(try CommandLineTool.install().message)

@@ -96,7 +96,7 @@ struct NotchBody: View {
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
-        .contextMenu { NotchMenu(store: store, sounds: sounds, reminder: reminder) }
+        .contextMenu { NotchMenu() }
     }
 }
 
@@ -544,34 +544,6 @@ struct RowsBlock<Content: View>: View {
     }
 }
 
-/// One line of the Sound submenu: a checkmark on the current choice; picking one previews it.
-struct SoundItem: View {
-    let choice: SoundChoice
-    let current: SoundChoice
-    let sounds: Sounds
-
-    var body: some View {
-        Toggle(choice.displayName, isOn: Binding(
-            get: { current == choice },
-            set: { on in if on { sounds.choose(choice) } }
-        ))
-    }
-}
-
-/// One line of the Link Sound submenu: a checkmark on the current cue; picking one previews it.
-struct LinkSoundItem: View {
-    let cue: Cue?
-    let current: Cue?
-    let sounds: Sounds
-
-    var body: some View {
-        Toggle(LinkSound.displayName(cue), isOn: Binding(
-            get: { current == cue },
-            set: { on in if on { sounds.chooseLink(cue) } }
-        ))
-    }
-}
-
 /// One of rows 2..N: a 28pt pill with the row number in the marker lane and the title in the
 /// text lane, one line; a title wider than the card truncates with an ellipsis and shows in full
 /// as a tooltip. Hover (from the card's one tracker) fills the pill, lifts the title and the
@@ -986,13 +958,9 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu: Launch at Login, Sound, Link Sound, Reminder, Show Tasks File, Install
-/// Command Line Tool, Quit.
+/// Right click menu, kept short: Launch at Login, Keyboard Shortcuts, Check for Updates, Settings
+/// and Quit. Everything else is in Settings.
 struct NotchMenu: View {
-    let store: TaskStore
-    let sounds: Sounds?
-    let reminder: Reminder?
-
     var body: some View {
         if LaunchAtLogin.needsApproval {
             Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
@@ -1009,50 +977,7 @@ struct NotchMenu: View {
                 }
             ))
         }
-        if let sounds {
-            // Read fresh every time the menu opens, so a file dropped into the folder shows up.
-            let files = sounds.available()
-            let current = SoundChoice.resolve(stored: Sounds.stored, available: files)
-            let groups = SoundChoice.groups(customFiles: files)
-            Menu("Sound") {
-                ForEach(groups.indices, id: \.self) { index in
-                    if index > 0 { Divider() }
-                    Section {
-                        ForEach(groups[index].choices, id: \.stored) { choice in
-                            SoundItem(choice: choice, current: current, sounds: sounds)
-                        }
-                    } header: {
-                        if let title = groups[index].title { Text(title) }
-                    }
-                }
-            }
-            let link = Sounds.linkCue
-            Menu("Link Sound") {
-                LinkSoundItem(cue: nil, current: link, sounds: sounds)
-                Divider()
-                Section("Cuelume") {
-                    ForEach(Cue.allCases, id: \.self) { cue in
-                        LinkSoundItem(cue: cue, current: link, sounds: sounds)
-                    }
-                }
-            }
-        }
-        if reminder != nil {
-            // Read fresh every time the menu opens; `defaults write` can change it too.
-            let current = Reminder.interval
-            Menu("Reminder") {
-                ForEach(ReminderSchedule.menuMinutes, id: \.self) { minutes in
-                    Toggle(ReminderSchedule.label(minutes: minutes), isOn: Binding(
-                        get: { current == minutes * 60 },
-                        set: { on in if on { Reminder.store(seconds: minutes * 60) } }
-                    ))
-                }
-            }
-        }
-        Button("Show Tasks File") {
-            NSWorkspace.shared.activateFileViewerSelecting([store.fileURL])
-        }
-        Button("Install Command Line Tool") { CommandLineTool.installFromMenu() }
+        Button("Keyboard Shortcuts…") { SettingsWindow.show(tab: .shortcuts) }
         Divider()
         UpdateMenuItems()
         Button("Settings…") { SettingsWindow.show() }

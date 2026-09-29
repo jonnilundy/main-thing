@@ -103,6 +103,17 @@ enum SettingsWindow {
 
 /// Toolbar tabs that size the window to the selected tab, keeping its top edge in place.
 final class SettingsTabs: NSTabViewController {
+    /// A fixed space between the tabs: the toolbar puts them edge to edge, so the hover and the
+    /// selected highlights touched.
+    override func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        let tabs = super.toolbarDefaultItemIdentifiers(toolbar)
+        return Array(tabs.flatMap { [$0, .space] }.dropLast())
+    }
+
+    override func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        super.toolbarAllowedItemIdentifiers(toolbar) + [.space]
+    }
+
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         super.tabView(tabView, didSelect: tabViewItem)
         guard let controller = tabViewItem?.viewController, let window = view.window else { return }
