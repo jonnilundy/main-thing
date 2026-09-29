@@ -8,7 +8,7 @@ Main Thing keeps the one task you are on in your Mac's notch.
 [![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black)](#install)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-The current task sits at the top of the screen, all day. Hover to see the rest of the list, click a task to cross it off. A command and a local API set the list, so your scripts and your AI agent can keep it current. No account and no server. Your list stays on your Mac. The only network calls are the daily update check and the adapters you install.
+The current task sits at the top of the screen, all day. Hover to see the rest of the list, click a task to cross it off. A command and a local API set the list, so your scripts and your AI agent can keep it current. No account and no server. Your list stays on your Mac. The only network calls are the daily update check and the adapters you turn on.
 
 ## Install
 
@@ -50,7 +50,7 @@ In the notch:
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
 - Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 4 seconds.
-- Right click for the menu: Sound, Link Sound, Reminder, Launch at Login, Check for Updates, Settings.
+- Right click for the menu: Sound, Link Sound, Reminder, Launch at Login, Check for Updates, Settings. Settings has four tabs: General, Shortcuts, Adapters and Updates.
 
 <img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task, a drag by its number moves another to second place, a new task is typed at the bottom, and a long press opens Rename and Discard" width="100%">
 
@@ -70,7 +70,7 @@ Main Thing uses hot keys for these, so it needs no Accessibility permission. If 
 
 - **Reminder flash.** Every few minutes a colored band sweeps across the current task. The color steps through 10 hues, so the same color coming back tells you how long you have been on the task. Hover the dot to read the time.
 - **Refs.** A task can carry its id in another tool, written `<adapter>:<id>`, for example `openbrain:qh75pbc`. `main-thing set --json -` and `main-thing list --json` keep refs.
-- **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Discarding a task only deletes it from the list.
+- **Adapters.** Crossing off a task with a ref closes it in the tool it came from. Linear and Open Brain are built in: turn them on in Settings, Adapters. Discarding a task only deletes it from the list.
 - **Links.** Paste a link to a Linear issue (or a task in any tool with an adapter that resolves links), in the New task field, `main-thing add` or the API. Main Thing shows a short placeholder, the adapter for that tool fills in the title and the ref, and crossing it off closes it there. A link no adapter knows stays as the title.
 - **Hooks.** An executable in `~/.config/main-thing/hooks/` runs on every change, with the event as JSON on stdin.
 - **Sounds.** Crossing off a task plays Cuelume's Loading cue, and a pasted link turning into its title plays Sparkle, with a small sparkle on the title. To pick another of the 17 Cuelume cues, the Pen scratch, your own file or Off, open Settings and change Sound or Link sound; picking one plays it once. Your own audio files go in `~/.config/main-thing/sounds/`.
@@ -96,12 +96,32 @@ Loopback only. Requests with an `Origin` header are refused, so a web page canno
 
 ## Adapters
 
-An adapter is an executable at `~/.config/main-thing/adapters/<name>`. When a task with the ref `<name>:<id>` is crossed off, Main Thing runs `<name> complete <id>`. When a new task is one link, Main Thing runs `<name> resolve <url>` to get its title and id.
+An adapter connects Main Thing to another tool. When a task with the ref `<name>:<id>` is crossed off, Main Thing runs `<name> complete <id>`. When a new task is one link, Main Thing runs `<name> resolve <url>` to get its title and id.
 
-- Open Brain: [adapters/openbrain/README.md](adapters/openbrain/README.md)
+### Built in: Linear and Open Brain
+
+Both ship inside the app. Open Settings (right click the notch, Settings, or Cmd comma) and go to Adapters. For each one:
+
+1. Turn on Enable. Both are off until you do.
+2. Fill in the fields. Linear needs an API key. Open Brain needs its API URL and an API key. Each field says where to get the value, with a link.
+3. Click Check. It asks the tool with your values (Linear: who owns the key. Open Brain: a read of one task) and shows OK or the error in plain words.
+
+The section also shows the last run: when, the exit code, and the first line of the error.
+
+Where the values go:
+
+- API keys go in your login Keychain, one generic password per key. The service is `com.jonnilundy.mainthing.adapter.<name>` and the account is the variable name, for example `LINEAR_API_KEY`. Keychain Access shows them as "Main Thing: Linear API key".
+- The Open Brain API URL is not a secret. It goes in the app's preferences.
+- When Main Thing runs a built-in adapter, it gives the values to that one process as environment variables. They are never logged, printed or written to a file, and hooks and other adapters do not get them.
+
+If you set an adapter up by hand before, with a file in `~/.config/main-thing/adapters/` or an env file such as `~/.config/main-thing/linear.env`, the update turns it on for you and it keeps working. The built-in script runs instead of the file in the adapters folder; that file is left as it is and does not run. The env file (plain values or `op://` references for the 1Password CLI) stays the fallback: an adapter reads it while a field in Settings is empty. Once every field is set in Settings, the env file is not read.
+
 - Linear: [adapters/linear/README.md](adapters/linear/README.md)
+- Open Brain: [adapters/openbrain/README.md](adapters/openbrain/README.md)
 
-To write your own, see [adapters/README.md](adapters/README.md).
+### Custom adapters
+
+Any other executable at `~/.config/main-thing/adapters/<name>` is a custom adapter. It works as it always has. Settings, Adapters lists them under Custom adapters with whether each may run. The names `linear` and `openbrain` belong to the built-in adapters. To write your own, see [adapters/README.md](adapters/README.md).
 
 ## Use it with your agent
 
@@ -121,7 +141,7 @@ Run `main-thing help` once for the commands, the JSON shape and the API.
 ```sh
 main-thing health       # is the app up, and on which port
 main-thing logs         # ports, refused requests, hook and adapter runs
-main-thing adapters     # installed adapters and why one did not run
+main-thing adapters     # built-in and custom adapters, their last run, and why one did not run
 main-thing port 7799    # pin another port, then relaunch the app
 ```
 
@@ -133,11 +153,15 @@ Turn off Launch at Login in the notch menu, quit Main Thing, then:
 
 ```sh
 rm -rf /Applications/MainThing.app ~/Applications/MainThing.app "$HOME/Library/Application Support/MainThing" ~/.local/bin/main-thing ~/.config/main-thing
+security delete-generic-password -s com.jonnilundy.mainthing.adapter.linear -a LINEAR_API_KEY
+security delete-generic-password -s com.jonnilundy.mainthing.adapter.openbrain -a OPEN_BRAIN_API_KEY
 ```
+
+The last two lines remove the adapter keys from the Keychain, if you saved any.
 
 ## Contributing
 
-`scripts/test.sh` runs the checks, the hover and card probes, and a smoke test against a throwaway copy of the app in about 18 seconds. `scripts/test.sh --checks-only` skips the smoke test. `scripts/render-previews.sh <dir>` renders every notch state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
+`scripts/test.sh` runs the checks, the hover, card and adapter probes, the adapter scripts against a fake Linear and Open Brain, and a smoke test against a throwaway copy of the app in about 20 seconds. The adapter probe (`MainThing --probe-adapters`) uses a defaults suite and Keychain service of its own and removes them at the end. `scripts/test.sh --checks-only` skips the smoke test. `scripts/render-previews.sh <dir>` renders every notch state in `Sources/MainThingApp/Previews.swift` to PNGs in a few seconds, with no screen or cursor; it needs Xcode running with the package open. `scripts/package.sh` builds the DMG.
 
 The probes run the real notch view in an invisible panel of their own, on a list in memory, and never move the cursor. The card probe's text field checks briefly take the keyboard focus, so run `scripts/test.sh` on a machine or a virtual machine you are not typing on. `MainThing --bench-hover gap [notch|menubar|menubar24]` steps down the open card 1pt at a time and reads back from the rendered view which row is drawn hovered, for a hardware notch, a Studio Display menu bar row or a 24pt menu bar. `MainThing --probe-card` clicks, drags, long presses, renames, discards and adds with events sent inside the app, and checks the list after each.
 

@@ -7,15 +7,33 @@ runs the executable at `~/.config/main-thing/adapters/<adapter>` with `complete 
 task is exactly one link, Main Thing asks the adapters with `resolve <url>` which one it belongs to
 and what its title is. Everything else is the adapter's business.
 
-The adapters in this folder each have their own README. Open Brain: [openbrain/README.md](openbrain/README.md).
-Linear: [linear/README.md](linear/README.md).
+The adapters in this folder, Linear and Open Brain, ship inside the app and are set up in Settings,
+Adapters. Each has its own README. Open Brain: [openbrain/README.md](openbrain/README.md).
+Linear: [linear/README.md](linear/README.md). This page is for custom adapters, your own scripts.
+
+## Built-in and custom adapters
+
+- A built-in adapter runs from the app bundle, `MainThing.app/Contents/Resources/adapters/<name>`,
+  and only while its Enable switch in Settings, Adapters is on. Its API keys are in the Keychain
+  and its other values in the app's preferences. The app gives them to that one process as
+  environment variables (`LINEAR_API_KEY`, `OPEN_BRAIN_API_URL`, `OPEN_BRAIN_API_KEY`), plus
+  `MAIN_THING_CONFIG_DIR`, the config folder. No other adapter or hook gets them.
+- A built-in script uses the variables when they are set. When one is missing it reads its env
+  file, `~/.config/main-thing/<name>.env`, as before. Values written as `op://` references go
+  through `op run`.
+- The names `linear` and `openbrain` are taken by the built-in adapters. A file with one of those
+  names in `~/.config/main-thing/adapters/` does not run; `main-thing adapters` lists it as
+  "shadowed by the built-in adapter". Main Thing never deletes it.
+- Every other file in `~/.config/main-thing/adapters/` is a custom adapter and follows the contract
+  below. Settings, Adapters lists them under Custom adapters with whether each may run.
 
 ## The contract
 
 - The file: `~/.config/main-thing/adapters/<name>`. The name is `[a-z0-9-]+` and matches the part
   of the ref before the colon. A symlink to a file elsewhere is fine; the target is what is judged.
 - The call: `<adapter> complete <id>`, where `<id>` is the part of the ref after the first colon.
-  An adapter should reject verbs it does not know with exit 2. Other verbs may come later.
+  An adapter should reject verbs it does not know with exit 2. Other verbs may come later. The
+  built-in adapters also answer `check`, which the Check button in Settings runs.
 - Stdin: the event payload as JSON, for example
 
   ```json
@@ -36,7 +54,8 @@ Linear: [linear/README.md](linear/README.md).
 - Adapters run one at a time, in event order, off the main thread. The API call that completed the
   task returns at once; it never waits for an adapter.
 - Secrets: never put them in the script. Read them from a file in `~/.config/main-thing/` with
-  mode 600, or from your password manager at run time.
+  mode 600, or from your password manager at run time. Only the built-in adapters get values from
+  Settings and the Keychain.
 
 ## Resolve: a pasted link becomes a task
 
@@ -100,7 +119,7 @@ Keep the script in your own repo or dotfiles and link it in:
 mkdir -p ~/.config/main-thing/adapters
 chmod 755 mytool
 ln -s "$PWD/mytool" ~/.config/main-thing/adapters/mytool
-main-thing adapters        # lists what is installed and whether each one may run
+main-thing adapters        # lists built-in and custom adapters and whether each one may run
 ```
 
 Then give tasks refs:
