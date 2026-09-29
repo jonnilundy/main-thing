@@ -185,19 +185,26 @@ final class Sounds {
         }
     }
 
-    /// The play button in Settings: the current done sound once, changing nothing.
-    func previewDone() {
+    /// One option once, stopping the one before, storing nothing: the pointer moving through a
+    /// sound menu in Settings, or its play button.
+    func preview(_ choice: SoundChoice) {
         switch choice {
-        case .off: break
-        case .pen: scratch(lines: 1)
+        case .off: stopCustom()
+        case .pen: stopCustom(); scratch(lines: 1)
         case .cue, .custom: playCustom(choice)
         }
     }
 
-    /// The play button in Settings: the current link sound once, changing nothing.
-    func previewLink() {
-        if let cue = Sounds.linkCue, let player = player(for: cue) { start(player, label: "link \(cue.displayName)") }
+    /// A link sound option once, stopping the one before, storing nothing.
+    func preview(link cue: Cue?) {
+        stopCustom()
+        guard let cue, let player = player(for: cue) else { return }
+        start(player, label: "link \(cue.displayName)")
+        playing = player
     }
+
+    func previewDone() { preview(choice) }
+    func previewLink() { preview(link: Sounds.linkCue) }
 
     /// The Link sound menu: sets the choice and plays it once as a preview.
     func chooseLink(_ cue: Cue?) {

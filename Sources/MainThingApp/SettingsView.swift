@@ -66,39 +66,40 @@ struct GeneralSettings: View {
         }
     }
 
+    /// Pointing at an option in the menu plays it; picking one stores it.
     private func soundPicker(_ sounds: Sounds) -> some View {
         let current = SoundChoice.resolve(stored: storedSound, available: soundFiles)
-        let groups = SoundChoice.groups(customFiles: soundFiles)
-        return Picker("Sound", selection: Binding(
-            get: { current.stored },
-            set: { value in
-                let choice = SoundChoice.resolve(stored: value, available: soundFiles)
-                sounds.choose(choice)
-            }
-        )) {
-            ForEach(groups.indices, id: \.self) { index in
-                if index > 0 { Divider() }
-                Section {
-                    ForEach(groups[index].choices, id: \.stored) { choice in
-                        Text(choice.displayName).tag(choice.stored)
-                    }
-                } header: {
-                    if let title = groups[index].title { Text(title) }
-                }
-            }
+        var entries: [SoundPopUp.Entry] = []
+        for (index, group) in SoundChoice.groups(customFiles: soundFiles).enumerated() {
+            if index > 0 { entries.append(.divider) }
+            if let title = group.title { entries.append(.header(title)) }
+            entries += group.choices.map { .option(title: $0.displayName, value: $0.stored) }
+        }
+        let files = soundFiles
+        return LabeledContent("Sound") {
+            SoundPopUp(
+                entries: entries,
+                selected: current.stored,
+                onSelect: { value in Sounds.store(SoundChoice.resolve(stored: value, available: files)) },
+                onHover: { value in sounds.preview(SoundChoice.resolve(stored: value, available: files)) }
+            )
         }
     }
 
     private func linkSoundPicker(_ sounds: Sounds) -> some View {
         let current = LinkSound.resolve(stored: storedLinkSound)
-        return Picker("Link sound", selection: Binding(
-            get: { LinkSound.stored(current) },
-            set: { value in sounds.chooseLink(LinkSound.resolve(stored: value)) }
-        )) {
-            ForEach(LinkSound.options, id: \.self) { cue in
-                Text(LinkSound.displayName(cue)).tag(LinkSound.stored(cue))
-                if cue == nil { Divider() }
-            }
+        var entries: [SoundPopUp.Entry] = []
+        for cue in LinkSound.options {
+            entries.append(.option(title: LinkSound.displayName(cue), value: LinkSound.stored(cue)))
+            if cue == nil { entries.append(.divider) }
+        }
+        return LabeledContent("Link sound") {
+            SoundPopUp(
+                entries: entries,
+                selected: LinkSound.stored(current),
+                onSelect: { value in Sounds.storeLink(LinkSound.resolve(stored: value)) },
+                onHover: { value in sounds.preview(link: LinkSound.resolve(stored: value)) }
+            )
         }
     }
 
