@@ -23,8 +23,14 @@ struct GeneralSettings: View {
             Section {
                 launchAtLogin
                 if let sounds {
-                    soundPicker(sounds)
-                    linkSoundPicker(sounds)
+                    HStack {
+                        soundPicker(sounds)
+                        PlayButton(label: "Play the done sound") { sounds.previewDone() }
+                    }
+                    HStack {
+                        linkSoundPicker(sounds)
+                        PlayButton(label: "Play the link sound") { sounds.previewLink() }
+                    }
                 }
                 reminderPicker
             }
@@ -169,5 +175,21 @@ extension View {
         formStyle(.grouped)
             .frame(width: settingsWidth)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Plays the sound picked beside it, so the options can be tried one after another.
+private struct PlayButton: View {
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "play.circle")
+                .imageScale(.large)
+        }
+        .buttonStyle(.borderless)
+        .help(label)
+        .accessibilityLabel(label)
     }
 }

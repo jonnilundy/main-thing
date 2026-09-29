@@ -185,6 +185,20 @@ final class Sounds {
         }
     }
 
+    /// The play button in Settings: the current done sound once, changing nothing.
+    func previewDone() {
+        switch choice {
+        case .off: break
+        case .pen: scratch(lines: 1)
+        case .cue, .custom: playCustom(choice)
+        }
+    }
+
+    /// The play button in Settings: the current link sound once, changing nothing.
+    func previewLink() {
+        if let cue = Sounds.linkCue, let player = player(for: cue) { start(player, label: "link \(cue.displayName)") }
+    }
+
     /// The Link sound menu: sets the choice and plays it once as a preview.
     func chooseLink(_ cue: Cue?) {
         Sounds.storeLink(cue)
