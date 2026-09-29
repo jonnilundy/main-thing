@@ -3,11 +3,13 @@ import MainThingCore
 import ServiceManagement
 import SwiftUI
 
-/// The content of the Settings window. Sound, Link sound and Reminder read and write the same
-/// UserDefaults keys as the right click menu, so a change in one shows in the other.
-struct SettingsView: View {
+/// The width every Settings tab shares.
+let settingsWidth: CGFloat = 480
+
+/// The General tab. Sound, Link sound and Reminder read and write the same UserDefaults keys as
+/// the right click menu, so a change in one shows in the other.
+struct GeneralSettings: View {
     let sounds: Sounds?
-    let updater: Updater?
 
     /// Nil until a sound is picked: nothing stored is the default cue, not a stored value.
     @AppStorage(Sounds.key) private var storedSound: String?
@@ -18,7 +20,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("General") {
+            Section {
                 launchAtLogin
                 if let sounds {
                     soundPicker(sounds)
@@ -26,14 +28,8 @@ struct SettingsView: View {
                 }
                 reminderPicker
             }
-            ShortcutsSection()
-            Section("Updates") {
-                updates
-            }
         }
-        .formStyle(.grouped)
-        .frame(width: 420)
-        .fixedSize(horizontal: false, vertical: true)
+        .settingsTab()
         .onAppear(perform: refresh)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
     }
@@ -113,6 +109,26 @@ struct SettingsView: View {
             }
         }
     }
+}
+
+/// The Shortcuts tab.
+struct ShortcutsSettings: View {
+    var body: some View {
+        Form { ShortcutsSection() }
+            .settingsTab()
+    }
+}
+
+/// The Updates tab: version, Check Now, automatic checks, the last check.
+struct UpdatesSettings: View {
+    let updater: Updater?
+
+    var body: some View {
+        Form {
+            Section { updates }
+        }
+        .settingsTab()
+    }
 
     @ViewBuilder private var updates: some View {
         let (version, build) = Updater.bundleVersion
@@ -144,5 +160,14 @@ struct SettingsView: View {
             Text(updater?.state.lastResult.isEmpty == false ? updater!.state.lastResult : "Updates are off in this copy")
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+extension View {
+    /// One Settings tab: a grouped form at the shared width, as tall as its content.
+    func settingsTab() -> some View {
+        formStyle(.grouped)
+            .frame(width: settingsWidth)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

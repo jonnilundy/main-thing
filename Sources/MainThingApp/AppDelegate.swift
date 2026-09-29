@@ -22,9 +22,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// run as usual, so smoke tests can drive a second copy on another port while the real one shows.
     static var headless: Bool { Env.value("HEADLESS", in: ProcessInfo.processInfo.environment) == "1" }
 
+    /// The built-in adapters (Linear, Open Brain), migrated from a hand set up once per launch.
+    private func builtInAdapters() -> AdapterSettings {
+        let adapters = AdapterSettings.live()
+        for line in adapters.migrate() {
+            log.notice("adapters: \(line, privacy: .public)")
+        }
+        return adapters
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         if AppDelegate.headless {
-            let store = TaskStore()
+            let store = TaskStore(adapters: builtInAdapters())
             let server = APIServer(store: store)
             server.start()
             self.store = store
@@ -42,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let store = TaskStore()
+        let adapters = builtInAdapters()
+        let store = TaskStore(adapters: adapters)
         let server = APIServer(store: store)
         let model = NotchModel(geometry: geometry, apiPort: server.port)
         model.forceOpen = CommandLine.arguments.contains("--open")
@@ -59,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let layout = PanelLayout(panel: panel, model: model, store: store)
         let sounds = Sounds()
         SettingsWindow.sounds = sounds
+        SettingsWindow.adapters = AdaptersModel(settings: adapters, store: store)
         SettingsWindow.installShortcut()
         let hover = HoverController(panel: panel, model: model, store: store, layout: layout, sounds: sounds)
         store.onChange = { [weak hover] in hover?.listChanged() }
@@ -87,8 +98,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         snapshotter?.start()
         self.reminder = reminder
         reminder.start()
-        // `MainThing --settings` opens Settings at launch, for scripts and screenshots.
-        if CommandLine.arguments.contains("--settings") { SettingsWindow.show() }
+        // `MainThing --settings [general|shortcuts|adapters|updates]` opens Settings at launch, on
+        // that tab, for scripts and screenshots.
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--settings") {
+            let next = arguments.indices.contains(index + 1) ? arguments[index + 1] : ""
+            SettingsWindow.show(tab: SettingsWindow.Tab(rawValue: next))
+        }
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main

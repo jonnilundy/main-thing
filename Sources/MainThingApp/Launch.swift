@@ -42,6 +42,10 @@ public enum Launch {
             }
         }
 
+        // `MainThing --probe-adapters` runs the built-in adapter plumbing with fake scripts, its own
+        // defaults suite and its own Keychain service, and exits.
+        if CommandLine.arguments.contains("--probe-adapters") { AdapterProbe.run() }
+
         // `MainThing --probe-card` runs every edit in the open card in an invisible panel and exits.
         if CommandLine.arguments.contains("--probe-card") { CardProbe.run() }
 

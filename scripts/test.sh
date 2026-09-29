@@ -22,23 +22,33 @@ BIN="$(swift build --show-bin-path)"
 # A drawn hover at every height of the open card, for a hardware notch, the 30pt menu bar row of a
 # Studio Display and a 24pt menu bar: synthesized moves, the pills read back from the rendered view.
 # The card probe: every edit in the open card, end to end, clicks, drags and long presses as NSEvents.
+# The adapter probe: built-in adapters with fake scripts, its own defaults suite and Keychain service.
 PROBES="$(mktemp -d "${TMPDIR:-/tmp}/main-thing-probes.XXXXXX")"
 PIDS=()
 for screen in notch menubar menubar24; do
     "$BIN/MainThing" --bench-hover gap "$screen" > "$PROBES/gap-$screen" 2>&1 & PIDS+=($!)
 done
 "$BIN/MainThing" --probe-card > "$PROBES/card" 2>&1 & PIDS+=($!)
+"$BIN/MainThing" --probe-adapters > "$PROBES/adapters" 2>&1 & PIDS+=($!)
 FAILED=0
 for pid in "${PIDS[@]}"; do wait "$pid" || FAILED=1; done
 for screen in notch menubar menubar24; do /usr/bin/tail -1 "$PROBES/gap-$screen"; done
-if [[ "$FAILED" == 1 ]] || ! /usr/bin/grep -q "all card checks passed" "$PROBES/card"; then
+if [[ "$FAILED" == 1 ]] || ! /usr/bin/grep -q "all card checks passed" "$PROBES/card" || ! /usr/bin/grep -q "all adapter checks passed" "$PROBES/adapters"; then
     /usr/bin/grep -hE "FAIL|NOTHING|dead|probe:" "$PROBES"/* >&2
     rm -rf "$PROBES"
     echo "test.sh: a probe failed" >&2
     exit 1
 fi
 /usr/bin/tail -1 "$PROBES/card"
+/usr/bin/tail -1 "$PROBES/adapters"
 rm -rf "$PROBES"
+# The built-in adapter scripts against a fake Linear and Open Brain server and a fake op.
+if ! ADAPTERS_OUT=$(scripts/adapter-test.sh 2>&1); then
+    printf '%s\n' "$ADAPTERS_OUT" | /usr/bin/grep FAIL >&2
+    echo "test.sh: the adapter scripts failed" >&2
+    exit 1
+fi
+printf '%s\n' "$ADAPTERS_OUT" | /usr/bin/tail -1
 
 [[ "${1:-}" == "--checks-only" ]] && exit 0
 

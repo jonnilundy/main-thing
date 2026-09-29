@@ -51,6 +51,12 @@ cp -R Resources/Sounds/cuelume "$APP/Contents/Resources/Sounds/"
 cp -R ".build/release/KeyboardShortcuts_KeyboardShortcuts.bundle" "$APP/Contents/Resources/"
 cp "bin/main-thing" "$APP/Contents/Resources/main-thing"
 chmod 755 "$APP/Contents/Resources/main-thing"
+# The built-in adapters (BuiltInAdapters in Sources/MainThingCore). The app runs them from here.
+mkdir -p "$APP/Contents/Resources/adapters"
+for adapter in linear openbrain; do
+    cp "adapters/$adapter/$adapter" "$APP/Contents/Resources/adapters/$adapter"
+    chmod 755 "$APP/Contents/Resources/adapters/$adapter"
+done
 PLIST="$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$PLIST"

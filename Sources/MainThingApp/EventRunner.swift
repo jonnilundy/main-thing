@@ -21,27 +21,31 @@ final class EventRunner: @unchecked Sendable {
     }
 
     let configDirectory: URL
+    /// The built-in adapters. Nil runs only what is in the adapters folder.
+    let adapters: AdapterSettings?
     private let queue = DispatchQueue(label: MainThingBundleID + ".events", qos: .utility)
     private let log = Logger(subsystem: MainThingBundleID, category: "events")
     private let onResult: @Sendable (EventJob, RunRecord) -> Void
 
     /// `onResult` is called on the main actor after every run, permitted or not (a skipped file gets no call).
-    init(configDirectory: URL = EventRunner.defaultConfigDirectory, onResult: @escaping @Sendable (EventJob, RunRecord) -> Void) {
+    init(configDirectory: URL = EventRunner.defaultConfigDirectory, adapters: AdapterSettings? = nil, onResult: @escaping @Sendable (EventJob, RunRecord) -> Void) {
         self.configDirectory = configDirectory
+        self.adapters = adapters
         self.onResult = onResult
     }
 
     /// Queues one event. Its jobs run in order after every event queued before it.
     func emit(_ payload: EventPayload) {
         queue.async { [self] in
-            let jobs = EventPlan.jobs(for: payload, configDirectory: configDirectory) { FileManager.default.fileExists(atPath: $0) }
+            let lookup = adapters?.lookup() ?? .folderOnly
+            let jobs = EventPlan.jobs(for: payload, configDirectory: configDirectory, lookup: lookup) { FileManager.default.fileExists(atPath: $0) }
             if jobs.isEmpty {
                 log.debug("\(payload.event.rawValue, privacy: .public) from \(payload.source, privacy: .public): nothing installed")
                 return
             }
             let data = payload.encoded()
             for job in jobs {
-                if let problem = RunPermission.problem(EventRunner.facts(of: job.path), currentUID: getuid()) {
+                if let problem = RunPermission.problem(EventRunner.facts(of: job.path), currentUID: getuid(), allowRoot: job.builtIn) {
                     log.error("skip \(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) at \(job.path, privacy: .public): \(problem, privacy: .public)")
                     continue
                 }
@@ -76,25 +80,40 @@ final class EventRunner: @unchecked Sendable {
         )
     }
 
-    /// What is in the hooks and adapters folders right now, with the run rule applied to each.
-    /// Last runs are filled in by `EventStatus`.
+    /// What is in the hooks and adapters folders right now, with the run rule applied to each,
+    /// and the enabled built-in adapters. A folder file with a built-in's name is listed as
+    /// shadowed. Last runs are filled in by `EventStatus`.
     func installed() -> (adapters: [InstalledEntry], hooks: [InstalledEntry]) {
-        func scan(_ directory: URL) -> [InstalledEntry] {
+        let lookup = adapters?.lookup() ?? .folderOnly
+        func scan(_ directory: URL, reserved: Set<String>) -> [InstalledEntry] {
             let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
             return names.filter { !$0.hasPrefix(".") }.sorted().map { name in
                 let path = directory.appendingPathComponent(name).path
+                if reserved.contains(name) {
+                    return InstalledEntry(name: name, path: path, problem: EventRunner.shadowedProblem)
+                }
                 return InstalledEntry(name: name, path: path, problem: RunPermission.problem(EventRunner.facts(of: path), currentUID: getuid()))
             }
         }
-        return (scan(EventPlan.adaptersDirectory(configDirectory)), scan(EventPlan.hooksDirectory(configDirectory)))
+        var adapterEntries = scan(EventPlan.adaptersDirectory(configDirectory), reserved: lookup.reserved)
+        for (name, path) in lookup.enabledBuiltIns {
+            adapterEntries.append(InstalledEntry(name: name, path: path, problem: RunPermission.problem(EventRunner.facts(of: path), currentUID: getuid(), allowRoot: true), builtIn: true))
+        }
+        adapterEntries.sort { ($0.name, $0.builtIn == true ? 0 : 1) < ($1.name, $1.builtIn == true ? 0 : 1) }
+        return (adapterEntries, scan(EventPlan.hooksDirectory(configDirectory), reserved: []))
     }
+
+    /// Why a folder file with a built-in's name does not run.
+    static let shadowedProblem = "shadowed by the built-in adapter"
 
     /// After the timeout the group gets SIGTERM, and SIGKILL this much later if it is still there.
     static let termGrace: TimeInterval = 1
 
-    /// Runs one job and logs what it printed to stdout.
+    /// Runs one job and logs what it printed to stdout. A built-in adapter gets its settings in
+    /// its environment, read right before the run.
     private func run(_ job: EventJob, stdin payload: Data) -> RunRecord {
-        let (record, stdoutData) = EventRunner.execute(path: job.path, arguments: job.arguments, stdin: payload, timeout: EventRunner.timeout)
+        let environment = job.builtIn ? adapters?.processEnvironment(for: job.name) : nil
+        let (record, stdoutData) = EventRunner.execute(path: job.path, arguments: job.arguments, stdin: payload, timeout: EventRunner.timeout, environment: environment)
         if !stdoutData.isEmpty {
             let head = String(decoding: stdoutData.prefix(EventRunner.stderrLimit), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             log.info("\(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) stdout: \(head, privacy: .private)")
@@ -104,14 +123,15 @@ final class EventRunner: @unchecked Sendable {
 
     /// Runs one executable in its own process group, so a timeout kills it and everything it
     /// started, not just the shell at the top. Returns the record and the whole stdout.
-    static func execute(path: String, arguments: [String], stdin payload: Data, timeout: TimeInterval) -> (record: RunRecord, stdout: Data) {
+    /// `environment` replaces the usual child environment for this one process.
+    static func execute(path: String, arguments: [String], stdin payload: Data, timeout: TimeInterval, environment: [String: String]? = nil) -> (record: RunRecord, stdout: Data) {
         let started = Date()
         guard let stdinPipe = EventRunner.pipe(), let stdoutPipe = EventRunner.pipe(), let stderrPipe = EventRunner.pipe() else {
             return (RunRecord(at: started, exit: nil, ms: 0, stderr: "could not open pipes"), Data())
         }
         let pid: pid_t
         switch EventRunner.spawn(
-            path: path, arguments: arguments, environment: EventRunner.childEnvironment(),
+            path: path, arguments: arguments, environment: environment ?? EventRunner.childEnvironment(),
             stdin: stdinPipe.read, stdout: stdoutPipe.write, stderr: stderrPipe.write
         ) {
         case .success(let p): pid = p
@@ -280,7 +300,9 @@ final class EventStatus {
         func fill(_ entries: [InstalledEntry], kind: EventJob.Kind) -> [InstalledEntry] {
             entries.map { entry in
                 var e = entry
-                e.lastRun = lastRuns["\(kind.rawValue):\(entry.name)"]
+                if entry.problem != EventRunner.shadowedProblem {
+                    e.lastRun = lastRuns["\(kind.rawValue):\(entry.name)"]
+                }
                 return e
             }
         }

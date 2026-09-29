@@ -15,11 +15,14 @@ final class LinkResolver: @unchecked Sendable {
     }
 
     let configDirectory: URL
+    /// The built-in adapters. Nil asks only what is in the adapters folder.
+    let adapters: AdapterSettings?
     private let queue = DispatchQueue(label: MainThingBundleID + ".resolve", qos: .userInitiated)
     private let log = Logger(subsystem: MainThingBundleID, category: "resolve")
 
-    init(configDirectory: URL) {
+    init(configDirectory: URL, adapters: AdapterSettings? = nil) {
         self.configDirectory = configDirectory
+        self.adapters = adapters
     }
 
     /// `completion` runs on the main actor.
@@ -33,16 +36,17 @@ final class LinkResolver: @unchecked Sendable {
     private func lookUp(_ url: String) -> Result {
         let directory = EventPlan.adaptersDirectory(configDirectory)
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
-        let jobs = EventPlan.resolveJobs(url: url, adapterNames: names, configDirectory: configDirectory)
+        let jobs = EventPlan.resolveJobs(url: url, adapterNames: names, configDirectory: configDirectory, lookup: adapters?.lookup() ?? .folderOnly)
         guard !jobs.isEmpty else { return .unclaimed("no adapters installed") }
         var problems: [String] = []
         for job in jobs {
-            if let problem = RunPermission.problem(EventRunner.facts(of: job.path), currentUID: getuid()) {
+            if let problem = RunPermission.problem(EventRunner.facts(of: job.path), currentUID: getuid(), allowRoot: job.builtIn) {
                 log.error("skip adapter \(job.name, privacy: .public) for resolve: \(problem, privacy: .public)")
                 problems.append("\(job.name) skipped")
                 continue
             }
-            let (record, stdout) = EventRunner.execute(path: job.path, arguments: job.arguments, stdin: Data(), timeout: ResolveReply.timeout)
+            let environment = job.builtIn ? adapters?.processEnvironment(for: job.name) : nil
+            let (record, stdout) = EventRunner.execute(path: job.path, arguments: job.arguments, stdin: Data(), timeout: ResolveReply.timeout, environment: environment)
             switch ResolveReply.outcome(adapter: job.name, record: record, stdout: stdout) {
             case .resolved(let title, let ref):
                 log.notice("resolve \(url, privacy: .private): \(job.name, privacy: .public) claimed it in \(record.ms, privacy: .public) ms as \(ref, privacy: .public)")

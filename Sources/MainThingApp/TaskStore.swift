@@ -43,7 +43,7 @@ final class TaskStore {
         return AppPaths.tasksFile(environment: ProcessInfo.processInfo.environment, bundleID: Bundle.main.bundleIdentifier, applicationSupport: base)
     }
 
-    init(fileURL: URL = TaskStore.defaultFileURL, configDirectory: URL = EventRunner.defaultConfigDirectory) {
+    init(fileURL: URL = TaskStore.defaultFileURL, configDirectory: URL = EventRunner.defaultConfigDirectory, adapters: AdapterSettings? = nil) {
         self.fileURL = fileURL
         var loaded = TaskList()
         var loadError: String?
@@ -62,10 +62,10 @@ final class TaskStore {
             log.info("loaded \(loaded.count, privacy: .public) tasks from \(fileURL.path, privacy: .public)")
         }
         let events = self.events
-        self.runner = EventRunner(configDirectory: configDirectory) { job, record in
+        self.runner = EventRunner(configDirectory: configDirectory, adapters: adapters) { job, record in
             MainActor.assumeIsolated { events.record(job, record) }
         }
-        self.resolver = LinkResolver(configDirectory: configDirectory)
+        self.resolver = LinkResolver(configDirectory: configDirectory, adapters: adapters)
     }
 
     /// Previews: the list in memory. Reads and writes no file, and runs no hook or adapter.

@@ -156,7 +156,7 @@ installed() {
             const run = r.lastRun
                 ? "last run " + r.lastRun.at + " " + (r.lastRun.timedOut ? "killed after " : "exit " + r.lastRun.exit + " in ") + r.lastRun.ms + " ms" + (r.lastRun.ok ? "" : " FAILED") + (r.lastRun.stderr ? "\n    " + r.lastRun.stderr.split("\n").join("\n    ") : "")
                 : "never run";
-            return r.name + "  " + state + "  " + run;
+            return r.name + (r.builtIn ? " (built in)" : "") + "  " + state + "  " + run;
         }).join("\n");
     '
 }
