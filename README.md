@@ -49,7 +49,7 @@ In the notch:
 - Click a task to cross it off with a pen stroke. Click it again right away to keep it.
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
-- Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 4 seconds.
+- Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task, and Undo shows in its place for 5 seconds.
 - Right click for the menu: Sound, Link Sound, Reminder, Launch at Login, Check for Updates, Settings. Settings has four tabs: General, Shortcuts, Adapters and Updates.
 
 <img src="docs/demo.gif" alt="Hovering the notch opens the list, a click crosses off a task, a drag by its number moves another to second place, a new task is typed at the bottom, and a long press opens Rename and Discard" width="100%">
@@ -60,11 +60,36 @@ These shortcuts work from any app. To change one, open Settings, go to Shortcuts
 
 | Action | Default | What it does |
 | --- | --- | --- |
-| Show list | Control Option Space | Opens the list. It stays open until the pointer goes on it and leaves, you press the shortcut again, or you press Escape. |
+| Show list | Control Option Space | Opens the list and gives it the keyboard (see [Keyboard](#keyboard)). It stays open until the pointer goes on it and leaves, you press the shortcut again, or you press Escape. |
 | Add task | Control Option N | Opens the list with the New task field ready for typing. Return adds the task, Escape closes the field and the list. |
 | Cross off main task | None | Crosses off task 1, the same as a click on it. It changes your list, so you set it yourself. |
+| Undo | Control Option Z | Brings back the last task you crossed off or discarded, while its 5 seconds last. See [Undo](#undo). |
 
 Main Thing uses hot keys for these, so it needs no Accessibility permission. If Control Option Space already switches your input source, record another shortcut.
+
+## Keyboard
+
+When Show list or Add task opens the list, the list has the keyboard until it closes. The app in front stays in front. Opening the list with the pointer does not take the keyboard.
+
+| Key | What it does |
+| --- | --- |
+| Up, Down | Moves the highlight through the tasks and New task. |
+| Tab, Shift Tab | The same, and goes round from the last to the first. |
+| Return | Crosses off the highlighted task. On New task, opens the field. In the field, adds the task. |
+| E | Renames the highlighted task in place. Return saves, Escape cancels. |
+| Delete | Discards the highlighted task. |
+| Option Up, Option Down | Moves the highlighted task up or down one place. |
+| N | Goes to New task. |
+| Command Z | Brings back the last task you crossed off or discarded. |
+| Escape | Closes the field if one is open. Else closes the list and gives the keyboard back. |
+
+The highlight looks the same as the hover. The pointer and the keys do not fight: the one you used last has the highlight. In the New task field that Add task opened, Escape closes the list too.
+
+## Undo
+
+A task you cross off or discard in the notch can come back for 5 seconds. Undo shows in its place. Click it, press Command Z while the list has the keyboard, or press the Undo shortcut from any app. Each undo brings back the newest task still in its 5 seconds, at its old place and with its ref. If the list is closed, the task just comes back to the list.
+
+A cross off in the notch (a click, Return, or Cross off main task) is final only when its 5 seconds end. The list changes at once and `list-changed` goes out, but `task-completed`, with its hook and its adapter (for example, Linear complete), goes out at the end. So an undo never has to reopen anything in another tool. If you quit Main Thing in those 5 seconds, it sends the waiting cross offs before it exits. `main-thing done` and `POST /tasks/done` are final at once, as before.
 
 ## Features
 
