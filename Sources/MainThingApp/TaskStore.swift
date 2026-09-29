@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import MainThingCore
 import Observation
@@ -29,6 +30,21 @@ final class TaskStore {
     /// A resolved link gets a ref, so its row key changes from the title's to the ref's. Called
     /// with the old and the new key right before the change lands.
     @ObservationIgnored var willRekey: (@MainActor (String, String) -> Void)?
+
+    /// Cross offs and discards from the card while they can come back, newest last. A cross off's
+    /// task-completed event (its done hook and adapter) waits here until its window ends.
+    private(set) var undo = UndoStack()
+    /// The clock for the Undo windows.
+    @ObservationIgnored var now: () -> TimeInterval = { Date.timeIntervalSinceReferenceDate }
+    /// Called on the main actor when the undo stack changed: an entry came, was undone or ran out.
+    /// Called before the list changes, so the Undo row and the list land in one transaction.
+    @ObservationIgnored var onUndoChange: (@MainActor () -> Void)?
+    /// Called at quit before the held cross offs commit, so the pen strokes still drawing join them.
+    @ObservationIgnored var beforeQuit: (@MainActor () -> Void)?
+    /// Every event as it goes to the runner, and every one committed at quit. The probe reads them.
+    @ObservationIgnored var onEmit: (@MainActor (EventPayload) -> Void)?
+    @ObservationIgnored private var undoTimer: Task<Void, Never>?
+    @ObservationIgnored private var quitObserver: (any NSObjectProtocol)?
 
     struct PendingLink: Equatable {
         let url: String
@@ -66,6 +82,10 @@ final class TaskStore {
             MainActor.assumeIsolated { events.record(job, record) }
         }
         self.resolver = LinkResolver(configDirectory: configDirectory, adapters: adapters)
+        // Quitting ends every Undo window: the held cross offs commit before the app exits.
+        quitObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { [weak self] _ in
+            MainActor.assumeIsolated { self?.commitBeforeQuit() }
+        }
     }
 
     /// Previews: the list in memory. Reads and writes no file, and runs no hook or adapter.
@@ -166,6 +186,106 @@ final class TaskStore {
         return true
     }
 
+    // MARK: Undo
+
+    /// A cross off from the card or a shortcut. The row leaves now and `list-changed` goes out, but
+    /// `task-completed` (the done hook, the adapter) waits until the Undo window ends, so an undo
+    /// never has to reopen anything elsewhere. The API and the CLI use `complete`: at once.
+    @discardableResult
+    func completeHeld(key: String, expected: String?, source: String) -> Discarded? {
+        guard let row = list.rows.first(where: { $0.key == key }), expected == nil || expected == row.title,
+              let (tasks, gone) = list.discarding(key: key, at: now(), kind: .done) else { return nil }
+        hold(gone, leaving: tasks, source: source)
+        log.notice("crossed off row \(gone.index + 1, privacy: .public): done waits \(Int(Discarded.seconds), privacy: .public)s for an undo")
+        return gone
+    }
+
+    /// A discard from the card: the row leaves, `list-changed` goes out, and no done hook or
+    /// adapter ever runs for it.
+    @discardableResult
+    func discard(key: String, source: String) -> Discarded? {
+        guard let (tasks, gone) = list.discarding(key: key, at: now(), kind: .discard) else { return nil }
+        hold(gone, leaving: tasks, source: source)
+        log.notice("discarded row \(gone.index + 1, privacy: .public)")
+        return gone
+    }
+
+    private func hold(_ gone: Discarded, leaving tasks: [TaskItem], source: String) {
+        undo.push(gone)
+        scheduleUndo()
+        onUndoChange?()
+        apply(tasks, source: source, links: false)
+    }
+
+    /// The Undo row's entry: the newest cross off or discard still in its window.
+    var undoTop: Discarded? { undo.top(at: now()) }
+
+    /// Undo: the newest cross off or discard still in its window comes back to its old place, with
+    /// its ref. A cross off undone never sends its task-completed.
+    @discardableResult
+    func undoLast(source: String = EventSource.notch) -> Discarded? {
+        guard let gone = undo.undo(at: now()) else { return nil }
+        scheduleUndo()
+        onUndoChange?()
+        apply(gone.restored(into: list.tasks), source: source, links: false)
+        log.notice("undo: row \(gone.index + 1, privacy: .public) back, \(gone.kind.rawValue, privacy: .public) not sent")
+        return gone
+    }
+
+    /// One timer for the window that ends first.
+    private func scheduleUndo() {
+        undoTimer?.cancel()
+        undoTimer = nil
+        guard let next = undo.nextExpiry else { return }
+        let wait = max(next - now(), 0) + 0.02
+        undoTimer = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled else { return }
+            self?.expireUndo()
+        }
+    }
+
+    /// Windows ended: the cross offs among them commit, the discards are just gone.
+    private func expireUndo() {
+        let ended = undo.expire(at: now())
+        scheduleUndo()
+        guard !ended.isEmpty else { return }
+        onUndoChange?()
+        for entry in ended {
+            guard let payload = EventPlan.commit(entry, list: list, source: EventSource.notch, at: Date()) else { continue }
+            log.notice("cross off committed: the undo window ended")
+            send(payload)
+        }
+    }
+
+    /// The app quits: every Undo window ends now. The held cross offs commit, and their adapters
+    /// and done hooks run here, on the main thread, before the app exits: the event queue would
+    /// not get to them. The same plan, permission check and runner the queue uses.
+    func commitBeforeQuit() {
+        beforeQuit?()
+        undoTimer?.cancel()
+        undoTimer = nil
+        let payloads = undo.drain().compactMap { EventPlan.commit($0, list: list, source: EventSource.notch, at: Date()) }
+        guard !payloads.isEmpty else { return }
+        log.notice("quit: \(payloads.count, privacy: .public) held cross offs commit now")
+        let lookup = runner.adapters?.lookup() ?? .folderOnly
+        for payload in payloads {
+            onEmit?(payload)
+            let data = payload.encoded()
+            let jobs = EventPlan.jobs(for: payload, configDirectory: runner.configDirectory, lookup: lookup) { FileManager.default.fileExists(atPath: $0) }
+            for job in jobs {
+                if let problem = RunPermission.problem(EventRunner.facts(of: job.path), currentUID: getuid(), allowRoot: job.builtIn) {
+                    log.error("quit: skip \(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public): \(problem, privacy: .public)")
+                    continue
+                }
+                let environment = job.builtIn ? runner.adapters?.processEnvironment(for: job.name) : nil
+                let record = EventRunner.execute(path: job.path, arguments: job.arguments, stdin: data, timeout: EventRunner.timeout, environment: environment).record
+                events.record(job, record)
+                log.notice("quit: \(job.kind.rawValue, privacy: .public) \(job.name, privacy: .public) for task-completed: exit \(record.exit.map(String.init) ?? "signal", privacy: .public) in \(record.ms, privacy: .public) ms")
+            }
+        }
+    }
+
     /// Routes one API request against the current list and runs the store method it asks for.
     /// `POST /tasks/done` and the done circle both end in `complete(expected:source:)`.
     func handle(_ request: HTTPRequest, port: UInt16) -> HTTPResponse {
@@ -183,8 +303,13 @@ final class TaskStore {
     private func emit(before: TaskList, completed: TaskItem?, source: String) {
         onChange?()
         for payload in EventPlan.events(before: before, after: list, completed: completed, source: source, at: Date()) {
-            runner.emit(payload)
+            send(payload)
         }
+    }
+
+    private func send(_ payload: EventPayload) {
+        onEmit?(payload)
+        runner.emit(payload)
     }
 
     private func save() {
