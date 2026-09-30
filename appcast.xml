@@ -6,6 +6,21 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.6.3</title>
+            <pubDate>Wed, 30 Sep 2026 14:36:09 +0000</pubDate>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>0.6.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.6.3</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[## MacBooks with a camera notch
+
+- The black top in the menu bar row and the list below it now open and close as one shape. There is no step at the join while it animates.
+- The task title no longer shows the short and the full version on top of each other while the list opens or closes.
+
+Macs without a camera notch do not change.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.6.3/MainThing-0.6.3.zip" length="3057760" type="application/octet-stream" sparkle:edSignature="vmCpKVlNPVT3HjFnhj0EHIb7BumqaR9Rkypz8FX2ttWm04L7H9HeTlpTw6bggC5dMlGZNY4EU4h/7Zk9waIKCA=="/>
+        </item>
+        <item>
             <title>Version 0.6.2</title>
             <pubDate>Wed, 30 Sep 2026 14:18:06 +0000</pubDate>
             <sparkle:version>10</sparkle:version>
