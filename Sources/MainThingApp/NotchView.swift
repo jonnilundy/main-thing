@@ -305,6 +305,9 @@ struct Band: View {
                         .opacity(resolving ? NotchMetrics.resolvingOpacity : 1)
                         .overlay(alignment: .leading) { nudgeSparkles(current) }
                         .frame(width: menuOpen ? min(titleWidth(current), RowMenu.titleLimit(cardWidth: width)) : titleWidth(current), alignment: .leading)
+                        // The width switches at once on open and close: animated, SwiftUI cross-fades
+                        // the truncated and the full title. The card's clip reveals or hides the rest.
+                        .animation(nil, value: isOpen)
                         .id(current.key)
                         .transition(quiet ? .identity : Motion.push(reduceMotion))
                 }
