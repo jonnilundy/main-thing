@@ -6,6 +6,21 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.6.2</title>
+            <pubDate>Wed, 30 Sep 2026 14:18:06 +0000</pubDate>
+            <sparkle:version>10</sparkle:version>
+            <sparkle:shortVersionString>0.6.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.6.2</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[## MacBooks with a camera notch
+
+- The closed notch is now exactly the camera's width and hangs straight down from it. A long task title ends with "…". Hover to see the full title.
+- The open list now fills the menu bar row above it with black, up to the top of the screen, with the same curved top corners as on a Mac without a notch. The menu bar beside the list still takes clicks.
+
+Macs without a camera notch do not change.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.6.2/MainThing-0.6.2.zip" length="3060473" type="application/octet-stream" sparkle:edSignature="dUnZwNQmxSPWsfagWJ5ck4M1apXzZ3e7C31/Qhcdf2KY+l0LpLgwCIQuC91BNW/J5i6LB7TBmg/CF9ix4JR2Aw=="/>
+        </item>
+        <item>
             <title>Version 0.6.1</title>
             <pubDate>Tue, 29 Sep 2026 20:09:13 +0000</pubDate>
             <sparkle:version>9</sparkle:version>
