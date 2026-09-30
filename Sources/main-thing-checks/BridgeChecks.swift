@@ -83,6 +83,54 @@ func runBridgeChecks() {
             }
         }
 
+        // Open: the card fills the menu bar row above it. The top edge is the screen top across the
+        // card's full width, with the plain notch's concave flare at both top corners.
+        let f = NotchGeometry.flare
+        let opened = NotchOutline.bridged(
+            in: openCard, bottomRadius: 24, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
+            bridgeOffset: bridge.midX - openCard.midX, openness: 1
+        )
+        let openPoints = NotchOutline.samples(opened)
+        let openTop = openPoints.filter { $0.y == 0 }.map(\.x)
+        check("\(name), open: one closed path", opened.filter { $0 == .close }.count == 1 && openPoints.first == openPoints.last)
+        check("\(name), open: the top edge is the screen top, the card's full width", openTop.min() == openCard.minX && openTop.max() == openCard.maxX)
+        check("\(name), open: concave flare at the top right corner",
+              opened.contains(.quad(to: CGPoint(x: openCard.maxX - f, y: f), control: CGPoint(x: openCard.maxX - f, y: 0))))
+        check("\(name), open: concave flare at the top left corner",
+              opened.contains(.quad(to: CGPoint(x: openCard.minX, y: 0), control: CGPoint(x: openCard.minX + f, y: 0))))
+        check("\(name), open: the sides are the card's, straight from the flare to the bottom",
+              openPoints.map(\.x).min() == openCard.minX && openPoints.filter { $0.y > f && $0.y < openCard.maxY - 24 }.allSatisfy { $0.x == openCard.minX + f || $0.x == openCard.maxX - f })
+        check("\(name), open: no join at the menu bar's bottom edge, the sides run straight through",
+              !openPoints.contains { $0.y > f + 0.001 && $0.y < g.cardTop + 0.001 && $0.x != openCard.minX + f && $0.x != openCard.maxX - f })
+        check("\(name), open: nothing below the card's bottom, smooth below the screen top",
+              openPoints.allSatisfy { $0.y <= openCard.maxY + 0.001 } && corners(opened, below: 0.5).isEmpty)
+        // The morph: the top row widens from the camera to the card without a jump.
+        var lastWidth: CGFloat = 0, widening = true
+        for i in 0...20 {
+            let o = NotchOutline.bridged(
+                in: openCard, bottomRadius: 24, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
+                bridgeOffset: bridge.midX - openCard.midX, openness: CGFloat(i) / 20
+            )
+            let xs = NotchOutline.samples(o).filter { $0.y == 0 }.map(\.x)
+            let w = (xs.max() ?? 0) - (xs.min() ?? 0)
+            if i == 0 { check("\(name), morph: closed the top row is the camera's width", w == bridge.width) }
+            if i > 0, w < lastWidth - 0.001 || w - lastWidth > 20 { widening = false }
+            lastWidth = w
+        }
+        check("\(name), morph: the top row only widens, in small steps", widening && abs(lastWidth - openCard.width) < 0.001)
+
+        // The pointer: open, the menu bar row part of the card is inside; beside the card it is not.
+        let shapeRect = CGRect(x: openCard.minX, y: g.cardTop, width: openCard.width, height: openCard.height)
+        let rowLeft = CGPoint(x: shapeRect.minX + 20, y: 10), rowOutside = CGPoint(x: shapeRect.minX - 3, y: 10)
+        let cameraPoint = CGPoint(x: bridge.midX, y: 10)
+        check("\(name), hover: open, the menu bar row inside the card's width is inside",
+              NotchHover.inside(rowLeft, shape: shapeRect, bridge: bridge, isOpen: true) && NotchHover.inside(CGPoint(x: shapeRect.maxX - 1, y: 0), shape: shapeRect, bridge: bridge, isOpen: true))
+        check("\(name), hover: open, the menu bar row beside the card stays click through",
+              !NotchHover.inside(rowOutside, shape: shapeRect, bridge: bridge, isOpen: true))
+        check("\(name), hover: collapsed, only the camera's width is inside",
+              NotchHover.inside(cameraPoint, shape: shapeRect, bridge: bridge, isOpen: false) && !NotchHover.inside(rowLeft, shape: shapeRect, bridge: bridge, isOpen: false))
+        check("\(name), hover: open, the card below is still inside", NotchHover.inside(CGPoint(x: shapeRect.midX, y: shapeRect.midY), shape: shapeRect, bridge: bridge, isOpen: true))
+
         // The narrowest card continues the notch's sides straight down: no join at all.
         let straight = NotchOutline.bridged(in: shortCard, bottomRadius: 12, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
                                             bridgeOffset: bridge.midX - shortCard.midX)
@@ -132,8 +180,10 @@ func runBridgeChecks() {
     check("the camera stays inside while open", NotchHover.inside(CGPoint(x: bridge.midX, y: 2), shape: card, bridge: bridge, isOpen: true))
     check("the card is inside", NotchHover.inside(CGPoint(x: 270, y: g.cardTop + 10), shape: card, bridge: bridge, isOpen: false))
     check("menu bar beside the camera is click through, collapsed", !NotchHover.inside(CGPoint(x: 270, y: g.cardTop - 2), shape: card, bridge: bridge, isOpen: false))
-    check("menu bar beside the camera is click through, open (no slack above the card)",
-          !NotchHover.inside(CGPoint(x: 270, y: g.cardTop - 4), shape: card, bridge: bridge, isOpen: true))
+    check("menu bar above the open card is inside: the card fills it",
+          NotchHover.inside(CGPoint(x: 270, y: g.cardTop - 4), shape: card, bridge: bridge, isOpen: true))
+    check("menu bar beside the open card is click through (no slack above the card)",
+          !NotchHover.inside(CGPoint(x: 246, y: g.cardTop - 4), shape: card, bridge: bridge, isOpen: true))
     check("the open slack still reaches past the card's sides", NotchHover.inside(CGPoint(x: 246, y: g.cardTop + 10), shape: card, bridge: bridge, isOpen: true))
     check("far off the shape is click through", !NotchHover.inside(CGPoint(x: 20, y: 10), shape: card, bridge: bridge, isOpen: true))
     check("no bridge: the plain rule, slack above the card", NotchHover.inside(CGPoint(x: 270, y: -4), shape: CGRect(x: 250, y: 0, width: 300, height: 30), bridge: nil, isOpen: true))

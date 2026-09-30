@@ -23,6 +23,11 @@ public enum OutlineSegment: Equatable, Sendable {
 /// side. The ledge sits `joinDrop` under the menu bar, so the title keeps its room above; the
 /// flare and the shoulder are `joinRadius` wide, or half the step each while the step is smaller,
 /// so the join grows smoothly out of a straight side as the card widens.
+///
+/// Open, the bridge spreads to the card's full width (`openness` 1): the shape's top edge is the
+/// screen top across the whole card, with the plain notch's concave flare at both top corners, so
+/// the card fills the menu bar row above it and the camera sits inside its black. At 0 it is the
+/// camera-wide bridge; in between the bridge widens and the flares grow, one smooth morph.
 public enum NotchOutline {
     /// Width of the concave flare and of the rounded shoulder at their full size.
     public static let joinRadius: CGFloat = NotchGeometry.flare
@@ -40,18 +45,24 @@ public enum NotchOutline {
     /// The outline in `rect`, the card's frame with the flare padding on both sides, y down.
     /// `rect.minY` is the card's top edge. The bridge rises `bridgeHeight` above it, `bridgeWidth`
     /// wide, its center `bridgeOffset` from `rect.midX`. The card's sides are `padding` in from
-    /// the rect, as the plain notch's; `bottomRadius` rounds its bottom corners.
+    /// the rect, as the plain notch's; `bottomRadius` rounds its bottom corners. `openness` (0 to 1)
+    /// spreads the bridge to the card's width and grows the flares at its top corners.
     public static func bridged(
         in rect: CGRect, padding: CGFloat = NotchGeometry.flare, bottomRadius: CGFloat,
-        bridgeWidth: CGFloat, bridgeHeight: CGFloat, bridgeOffset: CGFloat = 0
+        bridgeWidth: CGFloat, bridgeHeight: CGFloat, bridgeOffset: CGFloat = 0, openness: CGFloat = 0
     ) -> [OutlineSegment] {
         let top = rect.minY
         let bottom = max(rect.maxY, top)
         let left = rect.minX + padding
         let right = max(rect.maxX - padding, left)
-        let bridgeLeft = rect.midX + bridgeOffset - bridgeWidth / 2
-        let bridgeRight = bridgeLeft + bridgeWidth
+        let spread = min(max(openness, 0), 1)
+        let camera = min(bridgeWidth, right - left)
+        let width = camera + (right - left - camera) * spread
+        let bridgeLeft = rect.midX + bridgeOffset * (1 - spread) - width / 2
+        let bridgeRight = bridgeLeft + width
         let bridgeTop = top - bridgeHeight
+        // The concave flare at the top corners, outside the bridge's sides.
+        let flare = min(padding * spread, bridgeHeight)
 
         var leftJoin = join(step: bridgeLeft - left)
         var rightJoin = join(step: right - bridgeRight)
@@ -67,10 +78,13 @@ public enum NotchOutline {
         let b = max(min(bottomRadius, (right - left) / 2, height - sideTop), 0)
 
         var path: [OutlineSegment] = [
-            .move(CGPoint(x: bridgeLeft, y: bridgeTop)),
-            .line(CGPoint(x: bridgeRight, y: bridgeTop)),
-            .line(CGPoint(x: bridgeRight, y: top)),
+            .move(CGPoint(x: bridgeLeft - flare, y: bridgeTop)),
+            .line(CGPoint(x: bridgeRight + flare, y: bridgeTop)),
         ]
+        if flare > 0 {
+            path.append(.quad(to: CGPoint(x: bridgeRight, y: bridgeTop + flare), control: CGPoint(x: bridgeRight, y: bridgeTop)))
+        }
+        path.append(.line(CGPoint(x: bridgeRight, y: top)))
         // Right join, from the bridge's side out to the card's.
         if rightJoin.flare > 0 {
             let ledge = top + rightJoin.drop
@@ -94,6 +108,10 @@ public enum NotchOutline {
         } else {
             path.append(.line(CGPoint(x: left, y: top)))
             if left != bridgeLeft { path.append(.line(CGPoint(x: bridgeLeft, y: top))) }
+        }
+        if flare > 0 {
+            path.append(.line(CGPoint(x: bridgeLeft, y: bridgeTop + flare)))
+            path.append(.quad(to: CGPoint(x: bridgeLeft - flare, y: bridgeTop), control: CGPoint(x: bridgeLeft, y: bridgeTop)))
         }
         path.append(.close)
         return path

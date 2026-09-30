@@ -73,7 +73,8 @@ struct NotchBody: View {
         let shape = NotchShape(
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius,
-            bridge: geometry.bridgeRect.map { NotchShape.Bridge(width: $0.width, height: $0.height, offset: geometry.bridgeOffset) }
+            bridge: geometry.bridgeRect.map { NotchShape.Bridge(width: $0.width, height: $0.height, offset: geometry.bridgeOffset) },
+            openness: model.isOpen ? 1 : 0
         )
         VStack(spacing: 0) {
             // The band, hanging under the menu bar: the dot and task 1 in both states. Its frame
@@ -1132,6 +1133,8 @@ struct NotchShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
     var bridge: Bridge? = nil
+    /// 0 collapsed, 1 open: under a hardware notch the bridge spreads to the card's width.
+    var openness: CGFloat = 0
 
     /// The camera notch's width, the menu bar row's height, and the bridge center's offset from
     /// the rect's center.
@@ -1141,11 +1144,12 @@ struct NotchShape: Shape {
         var offset: CGFloat
     }
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(topRadius, bottomRadius) }
+    var animatableData: AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>> {
+        get { AnimatablePair(topRadius, AnimatablePair(bottomRadius, openness)) }
         set {
             topRadius = newValue.first
-            bottomRadius = newValue.second
+            bottomRadius = newValue.second.first
+            openness = newValue.second.second
         }
     }
 
@@ -1154,7 +1158,7 @@ struct NotchShape: Shape {
             let card = CGRect(x: rect.minX, y: rect.minY + bridge.height, width: rect.width, height: max(rect.height - bridge.height, 0))
             return Path(outline: NotchOutline.bridged(
                 in: card, padding: topRadius, bottomRadius: bottomRadius,
-                bridgeWidth: bridge.width, bridgeHeight: bridge.height, bridgeOffset: bridge.offset
+                bridgeWidth: bridge.width, bridgeHeight: bridge.height, bridgeOffset: bridge.offset, openness: openness
             ))
         }
         let t = min(topRadius, rect.height / 2)
