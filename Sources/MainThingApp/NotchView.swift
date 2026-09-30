@@ -5,8 +5,8 @@ import os
 
 /// The notch. Collapsed: a black shape at the top center with the current task inside.
 /// Open: every task flush left, the current one large; hover previews a cross off, a click draws it.
-/// Under a hardware notch the shape starts at the screen top: a bridge under the camera, then the
-/// card below the menu bar, one black shape (`NotchOutline`).
+/// Under a hardware notch the shape starts at the screen top: the menu bar row above the card and
+/// the card below it, one black shape (`NotchOutline`).
 struct NotchView: View {
     let store: TaskStore
     let model: NotchModel
@@ -73,7 +73,7 @@ struct NotchBody: View {
         let shape = NotchShape(
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius,
-            bridge: geometry.bridgeRect.map { NotchShape.Bridge(width: $0.width, height: $0.height, offset: geometry.bridgeOffset) },
+            bridgeHeight: geometry.bridgeRect?.height,
             openness: model.isOpen ? 1 : 0
         )
         VStack(spacing: 0) {
@@ -1127,22 +1127,14 @@ enum NotchMetrics {
 }
 
 /// A notch outline: flared top corners that meet the screen edge, rounded bottom corners. With a
-/// bridge (a hardware notch) the rect's top `bridge.height` is the menu bar row: the bridge fills
-/// it under the camera and the card below joins it (`NotchOutline.bridged`).
+/// `bridgeHeight` (a hardware notch) the rect's top `bridgeHeight` is the menu bar row: the shape
+/// fills it above the card, at the card's own width (`NotchOutline.bridged`).
 struct NotchShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
-    var bridge: Bridge? = nil
-    /// 0 collapsed, 1 open: under a hardware notch the bridge spreads to the card's width.
+    var bridgeHeight: CGFloat? = nil
+    /// 0 collapsed, 1 open: under a hardware notch the top corner flares grow with it.
     var openness: CGFloat = 0
-
-    /// The camera notch's width, the menu bar row's height, and the bridge center's offset from
-    /// the rect's center.
-    struct Bridge: Equatable {
-        var width: CGFloat
-        var height: CGFloat
-        var offset: CGFloat
-    }
 
     var animatableData: AnimatablePair<CGFloat, AnimatablePair<CGFloat, CGFloat>> {
         get { AnimatablePair(topRadius, AnimatablePair(bottomRadius, openness)) }
@@ -1154,11 +1146,10 @@ struct NotchShape: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
-        if let bridge {
-            let card = CGRect(x: rect.minX, y: rect.minY + bridge.height, width: rect.width, height: max(rect.height - bridge.height, 0))
+        if let bridgeHeight {
+            let card = CGRect(x: rect.minX, y: rect.minY + bridgeHeight, width: rect.width, height: max(rect.height - bridgeHeight, 0))
             return Path(outline: NotchOutline.bridged(
-                in: card, padding: topRadius, bottomRadius: bottomRadius,
-                bridgeWidth: bridge.width, bridgeHeight: bridge.height, bridgeOffset: bridge.offset, openness: openness
+                in: card, padding: topRadius, bottomRadius: bottomRadius, bridgeHeight: bridgeHeight, openness: openness
             ))
         }
         let t = min(topRadius, rect.height / 2)

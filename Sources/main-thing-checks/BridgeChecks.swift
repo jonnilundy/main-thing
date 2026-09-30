@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import MainThingCore
 
-/// Under a hardware notch: one shape from the screen top, the bridge under the camera joined to the card.
+/// Under a hardware notch: one shape from the screen top down, the menu bar row and the card at the card's own width.
 @MainActor
 func runBridgeChecks() {
     // Both MacBook Pro sizes, with the housing the 14 inch fixture measures: 185pt wide, 32pt tall
@@ -47,77 +47,79 @@ func runBridgeChecks() {
         check("\(name): an empty list draws nothing collapsed", !g.drawsCollapsed(taskCount: 0))
         check("\(name): a task draws the card", g.drawsCollapsed(taskCount: 1) && g.drawsCollapsed(taskCount: 5))
 
-        // Outlines as the view draws them: the card frame with its flare padding, below the bridge.
-        let shortCard = g.collapsedShapeFrame(contentWidth: 60)
-        let longCard = g.collapsedShapeFrame(contentWidth: 420)
-        let openCard = CGRect(x: longCard.minX - 40, y: g.cardTop, width: longCard.width + 80, height: 220)
+        // Outlines as the view draws them: the card frame with its flare padding, below the menu bar
+        // row. Collapsed, the card is the camera's width whatever the title.
+        let f = NotchGeometry.flare
+        let cameraCard = g.collapsedShapeFrame(contentWidth: g.collapsedWidth(natural: 420))
+        let openCard = CGRect(x: cameraCard.minX - 200, y: g.cardTop, width: cameraCard.width + 400, height: 220)
+        check("\(name): the collapsed card is the camera's width", cameraCard.width - 2 * f == bridge.width)
         // Full size cards are smooth everywhere; a card still growing out of the camera is too
         // short for its corners and only has to stay one shape.
-        let cases: [(label: String, rect: CGRect, radius: CGFloat, fullSize: Bool)] = [
-            ("collapsed, short title", shortCard, 12, true),
-            ("collapsed, long title", longCard, 12, true),
-            ("open", openCard, 24, true),
-            ("empty, 0 tall", CGRect(x: shortCard.minX, y: g.cardTop, width: shortCard.width, height: 0), 12, false),
-            ("growing, 5 tall", CGRect(x: longCard.minX, y: g.cardTop, width: longCard.width, height: 5), 24, false),
+        let cases: [(label: String, rect: CGRect, radius: CGFloat, openness: CGFloat, fullSize: Bool)] = [
+            ("collapsed", cameraCard, 12, 0, true),
+            ("open", openCard, 24, 1, true),
+            ("half open, springing", CGRect(x: cameraCard.minX - 60, y: g.cardTop, width: cameraCard.width + 120, height: 100), 18, 0.5, true),
+            ("empty, 0 tall", CGRect(x: cameraCard.minX, y: g.cardTop, width: cameraCard.width, height: 0), 12, 0, false),
+            ("growing, 5 tall", CGRect(x: cameraCard.minX, y: g.cardTop, width: cameraCard.width, height: 5), 24, 0, false),
+            ("growing, 5 tall, wide", CGRect(x: openCard.minX, y: g.cardTop, width: openCard.width, height: 5), 24, 1, false),
         ]
-        for (label, rect, radius, fullSize) in cases {
-            let outline = NotchOutline.bridged(
-                in: rect, bottomRadius: radius, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
-                bridgeOffset: bridge.midX - rect.midX
-            )
+        for (label, rect, radius, openness, fullSize) in cases {
+            let outline = NotchOutline.bridged(in: rect, bottomRadius: radius, bridgeHeight: bridge.height, openness: openness)
             let points = NotchOutline.samples(outline)
             let moves = outline.filter { if case .move = $0 { true } else { false } }.count
             let closes = outline.filter { $0 == .close }.count
+            let sideLeft = rect.minX + f, sideRight = rect.maxX - f
+            let flare = min(f * openness, bridge.height)
             check("\(name), \(label): one closed path", moves == 1 && closes == 1 && outline.last == .close && points.first == points.last)
-            check("\(name), \(label): starts on the screen top at the bridge's left edge", points.first == CGPoint(x: bridge.minX, y: 0))
-            // Nothing of ours in the menu bar row outside the camera notch's width.
-            let row = points.filter { $0.y < g.cardTop - 0.001 }
-            check("\(name), \(label): in the menu bar row only the bridge",
-                  row.allSatisfy { $0.x >= bridge.minX - 0.001 && $0.x <= bridge.maxX + 0.001 })
-            // The bridge reaches the card: both of its sides run down to the card's top edge.
-            check("\(name), \(label): bridge sides reach the card top",
-                  outline.contains(.line(CGPoint(x: bridge.maxX, y: g.cardTop))) && points.contains(CGPoint(x: bridge.minX, y: g.cardTop)))
+            // The top edge is on the screen top and spans exactly the card's sides (plus the flares).
+            let topRow = points.filter { $0.y == 0 }.map(\.x)
+            check("\(name), \(label): the top edge is on the screen top, the card's sides plus the flares",
+                  topRow.min() == sideLeft - flare && topRow.max() == sideRight + flare)
+            check("\(name), \(label): nothing above the screen top", points.allSatisfy { $0.y >= -0.001 })
+            // No step anywhere: below the flares the sides are the card's, straight through the menu bar's bottom edge.
+            check("\(name), \(label): no step, the sides run straight through the menu bar's bottom edge",
+                  points.filter { $0.y > flare + 0.001 && $0.y < min(rect.maxY - radius, g.cardTop + 8) - 0.001 }
+                      .allSatisfy { $0.x == sideLeft || $0.x == sideRight })
             check("\(name), \(label): nothing below the card's bottom", points.allSatisfy { $0.y <= rect.maxY + 0.001 })
             if fullSize {
                 check("\(name), \(label): smooth everywhere below the screen top", corners(outline, below: 0.5).isEmpty)
             }
         }
 
+        // Collapsed at the camera width: a straight sided rect with rounded bottom, square top corners.
+        let closed = NotchOutline.bridged(in: cameraCard, bottomRadius: 12, bridgeHeight: bridge.height)
+        let closedPoints = NotchOutline.samples(closed)
+        check("\(name), collapsed: the sides are the camera's sides",
+              closedPoints.map(\.x).min() == bridge.minX && closedPoints.map(\.x).max() == bridge.maxX)
+        check("\(name), collapsed: no flare, no curve but the bottom corners",
+              !closed.contains { if case .quad = $0 { true } else { false } } && corners(closed, below: -1).count == 2)
+        check("\(name), collapsed: the top edge is the camera's width on the screen top",
+              closed.first == .move(CGPoint(x: bridge.minX, y: 0)) && closed.contains(.line(CGPoint(x: bridge.maxX, y: 0))))
+
         // Open: the card fills the menu bar row above it. The top edge is the screen top across the
         // card's full width, with the plain notch's concave flare at both top corners.
-        let f = NotchGeometry.flare
-        let opened = NotchOutline.bridged(
-            in: openCard, bottomRadius: 24, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
-            bridgeOffset: bridge.midX - openCard.midX, openness: 1
-        )
+        let opened = NotchOutline.bridged(in: openCard, bottomRadius: 24, bridgeHeight: bridge.height, openness: 1)
         let openPoints = NotchOutline.samples(opened)
-        let openTop = openPoints.filter { $0.y == 0 }.map(\.x)
-        check("\(name), open: one closed path", opened.filter { $0 == .close }.count == 1 && openPoints.first == openPoints.last)
-        check("\(name), open: the top edge is the screen top, the card's full width", openTop.min() == openCard.minX && openTop.max() == openCard.maxX)
         check("\(name), open: concave flare at the top right corner",
               opened.contains(.quad(to: CGPoint(x: openCard.maxX - f, y: f), control: CGPoint(x: openCard.maxX - f, y: 0))))
         check("\(name), open: concave flare at the top left corner",
               opened.contains(.quad(to: CGPoint(x: openCard.minX, y: 0), control: CGPoint(x: openCard.minX + f, y: 0))))
         check("\(name), open: the sides are the card's, straight from the flare to the bottom",
               openPoints.map(\.x).min() == openCard.minX && openPoints.filter { $0.y > f && $0.y < openCard.maxY - 24 }.allSatisfy { $0.x == openCard.minX + f || $0.x == openCard.maxX - f })
-        check("\(name), open: no join at the menu bar's bottom edge, the sides run straight through",
-              !openPoints.contains { $0.y > f + 0.001 && $0.y < g.cardTop + 0.001 && $0.x != openCard.minX + f && $0.x != openCard.maxX - f })
-        check("\(name), open: nothing below the card's bottom, smooth below the screen top",
-              openPoints.allSatisfy { $0.y <= openCard.maxY + 0.001 } && corners(opened, below: 0.5).isEmpty)
-        // The morph: the top row widens from the camera to the card without a jump.
-        var lastWidth: CGFloat = 0, widening = true
-        for i in 0...20 {
-            let o = NotchOutline.bridged(
-                in: openCard, bottomRadius: 24, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
-                bridgeOffset: bridge.midX - openCard.midX, openness: CGFloat(i) / 20
-            )
-            let xs = NotchOutline.samples(o).filter { $0.y == 0 }.map(\.x)
-            let w = (xs.max() ?? 0) - (xs.min() ?? 0)
-            if i == 0 { check("\(name), morph: closed the top row is the camera's width", w == bridge.width) }
-            if i > 0, w < lastWidth - 0.001 || w - lastWidth > 20 { widening = false }
-            lastWidth = w
+        // The morph: for any openness and any card width from the camera's to an open one, the top
+        // row is exactly the card's width plus the flares, so the top edge and the card's sides
+        // move as one whatever the two springs are doing.
+        var matches = true
+        for w in stride(from: cameraCard.width, through: openCard.width, by: 25) {
+            for i in 0...20 {
+                let o = CGFloat(i) / 20
+                let rect = CGRect(x: (NotchGeometry.panelSize.width - w) / 2, y: g.cardTop, width: w, height: 120)
+                let xs = NotchOutline.samples(NotchOutline.bridged(in: rect, bottomRadius: 18, bridgeHeight: bridge.height, openness: o))
+                    .filter { $0.y == 0 }.map(\.x)
+                if abs((xs.max() ?? 0) - (xs.min() ?? 0) - ((w - 2 * f) + 2 * f * o)) > 1e-9 { matches = false }
+            }
         }
-        check("\(name), morph: the top row only widens, in small steps", widening && abs(lastWidth - openCard.width) < 0.001)
+        check("\(name), morph: at any openness and card width the top row is the card's width plus the flares", matches)
 
         // The pointer: open, the menu bar row part of the card is inside; beside the card it is not.
         let shapeRect = CGRect(x: openCard.minX, y: g.cardTop, width: openCard.width, height: openCard.height)
@@ -130,47 +132,11 @@ func runBridgeChecks() {
         check("\(name), hover: collapsed, only the camera's width is inside",
               NotchHover.inside(cameraPoint, shape: shapeRect, bridge: bridge, isOpen: false) && !NotchHover.inside(rowLeft, shape: shapeRect, bridge: bridge, isOpen: false))
         check("\(name), hover: open, the card below is still inside", NotchHover.inside(CGPoint(x: shapeRect.midX, y: shapeRect.midY), shape: shapeRect, bridge: bridge, isOpen: true))
-
-        // The narrowest card continues the notch's sides straight down: no join at all.
-        let straight = NotchOutline.bridged(in: shortCard, bottomRadius: 12, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
-                                            bridgeOffset: bridge.midX - shortCard.midX)
-        check("\(name): short title card is the notch's width", shortCard.width - 2 * NotchGeometry.flare == bridge.width)
-        check("\(name): short title card has straight sides, no flare", !straight.contains { if case .quad = $0 { true } else { false } })
-
-        // A long title: the join flares out from the notch's width to the card's.
-        let wide = NotchOutline.bridged(in: longCard, bottomRadius: 12, bridgeWidth: bridge.width, bridgeHeight: bridge.height,
-                                        bridgeOffset: bridge.midX - longCard.midX)
-        let top = g.cardTop, r = NotchOutline.joinRadius, d = NotchOutline.joinDrop
-        check("\(name): long title, concave flare off the bridge's right side",
-              wide.contains(.quad(to: CGPoint(x: bridge.maxX + r, y: top + d), control: CGPoint(x: bridge.maxX, y: top + d))))
-        check("\(name): long title, rounded shoulder into the card's right side",
-              wide.contains(.quad(to: CGPoint(x: longCard.maxX - NotchGeometry.flare, y: top + d + r),
-                                  control: CGPoint(x: longCard.maxX - NotchGeometry.flare, y: top + d))))
-        check("\(name): long title, flare back into the bridge's left side",
-              wide.contains(.quad(to: CGPoint(x: bridge.minX, y: top), control: CGPoint(x: bridge.minX, y: top + d))))
-        let widest = NotchOutline.samples(wide).map(\.x)
-        check("\(name): long title, the card is its own width",
-              widest.min() == longCard.minX + NotchGeometry.flare && widest.max() == longCard.maxX - NotchGeometry.flare)
     }
 
-    section("Join")
+    section("Outline corners")
     let square: [OutlineSegment] = [.move(.zero), .line(CGPoint(x: 10, y: 0)), .line(CGPoint(x: 10, y: 10)), .line(CGPoint(x: 0, y: 10)), .close]
     check("the corner finder finds a square's four corners", corners(square, below: -1).count == 4)
-    check("no step, no join", NotchOutline.join(step: 0) == (0, 0, 0) && NotchOutline.join(step: -3) == (0, 0, 0))
-    let full = NotchOutline.join(step: 100)
-    check("a big step: full flare, drop and shoulder", full == (NotchOutline.joinRadius, NotchOutline.joinDrop, NotchOutline.joinRadius))
-    check("the drop leaves the title its room: under 5pt", NotchOutline.joinDrop < 5)
-    // As the card widens a quarter point at a time, the join never jumps.
-    var smooth = true, growing = true
-    var last = NotchOutline.join(step: 0)
-    for i in 1...160 {
-        let next = NotchOutline.join(step: CGFloat(i) * 0.25)
-        if abs(next.flare - last.flare) > 0.125 + 1e-9 || abs(next.drop - last.drop) > 0.125 + 1e-9 || abs(next.shoulder - last.shoulder) > 0.125 + 1e-9 { smooth = false }
-        if next.flare < last.flare || next.drop < last.drop { growing = false }
-        last = next
-    }
-    check("the join grows without a jump as the card widens", smooth && growing)
-    check("flare and shoulder fit the step", (1...80).allSatisfy { let s = CGFloat($0) / 2, j = NotchOutline.join(step: s); return j.flare + j.shoulder <= s + 1e-9 })
 
     section("Bridge hit test")
     let g = NotchGeometry(screen: fixtures[0].screen)
@@ -197,7 +163,7 @@ func runBridgeChecks() {
 }
 
 /// Joints in an outline below `y` where the direction turns by more than 1 degree: the outline's
-/// only corners are meant to be the bridge's two on the screen top.
+/// only corners are meant to be the two on the screen top.
 private func corners(_ outline: [OutlineSegment], below y: CGFloat) -> [CGPoint] {
     var pieces: [(start: CGPoint, end: CGPoint, inDir: CGVector, outDir: CGVector)] = []
     var current = CGPoint.zero, start = CGPoint.zero
