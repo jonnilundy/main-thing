@@ -51,6 +51,15 @@ func runGeometryChecks() {
     check("mbp: the card starts at the menu bar bottom", under.minY == 32 && m.panelFrame.maxY - under.minY == mbp.visibleFrame.maxY)
     check("mbp: card body is the housing width", under.width - 2 * NotchGeometry.flare == 185 && under.height == 30)
 
+    // Collapsed width under a hardware notch: the housing width, however long the title.
+    let longTitle = Lanes.collapsedWidth(titleWidth: 400, minimum: m.minimumWidth)
+    check("mbp: a long title wants more than the housing", longTitle == 400 + Lanes.collapsedChrome && longTitle > m.minimumWidth)
+    check("mbp: a long title's collapsed width is the housing width", m.collapsedMaximumWidth == 185 && m.collapsedWidth(natural: longTitle) == 185)
+    check("mbp: a short title keeps the housing width", m.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: 40, minimum: m.minimumWidth)) == 185)
+    check("mbp: no title keeps the housing width", m.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: nil, minimum: m.minimumWidth)) == 185)
+    check("studio: a long title still grows", s.collapsedMaximumWidth == nil && s.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: 400, minimum: s.minimumWidth)) == 400 + Lanes.collapsedChrome)
+    check("studio: a short title keeps the 169 minimum", s.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: 40, minimum: s.minimumWidth)) == 169)
+
     // A wider housing wins over the 185pt floor.
     let wide = ScreenInfo(
         frame: mbp.frame, visibleFrame: mbp.visibleFrame, safeAreaTop: 32,
@@ -58,6 +67,7 @@ func runGeometryChecks() {
         auxiliaryTopRight: CGRect(x: 856, y: 950, width: 656, height: 32)
     )
     check("wide housing: minimum width follows the housing", NotchGeometry(screen: wide).minimumWidth == 200)
+    check("wide housing: the cap follows the housing", NotchGeometry(screen: wide).collapsedWidth(natural: 500) == 200)
 
     // Primary notch screen placed with an offset origin.
     let offset = ScreenInfo(

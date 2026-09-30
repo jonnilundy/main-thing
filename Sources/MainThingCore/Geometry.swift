@@ -80,6 +80,10 @@ public struct NotchGeometry: Equatable, Sendable {
     /// Collapsed content width floor, before the flares. With a hardware notch it is the housing
     /// width, so the narrowest card continues the camera notch's sides straight down.
     public var minimumWidth: CGFloat
+    /// Collapsed content width ceiling, before the flares. With a hardware notch it is the housing
+    /// width too: the card continues the camera's sides straight down and a long title truncates.
+    /// Nil without a hardware notch, where the card grows with its title. The open card ignores it.
+    public var collapsedMaximumWidth: CGFloat?
     /// The chosen screen, for the open card's width and height caps.
     public var screenFrame: CGRect
 
@@ -94,6 +98,7 @@ public struct NotchGeometry: Equatable, Sendable {
             hardwareNotchWidth = housing.width
             notchHeight = NotchGeometry.belowMenuBarHeight
             minimumWidth = max(housing.width, NotchGeometry.housingWidth)
+            collapsedMaximumWidth = minimumWidth
             // Down to the menu bar's bottom edge, and never onto the camera.
             cardTop = max(menuBarHeight, housing.height)
         } else {
@@ -102,6 +107,7 @@ public struct NotchGeometry: Equatable, Sendable {
             hardwareNotchWidth = 0
             notchHeight = menuBarHeight
             minimumWidth = NotchGeometry.housingWidth - 2 * NotchGeometry.flare
+            collapsedMaximumWidth = nil
             cardTop = 0
         }
         let frame = CGRect(
@@ -119,6 +125,11 @@ public struct NotchGeometry: Equatable, Sendable {
     }
 
     public var hasHardwareNotch: Bool { mode == .belowMenuBar }
+
+    /// The collapsed content width for a title that wants `natural` (`Lanes.collapsedWidth`).
+    public func collapsedWidth(natural: CGFloat) -> CGFloat {
+        min(natural, collapsedMaximumWidth ?? natural)
+    }
 
     /// The panel frame with another height. The top edge stays where it is; the panel grows down.
     public func panelFrame(height: CGFloat) -> CGRect {

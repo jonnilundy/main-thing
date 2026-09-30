@@ -58,10 +58,12 @@ struct NotchBody: View {
         let rows = store.list.rows
         let keys = rows.map(\.key)
         let geometry = model.geometry
-        let collapsedWidth = NotchMetrics.width(for: rows.first?.title, minimum: geometry.minimumWidth)
+        // What the title wants; under a hardware notch the collapsed pill stops at the camera's width.
+        let naturalWidth = NotchMetrics.width(for: rows.first?.title, minimum: geometry.minimumWidth)
+        let collapsedWidth = geometry.collapsedWidth(natural: naturalWidth)
         let countWidth = rows.isEmpty ? 0 : NotchMetrics.countWidth(rows.count)
-        // The band is never cut: the open card is at least the collapsed band plus the count.
-        let openWidth = max(Lanes.bandWidth(collapsedWidth: collapsedWidth, countWidth: countWidth), model.openWidth)
+        // The band is never cut: the open card is at least the full title band plus the count.
+        let openWidth = max(Lanes.bandWidth(collapsedWidth: naturalWidth, countWidth: countWidth), model.openWidth)
         // The shape width springs between these. Content is laid out at its own final width,
         // never at the animating width, and the clip hides the overflow while the spring settles.
         let width = model.isOpen ? openWidth : collapsedWidth
@@ -135,6 +137,7 @@ struct BandSlot: View {
             dotColor: model.dotColor,
             flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
             taskTime: model.taskTime,
+            titleLimit: model.geometry.collapsedMaximumWidth.map { $0 - Lanes.collapsedChrome },
             hovered: model.isOpen && model.hover == .task(0),
             pressed: model.pressed == .task(0),
             lift: model.drag == nil ? 0 : model.shift(ofTask: 0, centers: CardMap(model: model, store: store).liveCenters),
@@ -192,6 +195,8 @@ struct Band: View {
     let dotColor: Color
     let flash: Gradient
     let taskTime: String
+    /// The widest the title may be while collapsed: the camera-wide pill's room. Nil: no limit.
+    var titleLimit: CGFloat? = nil
     /// The pointer is on task 1, open.
     let hovered: Bool
     let pressed: Bool
@@ -298,7 +303,7 @@ struct Band: View {
                         .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
                         .opacity(resolving ? NotchMetrics.resolvingOpacity : 1)
                         .overlay(alignment: .leading) { nudgeSparkles(current) }
-                        .frame(width: menuOpen ? min(NotchMetrics.titleWidth(for: current.title), RowMenu.titleLimit(cardWidth: width)) : NotchMetrics.titleWidth(for: current.title), alignment: .leading)
+                        .frame(width: menuOpen ? min(titleWidth(current), RowMenu.titleLimit(cardWidth: width)) : titleWidth(current), alignment: .leading)
                         .id(current.key)
                         .transition(quiet ? .identity : Motion.push(reduceMotion))
                 }
@@ -308,12 +313,18 @@ struct Band: View {
         .frame(width: pill.width, height: pill.height, alignment: .leading)
     }
 
+    /// The title's room: its own width, cut to `titleLimit` while collapsed.
+    private func titleWidth(_ current: TaskList.Row) -> CGFloat {
+        let own = NotchMetrics.titleWidth(for: current.title)
+        return isOpen ? own : min(own, titleLimit ?? own)
+    }
+
     /// The reminder nudge's sparkles along the title, white with a glow of the step's color.
     /// Only in the tree while they run. Reduce Motion: none.
     @ViewBuilder private func nudgeSparkles(_ current: TaskList.Row) -> some View {
         if !reduceMotion, nudgeSparkle != nil || pins.nudgeSparkles != nil {
             SparkleBurst(
-                start: nudgeSparkle ?? Date(), width: NotchMetrics.titleWidth(for: current.title), seed: current.key,
+                start: nudgeSparkle ?? Date(), width: titleWidth(current), seed: current.key,
                 style: .nudge, glow: nudgeColor, pinned: pins.nudgeSparkles
             )
             .allowsHitTesting(false)
