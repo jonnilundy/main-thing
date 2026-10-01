@@ -8,7 +8,7 @@ import os
 /// Hover: `HoverController.evaluate` hands in each cursor move; the point maps to a slot
 /// (`CardMap`) and lands in `NotchModel.hover`, the only hover state the rows draw. Presses: a
 /// local monitor sees mouse down, drag and up in the notch panel and classifies them
-/// (`CardPress`). A click crosses a task off, restores a discarded one, or opens the add card. A
+/// (`CardPress`). A click crosses a task off or opens the add card. A
 /// drag from a task's number or dot reorders. A long press opens the Rename and Discard menu. The
 /// rows are plain views with no gestures or buttons of their own, so a press means one thing.
 ///
@@ -18,7 +18,7 @@ import os
 ///
 /// Every edit is a `replace` on the store with source `notch`, the path the API takes. Edits go by
 /// row key, so a list the API changed meanwhile still gets them on the right task. A cross off and
-/// a discard go through the store's undo stack: the Undo row shows the newest one.
+/// a discard go through the store's undo stack: Command Z brings the newest one back.
 @MainActor
 final class CardController {
     private let model: NotchModel
@@ -55,9 +55,6 @@ final class CardController {
     /// Where the pointer was (screen) at the last key, and where it is now.
     private var keyAnchor: CGPoint?
     private var lastScreenPoint: CGPoint?
-    /// Set while an edit here changes the undo stack: the Undo row changes in the edit's own
-    /// animation, not in a fade of its own.
-    private var editing = false
 
     init(model: NotchModel, store: TaskStore, panel: NSPanel, toggle: @escaping (TaskList.Row) -> Void) {
         self.model = model
@@ -71,7 +68,6 @@ final class CardController {
             self?.sparkle(new)
             self?.sounds?.linkResolved()
         }
-        store.onUndoChange = { [weak self] in self?.syncUndo() }
     }
 
     private var reduceMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
@@ -115,11 +111,10 @@ final class CardController {
         CGPoint(x: panelPoint.x - model.shapeRect.minX - NotchGeometry.flare, y: panelPoint.y - model.shapeRect.minY)
     }
 
-    /// The key a slot holds, for the haptics: a row's key, or "add" and "undo".
+    /// The key a slot holds, for the haptics: a row's key, or "add".
     private func key(for slot: CardSlot) -> String? {
         switch slot {
         case .task(let index): store.list.key(at: index)
-        case .undo: "undo"
         case .add: "add"
         case .none: nil
         }
@@ -290,8 +285,6 @@ final class CardController {
         case .task(let index):
             guard store.list.rows.indices.contains(index) else { return }
             toggle(store.list.rows[index])
-        case .undo:
-            undo()
         case .add:
             openAdd()
         case .none:
@@ -343,7 +336,7 @@ final class CardController {
     /// others spring out of the way and a light tick marks the new place.
     private func moveDrag(offset: CGFloat) {
         guard var drag = model.drag else { return }
-        let target = Reorder.target(from: drag.from, offset: offset, centers: map.liveCenters)
+        let target = Reorder.target(from: drag.from, offset: offset, centers: map.taskCenters)
         drag.offset = offset
         if target != drag.target {
             drag.target = target
@@ -358,7 +351,7 @@ final class CardController {
     /// from where the pointer left it. A task dropped on top is the main thing; the old one is 2.
     private func endDrag() {
         guard let drag = model.drag else { return }
-        let centers = map.liveCenters
+        let centers = map.taskCenters
         guard let tasks = store.list.moving(key: drag.key, to: drag.target) else {
             withAnimation(spring) { model.drag = nil }
             return
@@ -508,20 +501,20 @@ final class CardController {
 
     // MARK: Cross off, discard and Undo
 
-    /// A cross off whose pen stroke is done: the row leaves and an Undo shows in its place for 4
+    /// A cross off whose pen stroke is done: the row leaves, and Command Z brings it back for 4
     /// seconds. The done hook and the adapter run when that window ends (`TaskStore.completeHeld`).
     @discardableResult
     func completeHeld(key: String, expected: String?) -> Bool {
         edit { store.completeHeld(key: key, expected: expected, source: EventSource.notch) != nil }
     }
 
-    /// Deletes the task: no done hook, no adapter, no sound. An Undo shows in its place for 4 seconds.
+    /// Deletes the task: no done hook, no adapter, no sound. Command Z brings it back for 4 seconds.
     func discard(_ key: String) {
         if model.renaming == key { cancelRename() }
         edit { store.discard(key: key, source: EventSource.notch) != nil }
     }
 
-    /// Command Z or the Undo row: a pen stroke still drawing is kept, as a
+    /// Command Z: a pen stroke still drawing is kept, as a
     /// second click keeps it; else the newest cross off or discard in its window comes back where
     /// it was. With the card closed the task just returns to the list.
     func undo() {
@@ -532,25 +525,12 @@ final class CardController {
         edit { store.undoLast() != nil }
     }
 
-    /// A store edit that changes the undo stack, in one animation with the Undo row.
+    /// A store edit that changes the undo stack, in one animation with the row leaving or returning.
     @discardableResult
     private func edit(_ change: () -> Bool) -> Bool {
-        editing = true
-        defer { editing = false }
         var changed = false
         withAnimation(reduceMotion ? Motion.reducedFade : Motion.content(false)) { changed = change() }
         return changed
-    }
-
-    /// The Undo row shows the store's newest entry. A window that ran out fades it.
-    private func syncUndo() {
-        let top = store.undoTop
-        guard model.discarded != top else { return }
-        if editing {
-            model.discarded = top
-        } else {
-            withAnimation(reduceMotion ? Motion.reducedFade : Motion.fade) { model.discarded = top }
-        }
     }
 
     // MARK: Keys
@@ -596,8 +576,6 @@ final class CardController {
                 toggle(highlighted)
             } else if model.hover == .add {
                 openAdd()
-            } else if model.hover == .undo {
-                undo()
             }
         case .rename:
             if let highlighted { startRename(highlighted.key) }
@@ -667,8 +645,8 @@ final class CardController {
         }
     }
 
-    /// The card closed: no hover, no press, no menu; fields end and the keyboard goes back. An
-    /// Undo keeps its window: Command Z works again once the card has the keyboard.
+    /// The card closed: no hover, no press, no menu; fields end and the keyboard goes back. A
+    /// cross off keeps its window: Command Z works again once the card has the keyboard.
     func closed() {
         press = nil
         menuPress = nil
@@ -692,7 +670,6 @@ extension CardMap {
         self.init(
             notchHeight: model.geometry.notchHeight,
             taskCount: store.list.count,
-            undoRow: model.discarded?.undoRow,
             notesHeight: CGFloat(notes) * (OpenLayout.noteSpacing + OpenLayout.noteHeight),
             rowsMax: model.rowsMaxHeight,
             scroll: model.rowsScroll,

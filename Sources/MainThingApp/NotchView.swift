@@ -13,7 +13,7 @@ struct NotchView: View {
     var sounds: Sounds? = nil
     var reminder: Reminder? = nil
     var onToggle: (TaskList.Row) -> Void = { _ in }
-    /// Rename, discard, add and undo from the fields, the menu and VoiceOver. Nil in previews.
+    /// Rename, discard and add from the fields, the menu and VoiceOver. Nil in previews.
     var card: CardController? = nil
 
     var body: some View {
@@ -141,7 +141,7 @@ struct BandSlot: View {
             titleLimit: model.geometry.collapsedMaximumWidth.map { $0 - Lanes.collapsedChrome },
             hovered: model.isOpen && model.hover == .task(0),
             pressed: model.pressed == .task(0),
-            lift: model.drag == nil ? 0 : model.shift(ofTask: 0, centers: CardMap(model: model, store: store).liveCenters),
+            lift: model.drag == nil ? 0 : model.shift(ofTask: 0, centers: CardMap(model: model, store: store).taskCenters),
             held: held,
             menuOpen: first != nil && model.menu?.key == first?.key,
             quiet: model.quietRows,
@@ -372,8 +372,7 @@ struct Dot: View {
 }
 
 /// The body of the open card under the band: rows 2..N as pills in the same lanes, dim so the
-/// main thing stays the focus, an Undo row where a task was just crossed off or discarded, and the add card at
-/// the very bottom. Past 60 percent of the screen the rows scroll.
+/// main thing stays the focus, and the add card at the very bottom. Past 60 percent of the screen the rows scroll.
 struct OpenContent: View {
     let store: TaskStore
     let model: NotchModel
@@ -387,7 +386,7 @@ struct OpenContent: View {
         let rows = store.list.rows
         let keys = rows.map(\.key)
         let map = CardMap(model: model, store: store)
-        let centers = map.liveCenters
+        let centers = map.taskCenters
         VStack(alignment: .leading, spacing: 0) {
             if map.isEmpty {
                 Text("No tasks")
@@ -439,7 +438,7 @@ struct OpenContent: View {
         .animation(Motion.content(reduceMotion), value: keys)
     }
 
-    /// One row under the band: a task, its rename field, or the Undo.
+    /// One row under the band: a task or its rename field.
     @ViewBuilder
     private func item(_ slot: CardSlot, position: Int, rows: [TaskList.Row], centers: [CGFloat]) -> some View {
         switch slot {
@@ -482,33 +481,23 @@ struct OpenContent: View {
             .transaction { if held { $0.animation = nil } }
             .zIndex(held ? 1 : 0)
             .transition(model.quietRows ? .identity : Motion.row(reduceMotion, index: position))
-        case .undo:
-            if let gone = model.discarded {
-                UndoRow(title: gone.task.title, kind: gone.kind, width: width, hovered: model.hover == .undo || pins.undo, pressed: model.pressed == .undo,
-                        start: Date(timeIntervalSinceReferenceDate: gone.at))
-                    .equatable()
-                    .accessibilityAction { card?.undo() }
-                    .transition(.opacity.animation(reduceMotion ? Motion.reducedFade : Motion.fade))
-            }
         default:
             EmptyView()
         }
     }
 }
 
-/// One row under the band, keyed by its task (or "undo"), with its position.
+/// One row under the band, keyed by its task, with its position.
 struct RowItem: Identifiable {
     let id: String
     let slot: CardSlot
     let position: Int
 
     static func items(map: CardMap, rows: [TaskList.Row]) -> [RowItem] {
-        (0..<map.rowItems).map { position in
+        (0..<map.rowItems).compactMap { position in
             let slot = map.item(atRow: position)
-            if case .task(let index) = slot, rows.indices.contains(index) {
-                return RowItem(id: rows[index].key, slot: slot, position: position)
-            }
-            return RowItem(id: "undo", slot: slot, position: position)
+            guard case .task(let index) = slot, rows.indices.contains(index) else { return nil }
+            return RowItem(id: rows[index].key, slot: slot, position: position)
         }
     }
 }
@@ -758,74 +747,6 @@ struct InlineField: View {
             // A dark field: a white caret and a light selection on black.
             .environment(\.colorScheme, .dark)
             .onAppear { Task { @MainActor in focused = true } }
-    }
-}
-
-/// Where a task was crossed off or discarded, for 4 seconds: its title faint, and Undo. The word
-/// fills with white from the left as the seconds run out. A click anywhere on the row puts the
-/// task back.
-struct UndoRow: View, Equatable {
-    let title: String
-    var kind: Discarded.Kind = .discard
-    let width: CGFloat
-    let hovered: Bool
-    let pressed: Bool
-    /// When the window started: the word fills with white until it ends.
-    var start: Date = .distantPast
-
-    var body: some View {
-        let contrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        HStack(spacing: Lanes.gap) {
-            Color.clear.frame(width: Lanes.markerSlot)
-            Text(title)
-                .font(NotchMetrics.rowFont)
-                .foregroundStyle(.white)
-                .opacity(Lanes.numberOpacity(hovered: false, increaseContrast: contrast))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            UndoCountdown(start: start, baseOpacity: Lanes.numberOpacity(hovered: true, increaseContrast: contrast))
-        }
-        .padding(.leading, Lanes.pillPadding)
-        .padding(.trailing, Lanes.pillTrailingPadding)
-        .frame(width: Lanes.pillWidth(contentWidth: width), height: Lanes.rowHeight, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: Lanes.pillRadius, style: .continuous).fill(.white.opacity(Lanes.pillOpacity)).opacity(hovered ? 1 : 0))
-        .opacity(pressed ? 0.85 : 1)
-        .animation(Motion.press, value: pressed)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel((kind == .done ? "Undo cross off of " : "Undo discard of ") + title)
-        .accessibilityAddTraits(.isButton)
-    }
-}
-
-/// The word Undo as its own countdown: dim white underneath, bright white on top, filling from the
-/// left as the window runs out, so a full word means the time is up. Under Reduce Motion it stays
-/// dim, with no animation.
-struct UndoCountdown: View {
-    let start: Date
-    let baseOpacity: Double
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
-            let done = reduceMotion ? 0 : min(max(context.date.timeIntervalSince(start) / Discarded.seconds, 0), 1)
-            word
-                .foregroundStyle(.white)
-                .opacity(baseOpacity)
-                .overlay(alignment: .leading) {
-                    word
-                        .foregroundStyle(.white)
-                        .mask(alignment: .leading) {
-                            GeometryReader { box in
-                                Rectangle().frame(width: box.size.width * done)
-                            }
-                        }
-                }
-        }
-    }
-
-    private var word: some View {
-        Text("Undo").font(.system(size: 12, weight: .semibold))
     }
 }
 

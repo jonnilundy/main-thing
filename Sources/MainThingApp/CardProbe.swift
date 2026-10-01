@@ -155,11 +155,12 @@ enum CardProbe {
             sent.payloads = []
             await wait(500)
             check("click: 400ms later the task leaves", !store.list.rows.contains(third))
-            check("cross off: an Undo shows in its place", model.discarded?.task == third.task && model.discarded?.kind == .done && card.map.item(atRow: 1) == .undo)
+            check("cross off: the rows closed up at once, the next task is in its place", titles.count == start.count - 1 && card.map.rowItems == titles.count - 1 && card.map.slot(atY: y(2)) == .task(2) && titles[2] == "Book the offsite room")
+            check("cross off: the stack holds it as a cross off", store.undo.entries.last?.task == third.task && store.undo.entries.last?.kind == .done)
             check("cross off: list-changed went out, task-completed waits for the window", sent.events == [.listChanged])
-            await click(CGPoint(x: title, y: card.map.centerY(of: .undo)))
-            check("Undo a cross off: the task is back where it was", titles == start.map(\.title))
-            check("Undo a cross off: no task-completed ever goes out", !sent.events.contains(.taskCompleted) && model.discarded == nil)
+            await key(6, "z", .command)
+            check("Command Z on a cross off: the task is back where it was", titles == start.map(\.title))
+            check("Command Z on a cross off: no task-completed ever goes out", !sent.events.contains(.taskCompleted) && store.undo.isEmpty)
             store.replace(start, source: "probe")
             await wait(100)
 
@@ -231,7 +232,7 @@ enum CardProbe {
             store.replace(start, source: "probe")
             await wait(100)
 
-            // Discard, then Undo
+            // Discard, then Command Z
             let doomed = store.list.rows[2]
             await longPress(CGPoint(x: title, y: y(2)))
             send(.leftMouseUp, CGPoint(x: title, y: y(2)))
@@ -240,16 +241,15 @@ enum CardProbe {
             }
             check("Discard: the task is gone", !titles.contains(doomed.title) && titles.count == 4)
             check("Discard: no cross off ran", model.pending.keys.isEmpty)
-            check("Discard: an Undo shows in its place", model.discarded?.task == doomed.task && card.map.item(atRow: 1) == .undo)
-            await click(CGPoint(x: title, y: card.map.centerY(of: .undo)))
-            check("Undo: the task is back where it was", titles == start.map(\.title))
-            check("Undo: the Undo is gone", model.discarded == nil)
+            check("Discard: the rows closed up at once, nothing stands in its place", card.map.rowItems == titles.count - 1 && store.undo.entries.last?.task == doomed.task)
+            await key(6, "z", .command)
+            check("Command Z: the task is back where it was", titles == start.map(\.title))
+            check("Command Z: nothing is left to undo", store.undo.isEmpty)
 
-
-            // Discard the main task: the Undo shows in the first row
+            // Discard the main task: the next one takes its place at once
             card.discard(store.list.rows[0].key)
             check("Discard the main task: the next one is the main thing", titles.first == "Reply to the design review")
-            check("Discard the main task: its Undo is the first row", card.map.item(atRow: 0) == .undo)
+            check("Discard the main task: the rows closed up, the second task is the first row", card.map.rowItems == titles.count - 1 && card.map.item(atRow: 0) == .task(1))
             card.undo()
             check("Undo the main task: it is the main thing again", titles.first == "Ship the launch post" && store.list.rows[0].ref == "probe:ship")
 
@@ -354,24 +354,24 @@ enum CardProbe {
             sent.payloads = []
             await key(CardKeys.Code.delete, "\u{7F}")
             check("keys: Delete discards the highlighted task", !titles.contains("Reply today") && titles.count == 4)
-            check("keys: its Undo shows, the highlight is on the next task", model.discarded?.kind == .discard && model.hover == .task(1) && store.list.rows[1].title == "Update the changelog")
+            check("keys: the highlight is on the next task, the discard is held", store.undo.entries.last?.kind == .discard && model.hover == .task(1) && store.list.rows[1].title == "Update the changelog")
             await key(6, "z", .command)
-            check("keys: Command Z puts it back where it was", titles[1] == "Reply today" && model.discarded == nil)
+            check("keys: Command Z puts it back where it was", titles[1] == "Reply today" && store.undo.isEmpty)
             check("keys: a discard sends no task-completed", !sent.events.contains(.taskCompleted))
 
-            // Return crosses off with the Undo window, Command Z brings it back
+            // Return crosses off and holds it for the window, Command Z brings it back
             await key(up, upChars)
             await key(CardKeys.Code.returnKey, "\r")
             check("keys: Return crosses off the highlighted task", model.pending.isPending("ref:probe:ship"))
             await wait(500)
-            check("keys: the task leaves, its Undo is the first row", titles.first == "Reply today" && model.discarded?.kind == .done && card.map.item(atRow: 0) == .undo)
+            check("keys: the task leaves at once, the next one is the first row", titles.first == "Reply today" && store.undo.entries.last?.kind == .done && card.map.item(atRow: 0) == .task(1))
             await key(6, "z", .command)
             check("keys: Command Z brings the main task back with its ref", titles.first == "Ship the launch post" && store.list.rows[0].ref == "probe:ship")
             check("keys: and its done never went out", !sent.events.contains(.taskCompleted))
             await key(CardKeys.Code.returnKey, "\r")
             await key(6, "z", .command)
             await wait(500)
-            check("keys: Command Z during the pen stroke keeps the task, as a second click does", titles.first == "Ship the launch post" && model.pending.keys.isEmpty && model.discarded == nil)
+            check("keys: Command Z during the pen stroke keeps the task, as a second click does", titles.first == "Ship the launch post" && model.pending.keys.isEmpty && store.undo.isEmpty)
 
             // N goes to New task
             await key(45, "n")
@@ -391,7 +391,7 @@ enum CardProbe {
             check("keys: with the card closed, keys are not the card's", model.hover == .none)
         }
 
-        /// The Undo windows: 4 seconds, a cross off commits at the end, a discard is just gone; undo
+        /// The undo windows: 4 seconds, a cross off commits at the end, a discard is just gone; undo
         /// with the card closed; the card closing in a pen stroke; quit.
         func windows() async {
             store.replace(start, source: "probe")
@@ -402,7 +402,7 @@ enum CardProbe {
             await wait(500)
             check("closed: the Cross off shortcut crosses task 1 off", titles.first == "Reply to the design review" && !model.isOpen)
             hover.undoShortcut()
-            check("closed: the Undo shortcut brings it back", titles.first == "Ship the launch post" && store.list.rows[0].ref == "probe:ship")
+            check("closed: the undo shortcut brings it back", titles.first == "Ship the launch post" && store.list.rows[0].ref == "probe:ship")
 
             // The card closing during a pen stroke: the cross off is not lost
             // Open it the real way, with the pointer on the card: opened with the pointer outside, the
@@ -421,7 +421,7 @@ enum CardProbe {
             await click(CGPoint(x: title, y: y(2)))
             check("closing in the pen stroke: the click started the stroke", model.pending.isPending(stroked.key))
             hover.setOpen(false)
-            check("closing in the pen stroke: the task is crossed off, not dropped", !store.list.rows.contains(stroked) && store.undoTop?.task == stroked.task)
+            check("closing in the pen stroke: the task is crossed off, not dropped", !store.list.rows.contains(stroked) && store.undo.entries.last?.task == stroked.task)
             hover.undoShortcut()
             check("and it can be undone", titles == start.map(\.title))
 
@@ -444,7 +444,7 @@ enum CardProbe {
             check("quit: in the window the done hook has not run", log().isEmpty)
             real.commitBeforeQuit()
             check("quit: the held cross off commits and its done hook runs before the app exits", dones() == 1 && log().contains("probe:quit"))
-            check("quit: nothing is left to undo", real.undoTop == nil && real.undoLast() == nil)
+            check("quit: nothing is left to undo", real.undo.isEmpty && real.undoLast() == nil)
 
             // Every window ends after 4 seconds
             hover.setOpen(true)
@@ -454,13 +454,13 @@ enum CardProbe {
             hover.crossOffMain()
             real.completeHeld(key: real.list.rows[0].key, expected: nil, source: EventSource.notch)
             await wait(500)
-            check("windows: the newest shows, the cross off", model.discarded?.kind == .done && model.discarded?.task.ref == "probe:ship")
+            check("windows: the newest held is the cross off", store.undo.entries.last?.kind == .done && store.undo.entries.last?.task.ref == "probe:ship")
             // Wide margins: the probes share the machine with a build, and the window rule itself is
             // a pure check in main-thing-checks.
             await wait(2400)
             check("windows: at 2.9s both are still held, no done went out", store.undo.entries.count == 2 && !sent.events.contains(.taskCompleted) && dones() == 1)
             await wait(1900)
-            check("windows: after 4s the Undo is gone", model.discarded == nil && store.undo.isEmpty && titles.count == 3)
+            check("windows: after 4s both windows are over", store.undo.isEmpty && titles.count == 3)
             check("windows: the cross off committed once, with its ref, from the notch",
                   sent.payloads.filter { $0.event == .taskCompleted }.map { $0.task?.ref } == ["probe:ship"] && sent.payloads.last?.source == EventSource.notch)
             check("windows: the discard sent nothing when its window ended", sent.events == [.listChanged, .listChanged, .taskCompleted])

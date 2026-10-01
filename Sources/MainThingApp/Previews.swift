@@ -13,8 +13,6 @@ struct PreviewPins {
     var sweep: Double?
     /// The add card shows as hovered.
     var add = false
-    /// The Undo row shows as hovered.
-    var undo = false
     /// The reminder nudge's hop and halo this far to their peak, 0...1.
     var nudge: Double?
     /// The nudge's sparkles this many seconds after they start.
@@ -203,14 +201,6 @@ private func notch(
     notch(open: true, height: 210) { model, store in
         model.renaming = store.list.rows[1].key
         model.renameText = "Reply to the design review today"
-    }
-}
-
-#Preview("Discard undo", traits: .sizeThatFitsLayout) {
-    // Task 3 discarded a moment ago: its Undo shows where it was, the pointer on it.
-    notch(open: true, titles: sampleTitles.enumerated().filter { $0.offset != 2 }.map(\.element), height: 210) { model, _ in
-        model.discarded = Discarded(task: TaskItem(sampleTitles[2]), index: 2, at: 0)
-        model.hover = .undo
     }
 }
 

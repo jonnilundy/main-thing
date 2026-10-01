@@ -36,9 +36,6 @@ final class TaskStore {
     private(set) var undo = UndoStack()
     /// The clock for the Undo windows.
     @ObservationIgnored var now: () -> TimeInterval = { Date.timeIntervalSinceReferenceDate }
-    /// Called on the main actor when the undo stack changed: an entry came, was undone or ran out.
-    /// Called before the list changes, so the Undo row and the list land in one transaction.
-    @ObservationIgnored var onUndoChange: (@MainActor () -> Void)?
     /// Called at quit before the held cross offs commit, so the pen strokes still drawing join them.
     @ObservationIgnored var beforeQuit: (@MainActor () -> Void)?
     /// Every event as it goes to the runner, and every one committed at quit. The probe reads them.
@@ -213,12 +210,8 @@ final class TaskStore {
     private func hold(_ gone: Discarded, leaving tasks: [TaskItem], source: String) {
         undo.push(gone)
         scheduleUndo()
-        onUndoChange?()
         apply(tasks, source: source, links: false)
     }
-
-    /// The Undo row's entry: the newest cross off or discard still in its window.
-    var undoTop: Discarded? { undo.top(at: now()) }
 
     /// Undo: the newest cross off or discard still in its window comes back to its old place, with
     /// its ref. A cross off undone never sends its task-completed.
@@ -226,7 +219,6 @@ final class TaskStore {
     func undoLast(source: String = EventSource.notch) -> Discarded? {
         guard let gone = undo.undo(at: now()) else { return nil }
         scheduleUndo()
-        onUndoChange?()
         apply(gone.restored(into: list.tasks), source: source, links: false)
         log.notice("undo: row \(gone.index + 1, privacy: .public) back, \(gone.kind.rawValue, privacy: .public) not sent")
         return gone
@@ -249,8 +241,6 @@ final class TaskStore {
     private func expireUndo() {
         let ended = undo.expire(at: now())
         scheduleUndo()
-        guard !ended.isEmpty else { return }
-        onUndoChange?()
         for entry in ended {
             guard let payload = EventPlan.commit(entry, list: list, source: EventSource.notch, at: Date()) else { continue }
             log.notice("cross off committed: the undo window ended")

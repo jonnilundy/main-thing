@@ -78,8 +78,6 @@ final class NotchModel {
     /// The add card is a text field, and the text in it.
     var adding = false
     var addText = ""
-    /// The newest task crossed off or discarded, while its Undo shows (`TaskStore.undo`).
-    var discarded: Discarded?
     /// The row the keyboard highlight went to: the rows scroll to show it. Each move is a new
     /// target, so going back to a row scrolls to it again.
     var scrollTarget: ScrollTarget?
@@ -91,7 +89,7 @@ final class NotchModel {
     /// A pasted link just turned into its title: that row sparkles once, from this moment.
     var sparkle: Sparkle?
     struct Sparkle: Equatable { var key: String; var start: Date }
-    /// The row key (or "add", "undo") the pointer is on, for the haptics.
+    /// The row key (or "add") the pointer is on, for the haptics.
     @ObservationIgnored private var hoverKey: String?
 
     /// Which row the cursor is on and whether the next entry earns a tick.

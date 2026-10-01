@@ -7,7 +7,7 @@ func runUndoChecks() {
     let list = TaskList([TaskItem("Ship it", ref: "linear:ENG-1"), "Write memo", "Call Sam", "Book room"])
     do {
         var stack = UndoStack()
-        check("a new stack is empty", stack.isEmpty && stack.top(at: 0) == nil && stack.nextExpiry == nil)
+        check("a new stack is empty", stack.isEmpty && stack.nextExpiry == nil)
         let (afterShip, ship) = list.discarding(key: list.rows[0].key, at: 100, kind: .done)!
         stack.push(ship)
         check("a cross off is held as done, with its ref", ship.kind == .done && ship.task.ref == "linear:ENG-1" && ship.index == 0)
@@ -15,7 +15,7 @@ func runUndoChecks() {
         let (afterMemo, memo) = shorter.discarding(key: shorter.rows[0].key, at: 101)!
         stack.push(memo)
         shorter = TaskList(afterMemo)
-        check("the Undo row shows the newest", stack.top(at: 101) == memo)
+        check("the newest is last", stack.entries.last == memo)
         check("the next window ends 4 seconds after the oldest", stack.nextExpiry == 104)
         var undoing = stack
         let first = undoing.undo(at: 102)
@@ -28,7 +28,7 @@ func runUndoChecks() {
 
         var ending = stack
         check("at 103.9 nothing has ended", ending.expire(at: 103.9).isEmpty && ending.entries.count == 2)
-        check("at 104 the cross off ends, the discard still shows", ending.expire(at: 104) == [ship] && ending.top(at: 104) == memo)
+        check("at 104 the cross off ends, the discard is still held", ending.expire(at: 104) == [ship] && ending.entries == [memo])
         check("an entry past its window cannot be undone", ending.undo(at: 105.5) == nil)
         check("at 105 the discard ends too", ending.expire(at: 105) == [memo] && ending.isEmpty)
 
@@ -86,7 +86,6 @@ func runKeyboardChecks() {
     check("arrows stop at the ends", CardKeys.step(from: .add, by: 1, taskCount: n, wraps: false) == .add && CardKeys.step(from: .task(0), by: -1, taskCount: n, wraps: false) == .task(0))
     check("tab wraps past New task to task 1", CardKeys.step(from: .add, by: 1, taskCount: n, wraps: true) == .task(0))
     check("shift tab wraps past task 1 to New task", CardKeys.step(from: .task(0), by: -1, taskCount: n, wraps: true) == .add)
-    check("from the Undo row, down is task 1", CardKeys.step(from: .undo, by: 1, taskCount: n, wraps: false) == .task(0))
     check("a task that is gone steps like no highlight", CardKeys.step(from: .task(7), by: 1, taskCount: n, wraps: false) == .task(0))
     check("empty list: every step is New task", CardKeys.step(from: .none, by: 1, taskCount: 0, wraps: true) == .add && CardKeys.step(from: .add, by: -1, taskCount: 0, wraps: true) == .add)
     check("clamp: the last task crossed off moves to the new last", CardKeys.clamp(.task(3), taskCount: 3) == .task(2))

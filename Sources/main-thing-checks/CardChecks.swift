@@ -36,15 +36,10 @@ func runCardChecks() {
     let noted = CardMap(notchHeight: 30, taskCount: 2, notesHeight: 20)
     check("a note line under the rows is no slot", noted.slot(atY: 64 + 10) == .none && noted.slot(atY: 64 + 20 + 5) == .add)
 
-    let undo = CardMap(notchHeight: 30, taskCount: 3, undoRow: 1)
-    check("the Undo takes its own row", undo.rowItems == 3 && undo.item(atRow: 0) == .task(1) && undo.item(atRow: 1) == .undo && undo.item(atRow: 2) == .task(2))
-    check("the Undo row by the pointer", undo.slot(atY: 64 + 14) == .undo && undo.slot(atY: 92 + 14) == .task(2))
-    check("task positions skip the Undo", undo.position(ofTask: 1) == 0 && undo.position(ofTask: 2) == 2 && undo.position(ofTask: 0) == nil)
-    check("live centers step over the Undo row", undo.liveCenters == [15, 50, 106] && undo.centerY(of: .undo) == 78)
-    check("without an Undo the live centers are the resting ones", map.liveCenters == map.taskCenters && map.centerY(of: .add) == 125)
-    let lastUndo = CardMap(notchHeight: 30, taskCount: 0, undoRow: 3)
-    check("the last task discarded: the Undo is the only row", !lastUndo.isEmpty && lastUndo.rowItems == 1 && lastUndo.slot(atY: 40) == .undo)
-    check("an Undo past the end is clamped to the last row", CardMap(notchHeight: 30, taskCount: 2, undoRow: 7).item(atRow: 1) == .undo)
+    let closed = CardMap(notchHeight: 30, taskCount: 3)
+    check("a task that left takes its row with it, no blank in its place", closed.rowItems == map.rowItems - 1 && closed.height == map.height - Lanes.rowHeight)
+    check("the rows close up: the next task is under the pointer where it was", closed.slot(atY: 50) == .task(1) && closed.slot(atY: 64 + 14) == .task(2))
+    check("the add card keeps its place under the last row", map.centerY(of: .add) == 125 && closed.centerY(of: .add) == 97)
 
     let scrolled = CardMap(notchHeight: 30, taskCount: 30, rowsMax: 280, scroll: 56)
     check("scrolled rows: the viewport is 280 tall", scrolled.rowsVisibleHeight == 280 && scrolled.addTop == 36 + 280)
@@ -109,20 +104,20 @@ func runCardChecks() {
     check("left half is Rename, right half Discard", RowMenu.item(at: CGPoint(x: frame.minX + 10, y: 50), in: frame) == .rename && RowMenu.item(at: CGPoint(x: frame.maxX - 10, y: 50), in: frame) == .discard)
     check("outside the menu is no item", RowMenu.item(at: CGPoint(x: frame.minX - 1, y: 50), in: frame) == nil)
 
-    section("Discard and Undo")
+    section("Discard and undo")
     let list = TaskList([TaskItem("Ship it", ref: "openbrain:a1"), "Write memo", "Call Sam"])
     do {
         let key = list.rows[1].key
         let (tasks, gone) = list.discarding(key: key, at: 100)!
         check("discard removes the task by key", tasks == [TaskItem("Ship it", ref: "openbrain:a1"), "Call Sam"])
-        check("the Undo remembers where it was", gone.task == "Write memo" && gone.index == 1 && gone.undoRow == 0)
-        check("the Undo stays 4 seconds", !gone.expired(at: 103.9) && gone.expired(at: 104))
+        check("the undo remembers where it was", gone.task == "Write memo" && gone.index == 1)
+        check("the window stays 4 seconds", !gone.expired(at: 103.9) && gone.expired(at: 104))
         check("a discard is a discard, not a cross off", gone.kind == .discard)
         check("undo puts it back where it was", gone.restored(into: tasks) == list.tasks)
         check("undo into a shorter list puts it at the end", gone.restored(into: []) == ["Write memo"])
         check("discard of a key not there does nothing", list.discarding(key: "Nope#0", at: 0) == nil)
         let main = list.discarding(key: list.rows[0].key, at: 0)!.discarded
-        check("the main task's Undo shows in the first row", main.undoRow == 0 && main.index == 0)
+        check("the main task remembers index 0", main.index == 0)
         check("a ref that came back is not added twice", main.restored(into: [TaskItem("Ship it again", ref: "openbrain:a1")]).count == 1)
     }
 

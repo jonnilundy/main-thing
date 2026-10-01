@@ -4,8 +4,6 @@ import Foundation
 /// What a point on the open card is over. `task` carries the list index: 0 is the band.
 public enum CardSlot: Equatable, Hashable, Sendable {
     case task(Int)
-    /// The Undo left where a discarded task was.
-    case undo
     /// The add card at the very bottom.
     case add
     /// The "No tasks" line, a note line, or off the card.
@@ -16,15 +14,13 @@ public enum CardSlot: Equatable, Hashable, Sendable {
 /// in the list's shape and the pointer in card coordinates: y from the card's top edge, x from
 /// the body edge (the flare left out).
 ///
-/// Top to bottom: the band (task 1), the gap, the rows (tasks 2..N, with the Undo slot in place of
-/// a discarded task), the note lines, the add card, the bottom padding. Every height belongs to a
+/// Top to bottom: the band (task 1), the gap, the rows (tasks 2..N), the note lines, the add card,
+/// the bottom padding. Every height belongs to a
 /// slot: a gap between two slots is split at its middle, so moving down never crosses a spot with
 /// no hover. The rows scroll past `rowsMax`; `scroll` is how far.
 public struct CardMap: Equatable, Sendable {
     public var notchHeight: CGFloat
     public var taskCount: Int
-    /// Position under the band (0 is the first row) where the Undo shows, or nil.
-    public var undoRow: Int?
     public var notesHeight: CGFloat
     public var rowsMax: CGFloat?
     public var scroll: CGFloat
@@ -35,11 +31,10 @@ public struct CardMap: Equatable, Sendable {
     /// there opens the card but is on no slot: a click on the camera crosses nothing off.
     public var bridged: Bool
 
-    public init(notchHeight: CGFloat, taskCount: Int, undoRow: Int? = nil, notesHeight: CGFloat = 0, rowsMax: CGFloat? = nil, scroll: CGFloat = 0, addOpen: Bool = false, bridged: Bool = false) {
+    public init(notchHeight: CGFloat, taskCount: Int, notesHeight: CGFloat = 0, rowsMax: CGFloat? = nil, scroll: CGFloat = 0, addOpen: Bool = false, bridged: Bool = false) {
         self.bridged = bridged
         self.notchHeight = notchHeight
         self.taskCount = max(taskCount, 0)
-        self.undoRow = undoRow
         self.notesHeight = notesHeight
         self.rowsMax = rowsMax
         self.scroll = scroll
@@ -47,10 +42,10 @@ public struct CardMap: Equatable, Sendable {
     }
 
     public var rowsTop: CGFloat { notchHeight + Lanes.topGap }
-    /// Rows under the band: tasks 2..N, plus the Undo slot.
-    public var rowItems: Int { max(taskCount - 1, 0) + (undoRow == nil ? 0 : 1) }
-    /// No task and no Undo: the "No tasks" line.
-    public var isEmpty: Bool { taskCount == 0 && undoRow == nil }
+    /// Rows under the band: tasks 2..N.
+    public var rowItems: Int { max(taskCount - 1, 0) }
+    /// No task: the "No tasks" line.
+    public var isEmpty: Bool { taskCount == 0 }
     public var rowsHeight: CGFloat { isEmpty ? OpenLayout.emptyHeight : CGFloat(rowItems) * Lanes.rowHeight }
     public var rowsVisibleHeight: CGFloat { rowsMax.map { min($0, rowsHeight) } ?? rowsHeight }
     public var addTop: CGFloat { rowsTop + rowsVisibleHeight + notesHeight }
@@ -59,22 +54,10 @@ public struct CardMap: Equatable, Sendable {
     /// The add card's row: a row tall when it shows, nothing when folded into the padding.
     public var addHeight: CGFloat { addOpen ? OpenLayout.addHeight : 0 }
 
-    /// The Undo's position, clamped into the rows.
-    public var undoPosition: Int? { undoRow.map { min(max($0, 0), max(rowItems - 1, 0)) } }
-
     /// What the row at `position` under the band holds.
     public func item(atRow position: Int) -> CardSlot {
         guard position >= 0, position < rowItems else { return .none }
-        guard let undo = undoPosition else { return .task(position + 1) }
-        if position == undo { return .undo }
-        return .task(position < undo ? position + 1 : position)
-    }
-
-    /// The row position under the band of task `index` (nil for the band or a task not there).
-    public func position(ofTask index: Int) -> Int? {
-        guard index >= 1, index < taskCount else { return nil }
-        guard let undo = undoPosition else { return index - 1 }
-        return index - 1 < undo ? index - 1 : index
+        return .task(position + 1)
     }
 
     private enum Kind { case band, rows, none, add }
@@ -117,7 +100,6 @@ public struct CardMap: Equatable, Sendable {
     }
 
     /// The vertical center of task `index`'s resting place, card coordinates. The band for 0.
-    /// Used while dragging, when no Undo shows.
     public func center(ofTask index: Int) -> CGFloat {
         if index <= 0 { return notchHeight / 2 }
         return rowsTop + (CGFloat(index - 1) + 0.5) * Lanes.rowHeight - scroll
@@ -125,21 +107,14 @@ public struct CardMap: Equatable, Sendable {
 
     public var taskCenters: [CGFloat] { (0..<taskCount).map(center(ofTask:)) }
 
-    /// The vertical center of a slot as laid out now, the Undo row included.
+    /// The vertical center of a slot as laid out now.
     public func centerY(of slot: CardSlot) -> CGFloat {
-        let row: Int
         switch slot {
-        case .task(0): return notchHeight / 2
-        case .task(let index): guard let p = position(ofTask: index) else { return notchHeight / 2 }; row = p
-        case .undo: guard let p = undoPosition else { return rowsTop }; row = p
-        case .add: return addTop + (addHeight + Lanes.bottomPadding) / 2
-        case .none: return rowsTop
+        case .task(let index): center(ofTask: index)
+        case .add: addTop + (addHeight + Lanes.bottomPadding) / 2
+        case .none: rowsTop
         }
-        return rowsTop + (CGFloat(row) + 0.5) * Lanes.rowHeight - scroll
     }
-
-    /// Every task's center as laid out now: the reorder targets. An Undo row keeps its place.
-    public var liveCenters: [CGFloat] { (0..<taskCount).map { centerY(of: .task($0)) } }
 
     /// The drag handle lane: the dot's and the numbers' lane, with the gutter left of it and half
     /// the gap to the title. A press there and a drag reorders; anywhere else it does not.
@@ -280,8 +255,8 @@ public enum RowMenu {
 }
 
 /// A task that left the list from the card, crossed off or discarded, while it can come back:
-/// an Undo shows in its place for `seconds`. Undo puts it back where it was. A discard runs no
-/// done hook; a cross off runs its done hook and adapter only when the window ends (`UndoStack`).
+/// Command Z puts it back where it was for `seconds`. A discard runs no done hook; a cross off
+/// runs its done hook and adapter only when the window ends (`UndoStack`).
 public struct Discarded: Equatable, Sendable {
     public static let seconds: TimeInterval = 4
 
@@ -306,9 +281,6 @@ public struct Discarded: Equatable, Sendable {
     }
 
     public func expired(at now: TimeInterval) -> Bool { now - at >= Discarded.seconds }
-
-    /// Where the Undo shows under the band: its own row, or the first row for the main task.
-    public var undoRow: Int { max(index - 1, 0) }
 
     /// `tasks` with the task back at its old index, or at the end when the list got shorter.
     /// A task with a ref that is in the list again is not added twice.
@@ -340,7 +312,7 @@ extension TaskList {
         return result
     }
 
-    /// The list without the task `key`, and what Undo needs to put it back.
+    /// The list without the task `key`, and what undo needs to put it back.
     public func discarding(key: String, at now: TimeInterval, kind: Discarded.Kind = .discard) -> (tasks: [TaskItem], discarded: Discarded)? {
         guard let i = rows.firstIndex(where: { $0.key == key }) else { return nil }
         var result = tasks

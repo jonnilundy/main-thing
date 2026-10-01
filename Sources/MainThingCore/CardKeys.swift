@@ -77,14 +77,13 @@ public enum CardKeys {
         }
     }
 
-    /// The slots the keyboard steps through, top to bottom: every task, then New task. The Undo
-    /// row is left out; Command Z reaches it.
+    /// The slots the keyboard steps through, top to bottom: every task, then New task.
     public static func slots(taskCount: Int) -> [CardSlot] {
         (0..<max(taskCount, 0)).map(CardSlot.task) + [.add]
     }
 
-    /// The highlight after a step of `by` from `from`. From no highlight (or the Undo row), down
-    /// goes to the first slot and up to the last. `wraps`: past either end goes round to the other.
+    /// The highlight after a step of `by` from `from`. From no highlight, down goes
+    /// to the first slot and up to the last. `wraps`: past either end goes round to the other.
     public static func step(from: CardSlot, by: Int, taskCount: Int, wraps: Bool) -> CardSlot {
         let slots = slots(taskCount: taskCount)
         guard let index = slots.firstIndex(of: from) else {

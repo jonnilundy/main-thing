@@ -18,11 +18,6 @@ public struct UndoStack: Equatable, Sendable {
         entries.append(entry)
     }
 
-    /// The one the Undo row shows and an undo takes: the newest still in its window.
-    public func top(at now: TimeInterval) -> Discarded? {
-        entries.last { !$0.expired(at: now) }
-    }
-
     /// Takes the newest entry still in its window off the stack. The caller puts its task back.
     public mutating func undo(at now: TimeInterval) -> Discarded? {
         guard let i = entries.lastIndex(where: { !$0.expired(at: now) }) else { return nil }
