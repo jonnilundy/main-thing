@@ -6,6 +6,25 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.7.0</title>
+            <pubDate>Sat, 03 Oct 2026 15:08:03 +0000</pubDate>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>0.7.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.7.0</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[## Hide
+
+- Right click the notch and choose Hide Main Thing. The closed notch folds into the menu bar row and shows only the color dot. On a MacBook with a camera notch, the dot sits in a small wing left of the camera. On a screen with no notch, it sits in the center of a small pill.
+- Hover still opens the full list. Show Main Thing brings the task back. Main Thing remembers the choice.
+- A Hide or show shortcut is in Settings, Shortcuts. It has no key until you set one.
+
+## Undo without the Undo row
+
+- A task you cross off or discard now leaves the list at once. No Undo row shows.
+- For 4 seconds, Command Z in the open list still brings it back to its old place. Hooks and adapters, such as Linear complete, still wait those 4 seconds.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.7.0/MainThing-0.7.0.zip" length="3047686" type="application/octet-stream" sparkle:edSignature="n6R0wSz5NS7ARIfbWlEc2SmKtyRevSY751k2ILueLzw5msC9dmTFVG+VAePEW3kMaSohhlMSUOV4dTnpgAxyCA=="/>
+        </item>
+        <item>
             <title>Version 0.6.3</title>
             <pubDate>Wed, 30 Sep 2026 14:36:09 +0000</pubDate>
             <sparkle:version>11</sparkle:version>
