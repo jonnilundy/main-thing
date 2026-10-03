@@ -60,6 +60,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model?.apiBound = bound
             model?.apiPort = port
         }
+        // Hide and show over the API set the same state as the right click menu: the model's
+        // `hidden`, kept in UserDefaults. Idempotent, so hiding twice stays hidden.
+        server.isHidden = { [weak model] in model?.hidden ?? false }
+        server.setHidden = { [weak model, weak self] value in
+            guard let model, model.hidden != value else { return }
+            if let hover = self?.hover { hover.toggleHidden() } else { model.toggleHidden() }
+        }
         server.start()
         self.store = store
         self.server = server

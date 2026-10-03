@@ -39,6 +39,9 @@ main-thing                                          # print the current task
 main-thing list                                     # print the list, one task per line
 main-thing done                                     # cross off the current task
 main-thing done 2                                   # cross off the second task
+main-thing hide                                     # fold the notch down to its dot
+main-thing show                                     # bring it back
+main-thing hidden                                   # print true or false
 main-thing help                                     # every command, the JSON shape, the API
 ```
 
@@ -112,6 +115,9 @@ The command wraps a local API at `http://main-thing.localhost` (port 7788 if por
 | `PUT /tasks` | Replace the list. Body: a JSON array of titles or `{"title","ref"}` objects |
 | `POST /tasks` | Add tasks at the end. Body: as for `PUT` |
 | `POST /tasks/done` | Cross off the first task. Body `{"index":N}` or `{"ref":"..."}` picks another |
+| `POST /hide` | Hide the notch, as Hide Main Thing in the right click menu does. Answers `{"hidden":true}` |
+| `POST /show` | Show it again. Answers `{"hidden":false}` |
+| `GET /hidden` | `{"hidden":true}` or `{"hidden":false}` |
 | `GET /health` | Is the app up, and on which port |
 
 ```sh

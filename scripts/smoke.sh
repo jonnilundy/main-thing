@@ -54,6 +54,7 @@ if [[ "$original" != \{\"tasks\":* ]]; then
     exit 1
 fi
 echo "saved list: $original"
+original_hidden=$(curl -s "$BASE/hidden")
 
 expect "GET /health" 200 "$HEALTH" "$BASE/health"
 expect "PUT /tasks array, trims and drops blanks" 200 '{"tasks":[{"title":"Smoke A"},{"title":"Smoke B"}]}' \
@@ -114,7 +115,20 @@ expect "GET /health with Host localhost:80 on any port" 200 "$HEALTH" -H "Host: 
 expect "GET /health over IPv6" 200 "$HEALTH" -6 "http://[::1]:$PORT/health"
 expect "GET /health via 127.0.0.1" 200 "$HEALTH" "http://127.0.0.1:$PORT/health"
 
+expect "GET /hidden at the start" 200 "$original_hidden" "$BASE/hidden"
+expect "POST /hide" 200 '{"hidden":true}' -X POST "$BASE/hide"
+expect "GET /hidden after hide" 200 '{"hidden":true}' "$BASE/hidden"
+expect "POST /hide again stays hidden" 200 '{"hidden":true}' -X POST "$BASE/hide"
+expect "POST /show" 200 '{"hidden":false}' -X POST "$BASE/show"
+expect "GET /hidden after show" 200 '{"hidden":false}' "$BASE/hidden"
+expect "GET /hide" 405 '' "$BASE/hide"
+expect "POST /hidden" 405 '' -X POST "$BASE/hidden"
+
 echo "--- main-thing CLI"
+same "main-thing hide prints nothing" "" "$(MAIN_THING_PORT=$PORT "$CLI" hide)"
+same "main-thing hidden after hide" "true" "$(MAIN_THING_PORT=$PORT "$CLI" hidden)"
+same "main-thing show prints nothing" "" "$(MAIN_THING_PORT=$PORT "$CLI" show)"
+same "main-thing hidden after show" "false" "$(MAIN_THING_PORT=$PORT "$CLI" hidden)"
 same "main-thing health" "$HEALTH" "$(MAIN_THING_PORT=$PORT "$CLI" health)"
 same "main-thing set with quotes and an apostrophe" $'She said "go"\nAna\'s memo\nTab\\there' \
     "$(MAIN_THING_PORT=$PORT "$CLI" set 'She said "go"' "Ana's memo" 'Tab\there')"
@@ -229,6 +243,7 @@ for name in fake old; do
 done
 rm -rf "$LINKS"
 
+expect "restore the saved hidden state" 200 "$original_hidden" -X POST "$BASE/$([[ "$original_hidden" == *true* ]] && echo hide || echo show)"
 expect "restore the saved list" 200 "$original" -X PUT --data-binary "$original" "$BASE/tasks"
 
 echo

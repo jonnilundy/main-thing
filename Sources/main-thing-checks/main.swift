@@ -296,6 +296,34 @@ do {
     check("405 does not change the list", del.changed == false && del.list == list)
 }
 do {
+    // Hide and show: the router names the wish, the app applies it. The list never changes.
+    let list = TaskList(["A"])
+    let hide = MainThingRouter.handle(request("POST", "/hide"), list: list)
+    check("POST /hide answers hidden true and asks to hide", hide.response.status == 200 && text(hide.response) == "{\"hidden\":true}" && hide.action == .setHidden(true))
+    let show = MainThingRouter.handle(request("POST", "/show"), list: list, hidden: true)
+    check("POST /show answers hidden false and asks to show", show.response.status == 200 && text(show.response) == "{\"hidden\":false}" && show.action == .setHidden(false))
+    check("hide and show leave the list alone", hide.changed == false && hide.list == list && show.changed == false && show.list == list)
+    let hideAgain = MainThingRouter.handle(request("POST", "/hide"), list: list, hidden: true)
+    check("POST /hide while hidden is the same answer, so it is safe to repeat", hideAgain.response.status == 200 && text(hideAgain.response) == "{\"hidden\":true}" && hideAgain.action == .setHidden(true))
+    let shown = MainThingRouter.handle(request("GET", "/hidden"), list: list)
+    check("GET /hidden is false when shown, and asks for nothing", shown.response.status == 200 && text(shown.response) == "{\"hidden\":false}" && shown.action == .none)
+    let hiddenNow = MainThingRouter.handle(request("GET", "/hidden"), list: list, hidden: true)
+    check("GET /hidden is true when hidden", hiddenNow.response.status == 200 && text(hiddenNow.response) == "{\"hidden\":true}" && hiddenNow.action == .none)
+    let getHide = MainThingRouter.handle(request("GET", "/hide"), list: list)
+    check("GET /hide is 405 with Allow POST and does nothing", getHide.response.status == 405 && getHide.response.headers["Allow"] == "POST" && getHide.action == .none)
+    let getShow = MainThingRouter.handle(request("GET", "/show"), list: list)
+    check("GET /show is 405 with Allow POST", getShow.response.status == 405 && getShow.response.headers["Allow"] == "POST" && getShow.action == .none)
+    let postHidden = MainThingRouter.handle(request("POST", "/hidden"), list: list)
+    check("POST /hidden is 405 with Allow GET", postHidden.response.status == 405 && postHidden.response.headers["Allow"] == "GET" && postHidden.action == .none)
+    check("PUT /hide is 405", MainThingRouter.handle(request("PUT", "/hide"), list: list).response.status == 405)
+    check("POST /hide/ with a trailing slash still routes", MainThingRouter.handle(request("POST", "/hide/"), list: list).action == .setHidden(true))
+    check("POST /hide with an Origin header is refused and asks for nothing",
+          MainThingRouter.handle(request("POST", "/hide", headers: ["origin": "http://evil.example"]), list: list).action == .none)
+    check("POST /hide with a foreign Host is refused and asks for nothing",
+          MainThingRouter.handle(request("POST", "/hide", host: "evil.example"), list: list).action == .none)
+    check("POST /hiding is an unknown route", MainThingRouter.handle(request("POST", "/hiding"), list: list).response.status == 404)
+}
+do {
     let list = TaskList(["A"])
     let origin = MainThingRouter.handle(request("GET", "/health", headers: ["origin": "http://127.0.0.1:7788"]), list: list)
     check("Origin is refused even on /health", origin.response.status == 403)

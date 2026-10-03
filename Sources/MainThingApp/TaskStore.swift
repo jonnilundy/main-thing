@@ -278,11 +278,13 @@ final class TaskStore {
 
     /// Routes one API request against the current list and runs the store method it asks for.
     /// `POST /tasks/done` and the done circle both end in `complete(expected:source:)`.
-    func handle(_ request: HTTPRequest, port: UInt16) -> HTTPResponse {
-        let outcome = MainThingRouter.handle(request, list: list, status: events.report(installed: runner.installed()), port: port)
+    /// The hidden state is not the store's: it comes in as `hidden` and a hide or show goes out through `setHidden`.
+    func handle(_ request: HTTPRequest, port: UInt16, hidden: Bool, setHidden: (Bool) -> Void) -> HTTPResponse {
+        let outcome = MainThingRouter.handle(request, list: list, status: events.report(installed: runner.installed()), port: port, hidden: hidden)
         switch outcome.action {
         case .replace(let tasks, let source): replace(tasks, source: source)
         case .complete(let key, let source): complete(key: key, expected: nil, source: source)
+        case .setHidden(let value): setHidden(value)
         case .none: break
         }
         // A change answers with the list as the store has it, placeholders for new links included.

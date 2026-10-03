@@ -21,6 +21,11 @@ final class APIServer {
     private var connections: [ObjectIdentifier: ClientConnection] = [:]
     /// Called with true and the port once both listeners are up, false when every candidate failed.
     var onStatus: (@MainActor (Bool, UInt16) -> Void)?
+    /// The notch's hidden state, and how to change it. The app points these at the notch model.
+    /// Headless there is no notch, so a plain flag stands in and the API still answers.
+    var isHidden: (@MainActor () -> Bool)?
+    var setHidden: (@MainActor (Bool) -> Void)?
+    private var headlessHidden = false
 
     /// `defaults write <bundle id> port 7799` pins the port. `MAIN_THING_PORT` in the environment
     /// overrides both, for a second copy in tests. Without either: 80, then 7788.
@@ -124,7 +129,12 @@ final class APIServer {
     }
 
     private func handle(_ request: HTTPRequest) -> HTTPResponse {
-        let response = store.handle(request, port: port)
+        let response = store.handle(
+            request, port: port, hidden: isHidden?() ?? headlessHidden,
+            setHidden: { [self] value in
+                if let setHidden { setHidden(value) } else { headlessHidden = value }
+            }
+        )
         if response.status >= 400 {
             log.notice("rejected \(request.method, privacy: .public) \(request.path, privacy: .public): \(response.status, privacy: .public) \(response.bodyText, privacy: .public)")
         }

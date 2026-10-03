@@ -103,6 +103,9 @@ public enum MainThingRouter {
         case replace([TaskItem], source: String)
         /// Complete the row with this key.
         case complete(key: String, source: String)
+        /// Hide or show the notch. The router only names the wish; the app applies it on the main
+        /// actor, so hide and show set the same state the right click menu does. Idempotent.
+        case setHidden(Bool)
     }
 
     /// Which row `POST /tasks/done` means. No body: the first. `{"index":N}`: 0 based.
@@ -157,8 +160,9 @@ public enum MainThingRouter {
         return .success(raw)
     }
 
-    /// `port` is the one the API answers on; `GET /health` reports it.
-    public static func handle(_ request: HTTPRequest, list: TaskList, status: StatusReport = StatusReport(), port: UInt16 = APIPort.fallback) -> Outcome {
+    /// `port` is the one the API answers on; `GET /health` reports it. `hidden` is the notch's
+    /// current state, for `GET /hidden`.
+    public static func handle(_ request: HTTPRequest, list: TaskList, status: StatusReport = StatusReport(), port: UInt16 = APIPort.fallback, hidden: Bool = false) -> Outcome {
         func unchanged(_ response: HTTPResponse) -> Outcome {
             Outcome(response: response, list: list, changed: false)
         }
@@ -250,6 +254,19 @@ public enum MainThingRouter {
                 return unchanged(methodNotAllowed(request.method, path, allow: "GET"))
             }
             return unchanged(.json(200, JSONBody.status(status)))
+
+        case "/hide", "/show":
+            guard request.method == "POST" else {
+                return unchanged(methodNotAllowed(request.method, path, allow: "POST"))
+            }
+            let wish = path == "/hide"
+            return Outcome(response: .json(200, JSONBody.hidden(wish)), list: list, changed: false, action: .setHidden(wish))
+
+        case "/hidden":
+            guard request.method == "GET" else {
+                return unchanged(methodNotAllowed(request.method, path, allow: "GET"))
+            }
+            return unchanged(.json(200, JSONBody.hidden(hidden)))
 
         default:
             return unchanged(.error(404, "no route for \(request.method) \(path)"))

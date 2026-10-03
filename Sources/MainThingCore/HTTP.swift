@@ -92,6 +92,7 @@ public struct HTTPResponse: Equatable, Sendable {
 public enum JSONBody {
     private struct Tasks: Encodable { let tasks: [TaskItem] }
     private struct Health: Encodable { let ok: Bool; let port: UInt16; let version: String }
+    private struct Hidden: Encodable { let hidden: Bool }
     private struct Failure: Encodable { let error: String }
 
     public static func encode<T: Encodable>(_ value: T) -> Data {
@@ -104,6 +105,7 @@ public enum JSONBody {
     public static func tasks(_ list: TaskList) -> Data { encode(Tasks(tasks: list.tasks)) }
     public static func status(_ report: StatusReport) -> Data { encode(report) }
     public static func health(port: UInt16) -> Data { encode(Health(ok: true, port: port, version: MainThingVersion)) }
+    public static func hidden(_ value: Bool) -> Data { encode(Hidden(hidden: value)) }
     public static func error(_ reason: String) -> Data { encode(Failure(error: reason)) }
 }
 
