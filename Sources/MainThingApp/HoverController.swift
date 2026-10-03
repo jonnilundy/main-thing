@@ -120,7 +120,7 @@ final class HoverController {
             return
         }
         let point = NotchHover.panelPoint(screenPoint: screenPoint, panelFrame: panel.frame)
-        let inside = NotchHover.inside(point, shape: model.shapeRect, bridge: model.geometry.bridgeRect, isOpen: model.isOpen)
+        let inside = NotchHover.inside(point, shape: model.shapeRect, bridge: model.geometry.hoverBridge(hidden: model.hidden), isOpen: model.isOpen)
         log.debug("\(source, privacy: .public) screen (\(Int(screenPoint.x), privacy: .public),\(Int(screenPoint.y), privacy: .public)) panel (\(Int(point.x), privacy: .public),\(Int(point.y), privacy: .public)) shape \(NSStringFromRect(self.model.shapeRect), privacy: .public) inside \(inside, privacy: .public) open \(self.model.isOpen, privacy: .public)")
         if var pin {
             if pin.holds(inside: inside) {
@@ -255,6 +255,13 @@ final class HoverController {
         }
         log.notice("shortcut: cross off main task")
         toggleCompletion(of: first)
+    }
+
+    /// Hide or show: the closed notch folds down to its dot, or comes back. The open card is the same.
+    func toggleHidden() {
+        model.toggleHidden()
+        log.notice("hidden = \(self.model.hidden, privacy: .public)")
+        refresh()
     }
 
     /// Undo with or without the card: the newest cross off or discard still in its window comes back.

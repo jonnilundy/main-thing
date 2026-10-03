@@ -54,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let adapters = builtInAdapters()
         let store = TaskStore(adapters: adapters)
         let server = APIServer(store: store)
-        let model = NotchModel(geometry: geometry, apiPort: server.port)
+        let model = NotchModel(geometry: geometry, apiPort: server.port, hidden: NotchModel.storedHidden)
         model.forceOpen = CommandLine.arguments.contains("--open")
         server.onStatus = { [weak model] bound, port in
             model?.apiBound = bound
@@ -121,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         KeyboardShortcuts.onKeyDown(for: .showList) { [weak hover] in hover?.showList() }
         KeyboardShortcuts.onKeyDown(for: .addTask) { [weak hover] in hover?.addTask() }
         KeyboardShortcuts.onKeyDown(for: .crossOffMain) { [weak hover] in hover?.crossOffMain() }
+        KeyboardShortcuts.onKeyDown(for: .toggleHidden) { [weak hover] in hover?.toggleHidden() }
     }
 
     /// Geometry for the chosen screen: the one with a hardware notch, else the primary.

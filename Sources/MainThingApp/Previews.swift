@@ -121,6 +121,15 @@ private func notch(
     notch(open: false, titles: ["Write the launch post for the new API and send it to the team"] + sampleTitles.dropFirst(), height: 64)
 }
 
+#Preview("Hidden", traits: .sizeThatFitsLayout) {
+    // Folded into the menu bar row: the camera and a wing each side, the dot in the left wing.
+    notch(open: false, height: 64) { model, _ in model.hidden = true }
+}
+
+#Preview("No notch hidden", traits: .sizeThatFitsLayout) {
+    notch(open: false, screen: plainScreen, height: 64) { model, _ in model.hidden = true }
+}
+
 #Preview("Open", traits: .sizeThatFitsLayout) {
     notch(open: true, height: 210)
 }

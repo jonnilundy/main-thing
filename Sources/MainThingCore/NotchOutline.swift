@@ -38,9 +38,11 @@ public enum NotchOutline {
         let left = rect.minX + padding
         let right = max(rect.maxX - padding, left)
         let shapeTop = top - bridgeHeight
-        let flare = min(padding * min(max(openness, 0), 1), bridgeHeight)
         // A card too short for its corners (while it grows out of an empty notch) gets smaller ones.
         let b = max(min(bottomRadius, (right - left) / 2, bottom - top), 0)
+        // The flare ends above the bottom corners. With no bridge (hidden under a hardware notch,
+        // the card is the whole menu bar row) it runs down into the card, as the plain notch's.
+        let flare = min(padding * min(max(openness, 0), 1), max(bottom - b - shapeTop, 0))
 
         var path: [OutlineSegment] = [
             .move(CGPoint(x: left - flare, y: shapeTop)),

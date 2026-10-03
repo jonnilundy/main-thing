@@ -66,21 +66,28 @@ struct NotchBody: View {
         let openWidth = max(Lanes.bandWidth(collapsedWidth: naturalWidth, countWidth: countWidth), model.openWidth)
         // The shape width springs between these. Content is laid out at its own final width,
         // never at the animating width, and the clip hides the overflow while the spring settles.
-        let width = model.isOpen ? openWidth : collapsedWidth
+        // Hidden and closed, the shape folds into the menu bar row and keeps only the dot.
+        let folded = model.folded(taskCount: rows.count)
+        let width = model.isOpen ? openWidth : folded ? geometry.hiddenWidth : collapsedWidth
         // Under a hardware notch an empty list draws nothing collapsed: the camera notch alone.
         // The card grows out of the camera from 0 tall when it opens.
         let hidden = !model.isOpen && !geometry.drawsCollapsed(taskCount: rows.count)
+        // Folded under a hardware notch the shape is the menu bar row alone: no bridge, the flares
+        // out, the card is the whole row. It grows into the bridge and the card as it opens.
+        let foldedBridge = folded && geometry.hasHardwareNotch
+        let rowTop = foldedBridge ? 0 : geometry.cardTop
+        let bandHeight = hidden ? 0 : folded ? geometry.hiddenHeight : geometry.notchHeight
         let shape = NotchShape(
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius,
-            bridgeHeight: geometry.bridgeRect?.height,
-            openness: model.isOpen ? 1 : 0
+            bridgeHeight: foldedBridge ? 0 : geometry.bridgeRect?.height,
+            openness: model.isOpen || foldedBridge ? 1 : 0
         )
         VStack(spacing: 0) {
             // The band, hanging under the menu bar: the dot and task 1 in both states. Its frame
             // width is what animates, and the band is leading aligned, so the dot and the title
             // ride with the card's left edge and never re-align or swap.
-            BandSlot(store: store, model: model, width: width, height: hidden ? 0 : geometry.notchHeight, card: card, onToggle: onToggle)
+            BandSlot(store: store, model: model, width: width, height: bandHeight, card: card, onToggle: onToggle)
             if model.isOpen {
                 OpenContent(store: store, model: model, onToggle: onToggle, width: openWidth, card: card)
                     .transition(Motion.openContent(reduceMotion))
@@ -90,7 +97,7 @@ struct NotchBody: View {
         .overlay(alignment: .topLeading) { MenuLayer(model: model, card: card) }
         .padding(.horizontal, NotchMetrics.flare)
         // The bridge row under the camera: the shape fills it, the content starts below it.
-        .padding(.top, geometry.cardTop)
+        .padding(.top, rowTop)
         // Pure black, no translucency: it must match a hardware notch.
         .background(shape.fill(.black))
         .clipShape(shape)
@@ -99,14 +106,16 @@ struct NotchBody: View {
         .background { NudgeGlow(shape: shape, color: model.flashCore, trigger: model.nudge) }
         .modifier(NudgeHop(trigger: model.nudge, scale: ReminderNudge.hopScale(
             width: width + 2 * NotchMetrics.flare,
-            height: geometry.cardTop + (hidden ? 0 : geometry.notchHeight),
-            menuBarWidth: geometry.bridgeRect?.width ?? width + 2 * NotchMetrics.flare
+            height: rowTop + bandHeight,
+            menuBarWidth: foldedBridge ? width + 2 * NotchMetrics.flare : geometry.bridgeRect?.width ?? width + 2 * NotchMetrics.flare
         )))
         .opacity(hidden ? 0 : 1)
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
+        // Hiding folds like a close, showing grows like an open.
+        .animation(Motion.shape(reduceMotion, opening: !model.hidden), value: model.hidden)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: keys)
         .animation(Motion.size(reduceMotion, open: model.isOpen), value: model.openWidth)
-        .contextMenu { NotchMenu() }
+        .contextMenu { NotchMenu(model: model) }
     }
 }
 
@@ -139,6 +148,7 @@ struct BandSlot: View {
             flash: Gradient(stops: NotchMetrics.shimmerStops(core: model.flashCore, edge: model.flashEdge)),
             taskTime: model.taskTime,
             titleLimit: model.geometry.collapsedMaximumWidth.map { $0 - Lanes.collapsedChrome },
+            foldedDotX: model.folded(taskCount: rows.count) ? model.geometry.hiddenDotX : nil,
             hovered: model.isOpen && model.hover == .task(0),
             pressed: model.pressed == .task(0),
             lift: model.drag == nil ? 0 : model.shift(ofTask: 0, centers: CardMap(model: model, store: store).taskCenters),
@@ -198,6 +208,9 @@ struct Band: View {
     let taskTime: String
     /// The widest the title may be while collapsed: the camera-wide pill's room. Nil: no limit.
     var titleLimit: CGFloat? = nil
+    /// Hidden and closed: where the dot's center sits from the band's left edge. The title is gone
+    /// and so are the sparkles. Nil: the dot is in its lane, with the title.
+    var foldedDotX: CGFloat? = nil
     /// The pointer is on task 1, open.
     let hovered: Bool
     let pressed: Bool
@@ -303,6 +316,8 @@ struct Band: View {
                         ))
                         .animation(reduceMotion ? nil : (struck ? .linear(duration: PenStroke.secondsPerLine) : Motion.unstrike), value: struck)
                         .opacity(resolving ? NotchMetrics.resolvingOpacity : 1)
+                        .opacity(foldedDotX == nil ? 1 : 0)
+                        .animation(reduceMotion ? Motion.reducedFade : Motion.fade, value: foldedDotX == nil)
                         .overlay(alignment: .leading) { nudgeSparkles(current) }
                         .frame(width: menuOpen ? min(titleWidth(current), RowMenu.titleLimit(cardWidth: width)) : titleWidth(current), alignment: .leading)
                         // The width switches at once on open and close: animated, SwiftUI cross-fades
@@ -313,7 +328,7 @@ struct Band: View {
                 }
             }
         }
-        .padding(.leading, Lanes.slotStart - pill.minX)
+        .padding(.leading, (foldedDotX.map { $0 - Lanes.markerSlot / 2 } ?? Lanes.slotStart) - pill.minX)
         .frame(width: pill.width, height: pill.height, alignment: .leading)
     }
 
@@ -326,7 +341,7 @@ struct Band: View {
     /// The reminder nudge's sparkles along the title, white with a glow of the step's color.
     /// Only in the tree while they run. Reduce Motion: none.
     @ViewBuilder private func nudgeSparkles(_ current: TaskList.Row) -> some View {
-        if !reduceMotion, nudgeSparkle != nil || pins.nudgeSparkles != nil {
+        if !reduceMotion, foldedDotX == nil, nudgeSparkle != nil || pins.nudgeSparkles != nil {
             SparkleBurst(
                 start: nudgeSparkle ?? Date(), width: titleWidth(current), seed: current.key,
                 style: .nudge, glow: nudgeColor, pinned: pins.nudgeSparkles
@@ -953,10 +968,14 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu, kept short: Launch at Login, Keyboard Shortcuts, Check for Updates, Settings
-/// and Quit. Everything else is in Settings.
+/// Right click menu, kept short: Hide Task or Show Task, Launch at Login, Keyboard Shortcuts, Check
+/// for Updates, Settings and Quit. Everything else is in Settings.
 struct NotchMenu: View {
+    let model: NotchModel
+
     var body: some View {
+        Button(model.hidden ? "Show Task" : "Hide Task") { model.toggleHidden() }
+        Divider()
         if LaunchAtLogin.needsApproval {
             Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
         } else {

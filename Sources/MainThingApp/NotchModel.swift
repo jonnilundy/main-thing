@@ -29,6 +29,9 @@ final class NotchModel {
     /// Where the notch sits and how tall it is. Recomputed on display changes.
     var geometry: NotchGeometry
     var isOpen = false
+    /// Hide: the closed notch folds into the menu bar row and shows only the dot. Kept in
+    /// UserDefaults (`hidden`). The open card is the same either way.
+    var hidden: Bool
     /// Rows that were clicked and are struck through, waiting to leave.
     var pending = PendingCompletions()
     var apiBound = true
@@ -98,9 +101,25 @@ final class NotchModel {
     @ObservationIgnored var performer: any NSHapticFeedbackPerformer = NSHapticFeedbackManager.defaultPerformer
     @ObservationIgnored private let log = Logger(subsystem: MainThingBundleID, category: "hover")
 
-    init(geometry: NotchGeometry, apiPort: UInt16) {
+    /// The `hidden` default.
+    nonisolated static let hiddenKey = "hidden"
+    static var storedHidden: Bool { UserDefaults.standard.bool(forKey: hiddenKey) }
+
+    init(geometry: NotchGeometry, apiPort: UInt16, hidden: Bool = false) {
         self.geometry = geometry
         self.apiPort = apiPort
+        self.hidden = hidden
+    }
+
+    func toggleHidden() {
+        hidden.toggle()
+        UserDefaults.standard.set(hidden, forKey: NotchModel.hiddenKey)
+    }
+
+    /// The folded look: hidden and closed, with something to draw. An empty list under a hardware
+    /// notch draws nothing either way.
+    func folded(taskCount: Int) -> Bool {
+        hidden && !isOpen && geometry.drawsCollapsed(taskCount: taskCount)
     }
 
     /// The pointer is over `slot`, which holds `key`. A light trackpad tick once per row the

@@ -59,6 +59,12 @@ public struct NotchGeometry: Equatable, Sendable {
     public static let housingWidth: CGFloat = 185
     /// Collapsed height below a hardware notch.
     public static let belowMenuBarHeight: CGFloat = 30
+    /// Hidden under a hardware notch: the black on each side of the camera housing. The dot sits
+    /// in the left one, 11.5pt from the shape's edge and from the camera, the 7pt dot centered.
+    public static let hiddenWing: CGFloat = 30
+    /// Hidden without a hardware notch: the shape's width before the flares. 72 holds the 7pt dot
+    /// with 32pt either side, so it reads as a deliberate small pill, not a sliver.
+    public static let hiddenWidthInMenuBar: CGFloat = 72
 
     public var mode: NotchMode
     /// AppKit coordinates. Top edge on the screen top, centered on `centerX`.
@@ -149,6 +155,35 @@ public struct NotchGeometry: Equatable, Sendable {
             width: width,
             height: notchHeight
         )
+    }
+
+    /// Hidden: the closed notch folds into the menu bar row and shows only the dot. Its content
+    /// width before the flares: the camera housing and a wing on each side under a hardware
+    /// notch, a small pill without.
+    public var hiddenWidth: CGFloat {
+        hasHardwareNotch ? hardwareNotchWidth + 2 * NotchGeometry.hiddenWing : NotchGeometry.hiddenWidthInMenuBar
+    }
+
+    /// The hidden shape's height: the menu bar row, never above the camera's own height.
+    public var hiddenHeight: CGFloat { hasHardwareNotch ? cardTop : notchHeight }
+
+    /// The hidden dot's center from the shape's left edge: the middle of the left wing under a
+    /// hardware notch, the middle of the pill without.
+    public var hiddenDotX: CGFloat {
+        hasHardwareNotch ? NotchGeometry.hiddenWing / 2 : hiddenWidth / 2
+    }
+
+    /// The hidden shape in panel coordinates, origin top left, flares not included. The panel is
+    /// centered on the shape, as the bridge is on the camera.
+    public var hiddenRect: CGRect {
+        CGRect(x: (NotchGeometry.panelSize.width - hiddenWidth) / 2, y: 0, width: hiddenWidth, height: hiddenHeight)
+    }
+
+    /// What counts as the bridge for hover. Hidden under a hardware notch the shape is all menu bar
+    /// row: the camera and its two wings. Open or collapsed, the bridge is the camera's width.
+    /// Without a hardware notch there is no bridge and the view's own shape rect is the test.
+    public func hoverBridge(hidden: Bool) -> CGRect? {
+        hasHardwareNotch && hidden ? hiddenRect : bridgeRect
     }
 
     /// The bridge's center, from the panel's horizontal center. The card is centered in the

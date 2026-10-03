@@ -323,6 +323,7 @@ do {
 runHoverChecks()
 runGeometryChecks()
 runBridgeChecks()
+runHiddenChecks()
 runEventChecks()
 runOpenChecks()
 runCardChecks()

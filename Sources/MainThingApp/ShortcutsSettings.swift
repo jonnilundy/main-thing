@@ -12,6 +12,8 @@ extension KeyboardShortcuts.Name {
     static let addTask = Self("addTask", initial: .init(.n, modifiers: [.control, .option]))
     /// Cross off task 1, as a click does. No initial shortcut: it changes the list.
     static let crossOffMain = Self("crossOffMain")
+    /// Hide the closed notch down to its dot, or show it again. No initial shortcut.
+    static let toggleHidden = Self("toggleHidden")
 }
 
 /// The Shortcuts section of Settings: a recorder per action. Click one to record, the x clears it.
@@ -21,6 +23,7 @@ struct ShortcutsSection: View {
             KeyboardShortcuts.Recorder("Show list", name: .showList)
             KeyboardShortcuts.Recorder("Add task", name: .addTask)
             KeyboardShortcuts.Recorder("Cross off main task", name: .crossOffMain)
+            KeyboardShortcuts.Recorder("Hide or show", name: .toggleHidden)
         }
     }
 }
@@ -35,6 +38,7 @@ struct KeyboardShortcutsMenu: View {
                 global("Show List", .showList) { HoverController.shared?.showList() }
                 global("Add Task", .addTask) { HoverController.shared?.addTask() }
                 global("Cross Off Main Task", .crossOffMain) { HoverController.shared?.crossOffMain() }
+                global("Hide or Show", .toggleHidden) { HoverController.shared?.toggleHidden() }
             }
             Section("In the open list") {
                 key("Move the Highlight", .downArrow)
