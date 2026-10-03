@@ -968,13 +968,13 @@ struct CrossOffRenderer: TextRenderer {
     }
 }
 
-/// Right click menu, kept short: Hide Task or Show Task, Launch at Login, Keyboard Shortcuts, Check
+/// Right click menu, kept short: Hide Main Thing or Show Main Thing, Launch at Login, Keyboard Shortcuts, Check
 /// for Updates, Settings and Quit. Everything else is in Settings.
 struct NotchMenu: View {
     let model: NotchModel
 
     var body: some View {
-        Button(model.hidden ? "Show Task" : "Hide Task") { model.toggleHidden() }
+        Button(model.hidden ? "Show Main Thing" : "Hide Main Thing") { model.toggleHidden() }
         Divider()
         if LaunchAtLogin.needsApproval {
             Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
