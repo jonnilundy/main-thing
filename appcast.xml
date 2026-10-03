@@ -6,6 +6,21 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.7.1</title>
+            <pubDate>Sat, 03 Oct 2026 15:43:35 +0000</pubDate>
+            <sparkle:version>13</sparkle:version>
+            <sparkle:shortVersionString>0.7.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.7.1</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[## Hide from the command line
+
+- `main-thing hide`, `main-thing show` and `main-thing hidden` (prints true or false).
+- The same in the local API: `POST /hide`, `POST /show` and `GET /hidden`.
+
+The README demo now shows the undo without the Undo row.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.7.1/MainThing-0.7.1.zip" length="3050729" type="application/octet-stream" sparkle:edSignature="Td/eDpui61pnvTPgsQiGCcNmmmJspbiUUhQij1xX1yerSldsBLwnnErtVMmdyKiMcaTQqGi+Qw0E78tf4ZpYDQ=="/>
+        </item>
+        <item>
             <title>Version 0.7.0</title>
             <pubDate>Sat, 03 Oct 2026 15:08:03 +0000</pubDate>
             <sparkle:version>12</sparkle:version>
