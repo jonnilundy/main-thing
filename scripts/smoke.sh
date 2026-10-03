@@ -147,8 +147,8 @@ same "main-thing unknown command exits 1" "1" "$(MAIN_THING_PORT=$PORT "$CLI" no
 same "main-thing on a dead port says not running" "1" "$(MAIN_THING_PORT=1 "$CLI" >/dev/null 2>&1; echo $?)"
 same "main-thing version" "$VERSION" "$(MAIN_THING_PORT=$PORT "$CLI" version)"
 same "main-thing port shows the running port" "running on port $PORT" "$(MAIN_THING_PORT=$PORT "$CLI" port | /usr/bin/tail -1)"
-same "main-thing help lists every command" "16" "$("$CLI" help | /usr/bin/grep -c '^  main-thing')"
-same "main-thing help names the HTTP routes" "6" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"
+same "main-thing help lists every command" "19" "$("$CLI" help | /usr/bin/grep -c '^  main-thing')"
+same "main-thing help names the HTTP routes" "9" "$("$CLI" help | /usr/bin/grep -cE '^  (GET|PUT|POST) +/')"
 
 echo "--- hooks"
 # A test hook writes its payload to a scratch file. Installed for the run, any existing hook is put back.
