@@ -58,10 +58,12 @@ public struct NotchGeometry: Equatable, Sendable {
     /// The MacBook Pro housing width. The collapsed shape is never narrower.
     public static let housingWidth: CGFloat = 185
     /// How far the black under a hardware notch reaches past each side of the reported housing.
-    /// The auxiliary areas can end a pixel short of the real cutout, which left a lit sliver of
-    /// menu bar between the camera's edge and the card (seen on an M5 MacBook Pro). Black beside
-    /// the black camera does not show, a lit sliver does.
-    public static let housingBleed: CGFloat = 1
+    /// The auxiliary areas can end a bit short of the real cutout. A user's M5 MacBook Pro still
+    /// showed a lit sliver of menu bar between the camera's edge and the card at 1pt, so the black
+    /// reaches 3pt. The shape's straight sides are drawn by us from the screen top down, so the
+    /// overdraw shows no step, only a slightly wider notch. Black beside the black camera does not
+    /// show, a lit sliver does.
+    public static let housingBleed: CGFloat = 3
     /// Collapsed height below a hardware notch. Short, so the closed notch does not hang far under
     /// the menu bar.
     public static let belowMenuBarHeight: CGFloat = 24

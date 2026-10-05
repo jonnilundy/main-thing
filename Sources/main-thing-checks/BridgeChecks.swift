@@ -35,7 +35,7 @@ func runBridgeChecks() {
         check("\(name): panel top is the screen top", g.panelFrame.maxY == screen.frame.maxY)
         check("\(name): bridge left edge is the bleed left of the left auxiliary area's right edge", g.panelFrame.minX + bridge.minX == auxLeft.maxX - NotchGeometry.housingBleed)
         check("\(name): bridge right edge is the bleed right of the right auxiliary area's left edge", g.panelFrame.minX + bridge.maxX == auxRight.minX + NotchGeometry.housingBleed)
-        check("\(name): bridge is the housing width plus the bleed", bridge.width == housing.width + 2 * NotchGeometry.housingBleed && bridge.width == 187)
+        check("\(name): bridge is the housing width plus the bleed", bridge.width == housing.width + 2 * NotchGeometry.housingBleed && bridge.width == 191)
         check("\(name): bridge from the screen top to the menu bar bottom",
               bridge.minY == 0 && bridge.height == screen.frame.maxY - screen.visibleFrame.maxY && bridge.height == 32)
         check("\(name): the card starts where the bridge ends", g.cardTop == bridge.maxY)
