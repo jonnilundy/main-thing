@@ -1,0 +1,10 @@
+#!/bin/bash
+# Runs scripts/check.sh before every push and stops the push when it fails.
+# The plain check opens no window and takes no focus. CI runs the probes.
+# Wired with: git config core.hooksPath .githooks
+# Skip once (only when you know why): git push --no-verify
+set -o pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 1
+mkdir -p build
+echo "pre-push: running scripts/check.sh (log: build/pre-push.log)"
+scripts/check.sh 2>&1 | tee build/pre-push.log

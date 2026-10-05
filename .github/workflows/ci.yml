@@ -1,0 +1,23 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use the newest Xcode on the runner
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)" && xcodebuild -version
+      # A runner is no one's desk, so the probes run here too.
+      - name: Check (build, checks, probes, adapter scripts)
+        run: scripts/check.sh --probes
+      - name: Upload the log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-log
+          path: build/check.log
