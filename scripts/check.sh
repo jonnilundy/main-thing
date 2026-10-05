@@ -11,6 +11,9 @@
 # The exit code is the failing step's exit code (0 when all pass). The last line is always
 # "CHECK PASS: ..." or "CHECK FAIL (<step>): ...". Never pipe it before && (the pipe hides the exit code).
 set -uo pipefail
+# Never ask for the keychain: SwiftPM popped github.com keychain dialogs on Jonni's screen.
+# The dependencies are public, so anonymous HTTPS is enough. No git credential helper, no prompt.
+export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -30,11 +33,11 @@ fi
 
 # 1. build, one product per call (with two --product flags the Swift Build backend builds only the last)
 for product in main-thing-checks MainThing; do
-    swift build --product "$product" >> "$LOG" 2>&1
+    swift build --disable-keychain --product "$product" >> "$LOG" 2>&1
     code=$?
     (( code )) && fail "build $product" "$( { /usr/bin/grep -m1 -E ':[0-9]+:[0-9]+: .*error' "$LOG" || /usr/bin/grep -m1 -E 'error:' "$LOG"; } | perl -pe 's/\e\[[0-9;]*m//g' | cut -c1-200)" "$code"
 done
-BIN="$(swift build --show-bin-path)"
+BIN="$(swift build --disable-keychain --show-bin-path)"
 
 # 2. the checks binary (pure logic, no UI)
 "$BIN/main-thing-checks" >> "$LOG" 2>&1
