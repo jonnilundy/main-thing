@@ -1,0 +1,13 @@
+#!/bin/bash
+# Runs scripts/check.sh before every push and stops the push when it fails.
+# The plain check opens no window and takes no focus. CI runs the probes.
+# Wired with: git config core.hooksPath .githooks
+# Skip once (only when you know why): git push --no-verify
+set -o pipefail
+# Never ask for the keychain: SwiftPM popped github.com keychain dialogs on Jonni's screen.
+# The dependencies are public, so anonymous HTTPS is enough. No git credential helper, no prompt.
+export GIT_TERMINAL_PROMPT=0 GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0=
+cd "$(git rev-parse --show-toplevel)" || exit 1
+mkdir -p build
+echo "pre-push: running scripts/check.sh (log: build/pre-push.log)"
+scripts/check.sh 2>&1 | tee build/pre-push.log

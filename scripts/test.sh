@@ -9,14 +9,14 @@ cd "$ROOT"
 # One product per call: with two --product flags the Swift Build backend builds only the last one,
 # and the checks would run a stale binary.
 for product in main-thing-checks MainThing; do
-    if ! OUT=$(swift build --product "$product" 2>&1); then
+    if ! OUT=$(swift build --disable-keychain --product "$product" 2>&1); then
         printf '%s\n' "$OUT" | /usr/bin/grep -E "error" >&2 || printf '%s\n' "$OUT" | /usr/bin/tail -20 >&2
         echo "test.sh: $product did not build" >&2
         exit 1
     fi
     printf '%s\n' "$OUT" | /usr/bin/grep -E "warning: unre" || true
 done
-BIN="$(swift build --show-bin-path)"
+BIN="$(swift build --disable-keychain --show-bin-path)"
 "$BIN/main-thing-checks" | /usr/bin/tail -1
 # The probes run side by side, each its own copy of the app in an invisible panel.
 # A drawn hover at every height of the open card, for a hardware notch, the 30pt menu bar row of a
