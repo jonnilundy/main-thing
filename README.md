@@ -48,7 +48,7 @@ main-thing help                                     # every command, the JSON sh
 In the notch:
 
 - Hover to open it. The current task stays on top, the rest follow in order.
-- On a MacBook with a camera notch, the card grows out of the camera notch as one shape. With an empty list only the black of the camera notch shows; hover it to open the list and add a task.
+- On a MacBook with a camera notch, the card grows out of the camera notch as one shape. With an empty list only the black of the camera notch shows; hover it to open the list and add a task. Supported: the 14-inch MacBook Pro, checked against its real camera cutout in every display mode. Not yet supported: the 16-inch MacBook Pro and the MacBook Air. Main Thing runs on them, but the fit to their notch is not checked.
 - Click a task to cross it off with a pen stroke. Click it again right away to keep it.
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
