@@ -23,7 +23,7 @@ func runHiddenChecks() {
     let m = NotchGeometry(screen: mbp)
     let bridge = m.bridgeRect!
     let rect = m.hiddenRect
-    check("hidden: the camera and an equal wing on each side", m.hiddenWidth == 185 + 2 * wing && wing == 30)
+    check("hidden: the housing width plus the bleed and an equal wing on each side", m.hiddenWidth == 185 + 2 * NotchGeometry.housingBleed + 2 * wing && wing == 30)
     check("hidden: the wings are equal",
           bridge.minX - rect.minX == wing && rect.maxX - bridge.maxX == wing && rect.midX == bridge.midX)
     check("hidden: the menu bar row only, as tall as the bridge", rect.minY == 0 && rect.height == m.hiddenHeight && rect.height == 32 && rect.height == bridge.height)
@@ -35,7 +35,7 @@ func runHiddenChecks() {
               frame: mbp.frame, visibleFrame: mbp.visibleFrame, safeAreaTop: 32,
               auxiliaryTopLeft: CGRect(x: 0, y: 950, width: 656, height: 32),
               auxiliaryTopRight: CGRect(x: 856, y: 950, width: 656, height: 32)
-          )).hiddenWidth == 200 + 2 * wing)
+          )).hiddenWidth == 200 + 2 * NotchGeometry.housingBleed + 2 * wing)
 
     // Hover: the hidden shape is the bridge of the hover test, the shape under it is empty.
     let hover = m.hoverBridge(hidden: true)
@@ -65,7 +65,7 @@ func runHiddenChecks() {
     check("open from hidden: the open card is hit as it always is", same)
     check("open from hidden: the open card is wider than the hidden shape", openCard.width >= OpenLayout.minimumWidth && openCard.width > m.hiddenWidth)
     check("open from hidden: the card size does not depend on hiding",
-          m.collapsedShapeFrame(contentWidth: 100).width == 185 + 2 * f && OpenLayout.width(bandWidth: 200, rowTitleWidths: [100], screenWidth: 1512) == 300)
+          m.collapsedShapeFrame(contentWidth: 100).width == 185 + 2 * NotchGeometry.housingBleed + 2 * f && OpenLayout.width(bandWidth: 200, rowTitleWidths: [100], screenWidth: 1512) == 300)
 
     // The outline: the card is the whole row (bridge height 0), flares out, rounded bottom.
     section("Hidden outline")
@@ -92,7 +92,7 @@ func runHiddenChecks() {
     for i in 0...20 {
         let t = CGFloat(i) / 20
         let bh = bridge.height * t
-        let w = m.hiddenWidth + (185 - m.hiddenWidth) * t + 2 * f
+        let w = m.hiddenWidth + (m.minimumWidth - m.hiddenWidth) * t + 2 * f
         let card = CGRect(x: (NotchGeometry.panelSize.width - w) / 2, y: bh, width: w, height: (m.hiddenHeight - bh) + 30 * t)
         let outline = NotchOutline.bridged(in: card, bottomRadius: 12, bridgeHeight: bh, openness: 1 - t)
         let samples = NotchOutline.samples(outline)

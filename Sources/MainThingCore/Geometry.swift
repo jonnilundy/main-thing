@@ -57,6 +57,11 @@ public struct NotchGeometry: Equatable, Sendable {
     public static let flare: CGFloat = 8
     /// The MacBook Pro housing width. The collapsed shape is never narrower.
     public static let housingWidth: CGFloat = 185
+    /// How far the black under a hardware notch reaches past each side of the reported housing.
+    /// The auxiliary areas can end a pixel short of the real cutout, which left a lit sliver of
+    /// menu bar between the camera's edge and the card (seen on an M5 MacBook Pro). Black beside
+    /// the black camera does not show, a lit sliver does.
+    public static let housingBleed: CGFloat = 1
     /// Collapsed height below a hardware notch.
     public static let belowMenuBarHeight: CGFloat = 30
     /// Hidden under a hardware notch: the black on each side of the camera housing. The dot sits
@@ -103,7 +108,7 @@ public struct NotchGeometry: Equatable, Sendable {
             centerX = housing.midX
             hardwareNotchWidth = housing.width
             notchHeight = NotchGeometry.belowMenuBarHeight
-            minimumWidth = max(housing.width, NotchGeometry.housingWidth)
+            minimumWidth = max(housing.width, NotchGeometry.housingWidth) + 2 * NotchGeometry.housingBleed
             collapsedMaximumWidth = minimumWidth
             // Down to the menu bar's bottom edge, and never onto the camera.
             cardTop = max(menuBarHeight, housing.height)
@@ -124,7 +129,7 @@ public struct NotchGeometry: Equatable, Sendable {
         )
         panelFrame = frame
         if let housing {
-            bridgeRect = CGRect(x: housing.minX - frame.minX, y: 0, width: housing.width, height: cardTop)
+            bridgeRect = CGRect(x: housing.minX - NotchGeometry.housingBleed - frame.minX, y: 0, width: drawnHousingWidth, height: cardTop)
         } else {
             bridgeRect = nil
         }
@@ -161,7 +166,13 @@ public struct NotchGeometry: Equatable, Sendable {
     /// width before the flares: the camera housing and a wing on each side under a hardware
     /// notch, a small pill without.
     public var hiddenWidth: CGFloat {
-        hasHardwareNotch ? hardwareNotchWidth + 2 * NotchGeometry.hiddenWing : NotchGeometry.hiddenWidthInMenuBar
+        hasHardwareNotch ? drawnHousingWidth + 2 * NotchGeometry.hiddenWing : NotchGeometry.hiddenWidthInMenuBar
+    }
+
+    /// The black drawn under the camera: the reported housing plus the bleed on each side. The
+    /// bridge has this width, and the hidden wings are measured from its edges. 0 without a hardware notch.
+    public var drawnHousingWidth: CGFloat {
+        hasHardwareNotch ? hardwareNotchWidth + 2 * NotchGeometry.housingBleed : 0
     }
 
     /// The hidden shape's height: the menu bar row, never above the camera's own height.

@@ -45,18 +45,18 @@ func runGeometryChecks() {
     check("mbp: panel top is the screen top", m.panelFrame.maxY == 982)
     check("mbp: panel x 356 y 722", m.panelFrame.origin == CGPoint(x: 356, y: 722))
     check("mbp: collapsed height 30", m.notchHeight == 30)
-    check("mbp: card body at least the housing width", m.minimumWidth == 185)
+    check("mbp: card body at least the housing width plus the bleed", m.minimumWidth == 185 + 2 * NotchGeometry.housingBleed && NotchGeometry.housingBleed == 1)
     check("mbp: card top is the menu bar bottom", m.cardTop == 32)
     let under = m.collapsedShapeFrame(contentWidth: 100)
     check("mbp: the card starts at the menu bar bottom", under.minY == 32 && m.panelFrame.maxY - under.minY == mbp.visibleFrame.maxY)
-    check("mbp: card body is the housing width", under.width - 2 * NotchGeometry.flare == 185 && under.height == 30)
+    check("mbp: card body is the housing width plus the bleed", under.width - 2 * NotchGeometry.flare == 187 && under.height == 30)
 
     // Collapsed width under a hardware notch: the housing width, however long the title.
     let longTitle = Lanes.collapsedWidth(titleWidth: 400, minimum: m.minimumWidth)
     check("mbp: a long title wants more than the housing", longTitle == 400 + Lanes.collapsedChrome && longTitle > m.minimumWidth)
-    check("mbp: a long title's collapsed width is the housing width", m.collapsedMaximumWidth == 185 && m.collapsedWidth(natural: longTitle) == 185)
-    check("mbp: a short title keeps the housing width", m.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: 40, minimum: m.minimumWidth)) == 185)
-    check("mbp: no title keeps the housing width", m.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: nil, minimum: m.minimumWidth)) == 185)
+    check("mbp: a long title's collapsed width is the housing width plus the bleed", m.collapsedMaximumWidth == 187 && m.collapsedWidth(natural: longTitle) == 187)
+    check("mbp: a short title keeps the housing width plus the bleed", m.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: 40, minimum: m.minimumWidth)) == 187)
+    check("mbp: no title keeps the housing width plus the bleed", m.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: nil, minimum: m.minimumWidth)) == 187)
     check("studio: a long title still grows", s.collapsedMaximumWidth == nil && s.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: 400, minimum: s.minimumWidth)) == 400 + Lanes.collapsedChrome)
     check("studio: a short title keeps the 169 minimum", s.collapsedWidth(natural: Lanes.collapsedWidth(titleWidth: 40, minimum: s.minimumWidth)) == 169)
 
@@ -66,8 +66,8 @@ func runGeometryChecks() {
         auxiliaryTopLeft: CGRect(x: 0, y: 950, width: 656, height: 32),
         auxiliaryTopRight: CGRect(x: 856, y: 950, width: 656, height: 32)
     )
-    check("wide housing: minimum width follows the housing", NotchGeometry(screen: wide).minimumWidth == 200)
-    check("wide housing: the cap follows the housing", NotchGeometry(screen: wide).collapsedWidth(natural: 500) == 200)
+    check("wide housing: minimum width follows the housing plus the bleed", NotchGeometry(screen: wide).minimumWidth == 202)
+    check("wide housing: the cap follows the housing plus the bleed", NotchGeometry(screen: wide).collapsedWidth(natural: 500) == 202)
 
     // Primary notch screen placed with an offset origin.
     let offset = ScreenInfo(
@@ -81,7 +81,7 @@ func runGeometryChecks() {
     check("offset screen: centered under its housing", o.centerX == 3316)
     check("offset screen: panel top is that screen's top", o.panelFrame.maxY == 1182)
     check("offset screen: panel origin", o.panelFrame.origin == CGPoint(x: 2916, y: 922))
-    check("offset screen: bridge over its housing", o.bridgeRect == CGRect(x: 3316 - 92.5 - 2916, y: 0, width: 185, height: 32))
+    check("offset screen: bridge over its housing plus the bleed", o.bridgeRect == CGRect(x: 3316 - 92.5 - 1 - 2916, y: 0, width: 187, height: 32))
 
     // Edge cases.
     let flat = ScreenInfo(frame: CGRect(x: 0, y: 0, width: 1000, height: 500), visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 500))
