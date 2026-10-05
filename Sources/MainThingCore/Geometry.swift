@@ -67,6 +67,9 @@ public struct NotchGeometry: Equatable, Sendable {
     /// Collapsed height below a hardware notch. Short, so the closed notch does not hang far under
     /// the menu bar.
     public static let belowMenuBarHeight: CGFloat = 24
+    /// The bottom corner radius of the closed shapes: the collapsed card, the Hide shape and the
+    /// empty list's shape under a hardware notch.
+    public static let closedBottomRadius: CGFloat = 12
     /// The open card's band row below a hardware notch: task 1 as a full 28pt row with 1pt above
     /// and below. It stays taller than the collapsed band, so the open card keeps its rows.
     public static let openBandHeightBelowMenuBar: CGFloat = 30
@@ -186,6 +189,12 @@ public struct NotchGeometry: Equatable, Sendable {
         hasHardwareNotch ? hardwareNotchWidth + 2 * NotchGeometry.housingBleed : 0
     }
 
+    /// An empty list, closed, under a hardware notch: the Hide shape without the wings and the dot.
+    /// Its content width before the flares is the drawn housing, so it sits on the camera and
+    /// shows only its rounded bottom corners and its flares. The height is `hiddenHeight`, the
+    /// radius `closedBottomRadius`. 0 without a hardware notch, which draws the plain shape.
+    public var emptyWidth: CGFloat { drawnHousingWidth }
+
     /// The hidden shape's height: the menu bar row, never above the camera's own height.
     public var hiddenHeight: CGFloat { hasHardwareNotch ? cardTop : notchHeight }
 
@@ -214,10 +223,10 @@ public struct NotchGeometry: Equatable, Sendable {
         bridgeRect.map { $0.midX - panelFrame.width / 2 } ?? 0
     }
 
-    /// Does the collapsed notch draw anything for a list of `taskCount` tasks? Under a hardware
-    /// notch an empty list draws no card: only the black bridge over the camera, which looks like
-    /// the camera notch itself. Hovering it opens the card. Without a hardware notch the plain
-    /// shape always shows.
+    /// Does the collapsed notch draw a card for a list of `taskCount` tasks? Under a hardware
+    /// notch an empty list draws no card: only the camera-wide shape of `emptyWidth`, the menu bar
+    /// row tall with rounded bottom corners, which sits on the camera notch. Hovering it opens the
+    /// card. Without a hardware notch the plain shape always shows.
     public func drawsCollapsed(taskCount: Int) -> Bool {
         !(hasHardwareNotch && taskCount <= 0)
     }

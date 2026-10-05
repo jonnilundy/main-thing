@@ -68,15 +68,17 @@ struct NotchBody: View {
         // never at the animating width, and the clip hides the overflow while the spring settles.
         // Hidden and closed, the shape folds into the menu bar row and keeps only the dot.
         let folded = model.folded(taskCount: rows.count)
-        let width = model.isOpen ? openWidth : folded ? geometry.hiddenWidth : collapsedWidth
-        // Under a hardware notch an empty list draws the bridge alone, as black as the camera notch
-        // it covers: no card, 0 tall. The card grows out of it when it opens. The shape never fades.
-        let hidden = !model.isOpen && !geometry.drawsCollapsed(taskCount: rows.count)
-        // Folded under a hardware notch the shape is the menu bar row alone: no bridge, the flares
-        // out, the card is the whole row. It grows into the bridge and the card as it opens.
-        let foldedBridge = folded && geometry.hasHardwareNotch
+        // Under a hardware notch an empty list draws the Hide shape without the wings and the dot:
+        // the camera's width, the menu bar row tall, rounded bottom corners, concave top flares,
+        // as black as the camera notch it sits on. The card grows out of it when it opens, and the
+        // first task morphs it into the collapsed card. The shape never fades.
+        let empty = !model.isOpen && !geometry.drawsCollapsed(taskCount: rows.count)
+        let width = model.isOpen ? openWidth : empty ? geometry.emptyWidth : folded ? geometry.hiddenWidth : collapsedWidth
+        // Folded or empty under a hardware notch the shape is the menu bar row alone: no bridge, the
+        // flares out, the card is the whole row. It grows into the bridge and the card as it opens.
+        let foldedBridge = (folded || empty) && geometry.hasHardwareNotch
         let rowTop = foldedBridge ? 0 : geometry.cardTop
-        let bandHeight = hidden ? 0 : folded ? geometry.hiddenHeight : model.isOpen ? geometry.openBandHeight : geometry.notchHeight
+        let bandHeight = folded || empty ? geometry.hiddenHeight : model.isOpen ? geometry.openBandHeight : geometry.notchHeight
         let shape = NotchShape(
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius,
@@ -126,7 +128,7 @@ struct BandSlot: View {
     let store: TaskStore
     let model: NotchModel
     let width: CGFloat
-    /// The band's height: the collapsed notch height, the open band's, or 0 while an empty list draws nothing.
+    /// The band's height: the collapsed notch height, the open band's, or the menu bar row's while the notch is folded or the list is empty under a hardware notch.
     let height: CGFloat
     var card: CardController?
     let onToggle: (TaskList.Row) -> Void
@@ -1037,7 +1039,7 @@ enum NotchMetrics {
     /// A task added as a link, while the adapters look up its title: the placeholder shows dim.
     static let resolvingOpacity: Double = 0.45
     static let flare = NotchGeometry.flare
-    static let bottomRadius: CGFloat = 12
+    static let bottomRadius = NotchGeometry.closedBottomRadius
     static let openBottomRadius: CGFloat = 24
 
     /// Collapsed notch width before the flares: the dot, the title and the padding, clamped.

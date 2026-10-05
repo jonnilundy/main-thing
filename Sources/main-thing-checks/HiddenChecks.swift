@@ -103,6 +103,52 @@ func runHiddenChecks() {
     }
     check("morph: hidden to shown stays one shape on the screen top, the top row the card's width plus the flares", stays)
 
+    // An empty list under a hardware notch: the Hide shape without the wings and the dot. The
+    // camera's drawn width, the menu bar row tall, the Hide shape's bottom radius, the same flares.
+    section("Empty list under a hardware notch")
+    let emptyRadius = NotchGeometry.closedBottomRadius
+    let emptyWidth = m.emptyWidth + 2 * f
+    let emptyRow = CGRect(x: (NotchGeometry.panelSize.width - emptyWidth) / 2, y: 0, width: emptyWidth, height: m.hiddenHeight)
+    let emptyOutline = NotchOutline.bridged(in: emptyRow, bottomRadius: emptyRadius, bridgeHeight: 0, openness: 1)
+    let emptyPoints = NotchOutline.samples(emptyOutline)
+    check("empty: the drawn housing wide, the menu bar row tall, centered on the camera",
+          m.emptyWidth == m.drawnHousingWidth && m.emptyWidth == bridge.width && m.hiddenHeight == bridge.height
+              && emptyRow.midX == bridge.midX && emptyRow.minX + f == bridge.minX)
+    check("empty: it draws no card and is not the Hide shape", !m.drawsCollapsed(taskCount: 0) && m.emptyWidth < m.hiddenWidth)
+    check("empty: the Hide shape's bottom radius, 12", emptyRadius == 12 && emptyRadius == NotchGeometry.closedBottomRadius)
+    check("empty: the bottom corners are rounded, the outline is not a plain rect",
+          emptyOutline.filter { if case .arc(_, let r, _, _) = $0 { r == emptyRadius } else { false } }.count == 2
+              && !emptyPoints.contains(CGPoint(x: emptyRow.minX + f, y: emptyRow.maxY))
+              && !emptyPoints.contains(CGPoint(x: emptyRow.maxX - f, y: emptyRow.maxY))
+              && emptyPoints.contains(CGPoint(x: emptyRow.minX + f + emptyRadius, y: emptyRow.maxY)))
+    check("empty: the same concave top flares as Hide, on the screen top",
+          emptyOutline.filter { if case .quad = $0 { true } else { false } }.count == 2
+              && emptyOutline.contains(.quad(to: CGPoint(x: emptyRow.maxX - f, y: f), control: CGPoint(x: emptyRow.maxX - f, y: 0)))
+              && emptyPoints.filter { $0.y == 0 }.map(\.x).min() == emptyRow.minX)
+    check("empty: one closed path inside its row", emptyOutline.filter { $0 == .close }.count == 1
+              && emptyPoints.allSatisfy { $0.y >= -0.001 && $0.y <= emptyRow.maxY + 0.001 })
+    check("empty: no wider than the camera's black plus the flares", emptyPoints.allSatisfy { $0.x >= bridge.minX - f - 0.001 && $0.x <= bridge.maxX + f + 0.001 })
+    check("empty: hovering it opens the card, the camera is the bridge", NotchHover.inside(CGPoint(x: bridge.midX, y: 10), shape: none, bridge: m.hoverBridge(hidden: false), isOpen: false))
+
+    // The morph from the empty shape to the first task's collapsed card, and back, as the view
+    // drives it: the bridge grows from 0 to the menu bar row, the flares shrink, the card's top
+    // moves down and its bottom falls to the collapsed band.
+    var emptyMorph = true
+    var lastBottom: CGFloat = -1
+    for i in 0...20 {
+        let t = CGFloat(i) / 20
+        let bh = bridge.height * t
+        let w = m.emptyWidth + (m.minimumWidth - m.emptyWidth) * t + 2 * f
+        let bottom = m.hiddenHeight + m.notchHeight * t
+        let card = CGRect(x: (NotchGeometry.panelSize.width - w) / 2, y: bh, width: w, height: bottom - bh)
+        let outline = NotchOutline.bridged(in: card, bottomRadius: emptyRadius, bridgeHeight: bh, openness: 1 - t)
+        let samples = NotchOutline.samples(outline)
+        if outline.filter({ $0 == .close }).count != 1 || samples.contains(where: { $0.y < -0.001 || $0.y > card.maxY + 0.001 })
+            || (samples.map(\.y).max() ?? 0) < lastBottom { emptyMorph = false }
+        lastBottom = samples.map(\.y).max() ?? 0
+    }
+    check("empty: morphing to the first task's card stays one shape on the screen top, the bottom only falls", emptyMorph)
+
     section("Hidden, no hardware notch")
     let s = NotchGeometry(screen: studio)
     let pill = s.hiddenRect
