@@ -116,4 +116,25 @@ func runHiddenChecks() {
           NotchHover.inside(CGPoint(x: pill.midX, y: 10), shape: shape, bridge: nil, isOpen: false)
               && !NotchHover.inside(CGPoint(x: shape.minX - 3, y: 10), shape: shape, bridge: nil, isOpen: false))
     check("hidden: an empty list still draws the plain shape", s.drawsCollapsed(taskCount: 0))
+
+    // The black shape never fades. Under a hardware notch a translucent card shows the camera and
+    // the app behind it (seen on an M5 MacBook Pro), so only its geometry may animate. The rule is
+    // in the source: no opacity or transition between the black fill and the end of the card's
+    // modifiers, and no panel alpha outside the invisible test panels.
+    section("Opaque shape")
+    let app = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("Sources").appendingPathComponent("MainThingApp")
+    func source(_ name: String) -> String { (try? String(contentsOf: app.appendingPathComponent(name + ".swift"), encoding: .utf8)) ?? "" }
+    let view = source("NotchView")
+    if let start = view.range(of: ".background(shape.fill(.black))"),
+       let end = view.range(of: ".contextMenu { NotchMenu", range: start.upperBound..<view.endIndex) {
+        let chain = view[start.lowerBound..<end.lowerBound]
+        check("opaque shape: no opacity on the shape or its container", !chain.contains(".opacity("))
+        check("opaque shape: no transition on the shape or its container", !chain.contains(".transition("))
+    } else {
+        check("opaque shape: the black fill and the card's modifiers are found in NotchView.swift", false)
+    }
+    let withAlpha = ["NotchPanel", "HoverController", "CardController", "AppDelegate", "PanelLayout", "NotchView", "NotchModel"].filter { source($0).contains("alphaValue") }
+    check("opaque shape: the panel never sets an alpha (only the invisible test panels do)", withAlpha.isEmpty && !source("NotchPanel").isEmpty)
 }

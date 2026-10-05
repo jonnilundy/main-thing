@@ -69,8 +69,8 @@ struct NotchBody: View {
         // Hidden and closed, the shape folds into the menu bar row and keeps only the dot.
         let folded = model.folded(taskCount: rows.count)
         let width = model.isOpen ? openWidth : folded ? geometry.hiddenWidth : collapsedWidth
-        // Under a hardware notch an empty list draws nothing collapsed: the camera notch alone.
-        // The card grows out of the camera from 0 tall when it opens.
+        // Under a hardware notch an empty list draws the bridge alone, as black as the camera notch
+        // it covers: no card, 0 tall. The card grows out of it when it opens. The shape never fades.
         let hidden = !model.isOpen && !geometry.drawsCollapsed(taskCount: rows.count)
         // Folded under a hardware notch the shape is the menu bar row alone: no bridge, the flares
         // out, the card is the whole row. It grows into the bridge and the card as it opens.
@@ -109,7 +109,8 @@ struct NotchBody: View {
             height: rowTop + bandHeight,
             menuBarWidth: foldedBridge ? width + 2 * NotchMetrics.flare : geometry.bridgeRect?.width ?? width + 2 * NotchMetrics.flare
         )))
-        .opacity(hidden ? 0 : 1)
+        // No opacity, no transition and no alpha anywhere from the black fill to here: the black
+        // is opaque on every frame, and only the shape's geometry morphs (HiddenChecks guards it).
         .animation(Motion.shape(reduceMotion, opening: model.isOpen), value: model.isOpen)
         // Hiding folds like a close, showing grows like an open.
         .animation(Motion.shape(reduceMotion, opening: !model.hidden), value: model.hidden)
