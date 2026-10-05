@@ -60,7 +60,7 @@ enum HoverBench {
         model.isOpen = !closed
         let rows = store.list.rows
         model.openWidth = PanelLayout.openWidth(rows: rows, geometry: geometry)
-        let height = geometry.cardTop + geometry.notchHeight + OpenLayout.contentHeight(rows: rows.count - 1) + OpenLayout.bounceHeadroom
+        let height = geometry.cardTop + geometry.openBandHeight + OpenLayout.contentHeight(rows: rows.count - 1) + OpenLayout.bounceHeadroom
         let size = CGSize(width: NotchGeometry.panelSize.width, height: max(ceil(height), NotchGeometry.panelSize.height))
         let frame = CGRect(origin: screen.frame.origin, size: size)
 
@@ -84,9 +84,9 @@ enum HoverBench {
 
         // Row centers from the top of the panel: the band, then rows 2..N. Under a hardware notch
         // the card starts below the menu bar row.
-        var centers = [geometry.cardTop + geometry.notchHeight / 2]
+        var centers = [geometry.cardTop + geometry.openBandHeight / 2]
         for index in 0..<(rows.count - 1) {
-            centers.append(geometry.cardTop + geometry.notchHeight + Lanes.topGap + Lanes.rowHeight * (CGFloat(index) + 0.5))
+            centers.append(geometry.cardTop + geometry.openBandHeight + Lanes.topGap + Lanes.rowHeight * (CGFloat(index) + 0.5))
         }
         let top = centers.first!, bottom = centers.last!
         let x = size.width / 2
@@ -172,21 +172,21 @@ extension HoverBench {
     static func probeGap(panel: NSPanel, hosting: NSView, hover: HoverController, model: NotchModel, rows: [TaskList.Row], x: CGFloat, height: CGFloat, fixture: String) async -> Bool {
         let geometry = model.geometry
         let card = model.shapeRect
-        let map = CardMap(notchHeight: geometry.notchHeight, taskCount: rows.count)
+        let map = CardMap(notchHeight: geometry.openBandHeight, taskCount: rows.count)
         let bodyLeft = card.minX + NotchGeometry.flare
         // Where a filled pill shows and nothing else draws: 3pt inside its left end, at its middle.
         let sampleX = bodyLeft + Lanes.pillInset + 3
-        var sampled: [(name: String, y: CGFloat)] = [("row 1", geometry.notchHeight / 2)]
+        var sampled: [(name: String, y: CGFloat)] = [("row 1", geometry.openBandHeight / 2)]
         for index in 1..<rows.count { sampled.append(("row \(index + 1)", map.center(ofTask: index))) }
         sampled.append(("add card", map.addTop + OpenLayout.addHeight / 2))
         let left = bodyLeft + Lanes.pillInset + 1
         let right = bodyLeft + Lanes.pillWidth(contentWidth: model.openWidth) + Lanes.pillInset - 3
         var failed = false
         print(String(format: "bench gap: %@, %@, band %.0fpt tall, rows 28pt from y %.0f, add card from y %.0f, card %.0fpt wide",
-                     fixture, geometry.hasHardwareNotch ? "hardware notch" : "in the menu bar row", geometry.notchHeight, map.rowsTop, map.addTop, model.openWidth))
+                     fixture, geometry.hasHardwareNotch ? "hardware notch" : "in the menu bar row", geometry.openBandHeight, map.rowsTop, map.addTop, model.openWidth))
         for column in [x, left, right] {
             var owner: [(y: CGFloat, drawn: String)] = []
-            var probe = geometry.notchHeight / 2
+            var probe = geometry.openBandHeight / 2
             var addUnfolded = false
             let end = map.addTop + OpenLayout.addHeight / 2
             while probe <= end {
@@ -236,7 +236,7 @@ extension HoverBench {
                 start = index + 1
             }
         }
-        print("bench gap: " + (failed ? "dead zone found" : "no dead zone") + ", " + fixture + String(format: " (band %.0fpt tall, rows 28pt from y %.0f)", geometry.notchHeight, map.rowsTop))
+        print("bench gap: " + (failed ? "dead zone found" : "no dead zone") + ", " + fixture + String(format: " (band %.0fpt tall, rows 28pt from y %.0f)", geometry.openBandHeight, map.rowsTop))
         return failed
     }
 }

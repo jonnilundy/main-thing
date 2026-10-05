@@ -76,7 +76,7 @@ struct NotchBody: View {
         // out, the card is the whole row. It grows into the bridge and the card as it opens.
         let foldedBridge = folded && geometry.hasHardwareNotch
         let rowTop = foldedBridge ? 0 : geometry.cardTop
-        let bandHeight = hidden ? 0 : folded ? geometry.hiddenHeight : geometry.notchHeight
+        let bandHeight = hidden ? 0 : folded ? geometry.hiddenHeight : model.isOpen ? geometry.openBandHeight : geometry.notchHeight
         let shape = NotchShape(
             topRadius: NotchMetrics.flare,
             bottomRadius: model.isOpen ? NotchMetrics.openBottomRadius : NotchMetrics.bottomRadius,
@@ -125,7 +125,7 @@ struct BandSlot: View {
     let store: TaskStore
     let model: NotchModel
     let width: CGFloat
-    /// The band's height: the notch height, or 0 while an empty list draws nothing.
+    /// The band's height: the collapsed notch height, the open band's, or 0 while an empty list draws nothing.
     let height: CGFloat
     var card: CardController?
     let onToggle: (TaskList.Row) -> Void

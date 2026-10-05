@@ -62,8 +62,12 @@ public struct NotchGeometry: Equatable, Sendable {
     /// menu bar between the camera's edge and the card (seen on an M5 MacBook Pro). Black beside
     /// the black camera does not show, a lit sliver does.
     public static let housingBleed: CGFloat = 1
-    /// Collapsed height below a hardware notch.
-    public static let belowMenuBarHeight: CGFloat = 30
+    /// Collapsed height below a hardware notch. Short, so the closed notch does not hang far under
+    /// the menu bar.
+    public static let belowMenuBarHeight: CGFloat = 24
+    /// The open card's band row below a hardware notch: task 1 as a full 28pt row with 1pt above
+    /// and below. It stays taller than the collapsed band, so the open card keeps its rows.
+    public static let openBandHeightBelowMenuBar: CGFloat = 30
     /// Hidden under a hardware notch: the black on each side of the camera housing. The dot sits
     /// in the left one, 11.5pt from the shape's edge and from the camera, the 7pt dot centered.
     public static let hiddenWing: CGFloat = 30
@@ -86,8 +90,11 @@ public struct NotchGeometry: Equatable, Sendable {
     public var centerX: CGFloat
     /// 0 in the menu bar mode.
     public var hardwareNotchWidth: CGFloat
-    /// Collapsed drawn height: the menu bar height, or 30 below a hardware notch.
+    /// Collapsed drawn height: the menu bar height, or 24 below a hardware notch.
     public var notchHeight: CGFloat
+    /// The band row of the open card: the menu bar height without a hardware notch, 30 below one.
+    /// Everything in the open card is laid out from this, never from `notchHeight`.
+    public var openBandHeight: CGFloat
     /// Collapsed content width floor, before the flares. With a hardware notch it is the housing
     /// width, so the narrowest card continues the camera notch's sides straight down.
     public var minimumWidth: CGFloat
@@ -108,6 +115,7 @@ public struct NotchGeometry: Equatable, Sendable {
             centerX = housing.midX
             hardwareNotchWidth = housing.width
             notchHeight = NotchGeometry.belowMenuBarHeight
+            openBandHeight = NotchGeometry.openBandHeightBelowMenuBar
             minimumWidth = max(housing.width, NotchGeometry.housingWidth) + 2 * NotchGeometry.housingBleed
             collapsedMaximumWidth = minimumWidth
             // Down to the menu bar's bottom edge, and never onto the camera.
@@ -117,6 +125,7 @@ public struct NotchGeometry: Equatable, Sendable {
             centerX = screen.frame.midX
             hardwareNotchWidth = 0
             notchHeight = menuBarHeight
+            openBandHeight = menuBarHeight
             minimumWidth = NotchGeometry.housingWidth - 2 * NotchGeometry.flare
             collapsedMaximumWidth = nil
             cardTop = 0

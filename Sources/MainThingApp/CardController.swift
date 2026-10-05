@@ -668,7 +668,7 @@ extension CardMap {
     @MainActor init(model: NotchModel, store: TaskStore) {
         let notes = (model.apiBound ? 0 : 1) + store.events.failing.count
         self.init(
-            notchHeight: model.geometry.notchHeight,
+            notchHeight: model.geometry.openBandHeight,
             taskCount: store.list.count,
             notesHeight: CGFloat(notes) * (OpenLayout.noteSpacing + OpenLayout.noteHeight),
             rowsMax: model.rowsMaxHeight,
