@@ -215,8 +215,9 @@ public struct NotchGeometry: Equatable, Sendable {
     }
 
     /// Does the collapsed notch draw anything for a list of `taskCount` tasks? Under a hardware
-    /// notch an empty list draws nothing: the camera notch alone. Hovering the camera still
-    /// opens the card, through the bridge. Without a hardware notch the plain shape always shows.
+    /// notch an empty list draws no card: only the black bridge over the camera, which looks like
+    /// the camera notch itself. Hovering it opens the card. Without a hardware notch the plain
+    /// shape always shows.
     public func drawsCollapsed(taskCount: Int) -> Bool {
         !(hasHardwareNotch && taskCount <= 0)
     }
