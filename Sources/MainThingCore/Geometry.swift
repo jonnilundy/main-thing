@@ -65,8 +65,8 @@ public struct NotchGeometry: Equatable, Sendable {
     /// show, a lit sliver does.
     public static let housingBleed: CGFloat = 3
     /// Collapsed height below a hardware notch. Short, so the closed notch does not hang far under
-    /// the menu bar.
-    public static let belowMenuBarHeight: CGFloat = 24
+    /// the menu bar, and 26 so the title does not sit close to its bottom edge.
+    public static let belowMenuBarHeight: CGFloat = 26
     /// The bottom corner radius of the closed shapes: the collapsed card, the Hide shape and the
     /// empty list's shape under a hardware notch.
     public static let closedBottomRadius: CGFloat = 12
@@ -95,7 +95,7 @@ public struct NotchGeometry: Equatable, Sendable {
     public var centerX: CGFloat
     /// 0 in the menu bar mode.
     public var hardwareNotchWidth: CGFloat
-    /// Collapsed drawn height: the menu bar height, or 24 below a hardware notch.
+    /// Collapsed drawn height: the menu bar height, or 26 below a hardware notch.
     public var notchHeight: CGFloat
     /// The band row of the open card: the menu bar height without a hardware notch, 30 below one.
     /// Everything in the open card is laid out from this, never from `notchHeight`.

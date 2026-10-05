@@ -49,6 +49,10 @@ public enum Launch {
         // `MainThing --probe-card` runs every edit in the open card in an invisible panel and exits.
         if CommandLine.arguments.contains("--probe-card") { CardProbe.run() }
 
+        // `MainThing --probe-band` reads the closed notch under a hardware notch back from the drawn
+        // view, in an invisible panel: the title's cap height middle and the empty shape. It exits.
+        if CommandLine.arguments.contains("--probe-band") { BandProbe.run() }
+
         // `MainThing --bench-hover [seconds] [closed]` sweeps the rows with synthesized moves and exits.
         // `MainThing --bench-hover gap [notch|menubar|menubar24]` checks the drawn hover at every height.
         if let flag = CommandLine.arguments.firstIndex(of: "--bench-hover") {

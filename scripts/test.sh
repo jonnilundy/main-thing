@@ -30,17 +30,21 @@ for screen in notch menubar menubar24; do
 done
 "$BIN/MainThing" --probe-card > "$PROBES/card" 2>&1 & PIDS+=($!)
 "$BIN/MainThing" --probe-adapters > "$PROBES/adapters" 2>&1 & PIDS+=($!)
+# The band probe: the closed title's cap height middle and the empty list's shape under a hardware notch.
+"$BIN/MainThing" --probe-band > "$PROBES/band" 2>&1 & PIDS+=($!)
 FAILED=0
 for pid in "${PIDS[@]}"; do wait "$pid" || FAILED=1; done
 for screen in notch menubar menubar24; do /usr/bin/tail -1 "$PROBES/gap-$screen"; done
-if [[ "$FAILED" == 1 ]] || ! /usr/bin/grep -q "all card checks passed" "$PROBES/card" || ! /usr/bin/grep -q "all adapter checks passed" "$PROBES/adapters"; then
-    /usr/bin/grep -hE "FAIL|NOTHING|dead|probe:" "$PROBES"/* >&2
+if [[ "$FAILED" == 1 ]] || ! /usr/bin/grep -q "all card checks passed" "$PROBES/card" || ! /usr/bin/grep -q "all adapter checks passed" "$PROBES/adapters" \
+    || ! /usr/bin/grep -q "all band checks passed" "$PROBES/band"; then
+    /usr/bin/grep -hE "FAIL|NOTHING|dead|probe:|probe-band:" "$PROBES"/* >&2
     rm -rf "$PROBES"
     echo "test.sh: a probe failed" >&2
     exit 1
 fi
 /usr/bin/tail -1 "$PROBES/card"
 /usr/bin/tail -1 "$PROBES/adapters"
+/usr/bin/tail -1 "$PROBES/band"
 rm -rf "$PROBES"
 # The built-in adapter scripts against a fake Linear and Open Brain server and a fake op.
 if ! ADAPTERS_OUT=$(scripts/adapter-test.sh 2>&1); then
