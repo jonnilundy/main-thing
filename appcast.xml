@@ -6,6 +6,19 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.7.4</title>
+            <pubDate>Mon, 05 Oct 2026 18:44:19 +0000</pubDate>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>0.7.4</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.7.4</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[## MacBooks with a camera notch
+
+- The black under the camera now reaches 3pt past each side of it, so no lit strip of menu bar shows at its edges on any MacBook.
+- The black shape no longer fades while the list opens or closes. With an empty list, a black strip covers the camera and grows into the list.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.7.4/MainThing-0.7.4.zip" length="3050736" type="application/octet-stream" sparkle:edSignature="EN1ato1zn9yJQnAFCpVg7JOFWKiQ+3nIrNL6/6zXVRcR/0wRL3tgTI50rFoaCuH69k7vohhpOiVIC4HgD+hsAQ=="/>
+        </item>
+        <item>
             <title>Version 0.7.3</title>
             <pubDate>Mon, 05 Oct 2026 16:08:01 +0000</pubDate>
             <sparkle:version>15</sparkle:version>
