@@ -135,8 +135,10 @@ public struct NotchGeometry: Equatable, Sendable {
             collapsedMaximumWidth = nil
             cardTop = 0
         }
+        // Under a hardware notch the panel is not rounded: the housing's center is often on a half
+        // point (755.5 on a 14 inch MacBook Pro), and rounding put every shape a pixel off the camera.
         let frame = CGRect(
-            x: (centerX - size.width / 2).rounded(),
+            x: housing == nil ? (centerX - size.width / 2).rounded() : centerX - size.width / 2,
             y: screen.frame.maxY - size.height,
             width: size.width,
             height: size.height

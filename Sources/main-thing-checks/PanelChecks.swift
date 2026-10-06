@@ -46,6 +46,20 @@ func runPanelChecks() {
             check("\(name), \(side): the black covers the cutout's right edge", drawnRight >= glassRight)
             check("\(name), \(side): the black reaches at most the bleed and 1 pt past the glass",
                   glassLeft - drawnLeft <= bleed + 1 && drawnRight - glassRight <= bleed + 1)
+            // Hidden, the look every notched screen has now: the wings sit on the glass's sides.
+            let hidden = g.hiddenRect
+            let hiddenLeft = g.panelFrame.minX + hidden.minX
+            let hiddenRight = hiddenLeft + hidden.width
+            let wing = NotchGeometry.hiddenWing
+            check("\(name), \(side): hidden, the black covers the cutout and is as tall as it",
+                  hiddenLeft <= glassLeft && hiddenRight >= glassRight && hidden.minY == 0 && hidden.height >= top)
+            check("\(name), \(side): hidden, each wing reaches a wing past the glass, within the bleed and 1 pt",
+                  abs(glassLeft - hiddenLeft - wing) <= bleed + 1.01 && abs(hiddenRight - glassRight - wing) <= bleed + 1.01)
+            check("\(name), \(side): hidden, the dot is in the left wing, clear of the glass",
+                  hiddenLeft + g.hiddenDotX + 3.5 < glassLeft && hiddenLeft + g.hiddenDotX - 3.5 > hiddenLeft)
+            // Centered on the glass to the pixel. A rounded panel put the 14 inch's 755.5 center
+            // at 756, so one wing was a pixel wider than the other.
+            check("\(name), \(side): hidden, centered on the glass", abs((hiddenLeft + hiddenRight) / 2 - (glassLeft + glassRight) / 2) < 0.01)
         }
     }
 }
