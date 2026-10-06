@@ -6,8 +6,8 @@ import SwiftUI
 /// view (the hosting view drawn into a bitmap, as the screen would show it). It never shows a
 /// window: the real notch view runs in an invisible panel, on a list in memory, and the cursor stays.
 ///
-/// 1. One task "HEH": the middle of the capital H's stem is within 0.5pt of the band's middle, and
-///    so is the dot.
+/// 1. One task: the notch is hidden, as it always is under a hardware notch, and the dot is within
+///    0.5pt of the left wing's middle.
 /// 2. An empty list: the shape is the camera's width and the menu bar row tall, with rounded bottom
 ///    corners (the corner pixel is clear, the pixel 12pt in along the bottom edge is black), flares
 ///    at the top, and every pixel inside it is opaque black.
@@ -25,7 +25,7 @@ enum BandProbe {
         let geometry = NotchGeometry(screen: HoverBench.fixtures["notch"] ?? ScreenInfo(screen))
         Task { @MainActor in
             var failed = false
-            failed = await !closedTitle(geometry: geometry, screen: screen) || failed
+            failed = await !closedDot(geometry: geometry, screen: screen) || failed
             failed = await !emptyShape(geometry: geometry, screen: screen) || failed
             print(failed ? "probe-band: FAIL" : "probe-band: all band checks passed")
             exit(failed ? 5 : 0)
@@ -57,45 +57,32 @@ enum BandProbe {
         rep.colorAt(x: x, y: y)?.whiteComponentValue ?? 0
     }
 
-    private static func closedTitle(geometry: NotchGeometry, screen: NSScreen) async -> Bool {
+    /// One task, closed, under a hardware notch: always hidden, so no title, and the dot centered
+    /// in the left wing of the menu bar row.
+    private static func closedDot(geometry: NotchGeometry, screen: NSScreen) async -> Bool {
         guard let (rep, model, scale) = await render(titles: ["HEH"], geometry: geometry, screen: screen) else {
             print("probe-band: could not draw the view")
             return false
         }
-        let bandTop = geometry.cardTop
-        let bandMiddle = bandTop + geometry.notchHeight / 2
-        let bodyLeft = model.shapeRect.minX + NotchGeometry.flare
-        // The capital H's left stem: the column with the most light inside the title's first 14pt.
-        let from = Int((bodyLeft + Lanes.textStart) * scale), to = Int((bodyLeft + Lanes.textStart + 14) * scale)
-        let rows = Int(bandTop * scale)..<Int((bandTop + geometry.notchHeight) * scale)
-        var stem = from, best: CGFloat = 0
-        for x in from..<to {
-            let sum = rows.reduce(CGFloat(0)) { $0 + ink(rep, x, $1) }
-            if sum > best { best = sum; stem = x }
-        }
-        var weight: CGFloat = 0, moment: CGFloat = 0
-        for y in rows {
-            let v = ink(rep, stem, y)
-            weight += v
-            moment += v * (CGFloat(y) + 0.5)
-        }
-        let capMiddle = weight > 0 ? moment / weight / scale : -1
-        let capHeight = best / scale
-        // The dot: its saturated core, a box around it.
-        var top = Int.max, bottom = -1
-        let dotLeft = Int((bodyLeft + Lanes.slotStart) * scale), dotRight = Int((bodyLeft + Lanes.slotStart + Lanes.markerSlot) * scale)
-        for y in rows {
-            for x in dotLeft..<dotRight {
+        let rect = geometry.hiddenRect
+        let wantX = rect.minX + geometry.hiddenDotX, wantY = rect.height / 2
+        // The dot: its saturated core, a box around it, searched in the whole hidden row.
+        var top = Int.max, bottom = -1, left = Int.max, right = -1
+        for y in 0..<Int(rect.height * scale) {
+            for x in Int(rect.minX * scale)..<Int(rect.maxX * scale) {
                 guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
-                if color.redComponent > 0.8, color.greenComponent < 0.5, color.blueComponent > 0.4 { top = min(top, y); bottom = max(bottom, y) }
+                if color.redComponent > 0.8, color.greenComponent < 0.5, color.blueComponent > 0.4 {
+                    top = min(top, y); bottom = max(bottom, y); left = min(left, x); right = max(right, x)
+                }
             }
         }
-        let dotMiddle = bottom >= 0 ? CGFloat(top + bottom + 1) / 2 / scale : -1
-        print(String(format: "probe-band: band %.0fpt (y %.0f to %.0f), middle %.2f; cap height %.2fpt, cap middle %.2f, dot middle %.2f",
-                     geometry.notchHeight, bandTop, bandTop + geometry.notchHeight, bandMiddle, capHeight, capMiddle, dotMiddle))
+        let dotX = right >= 0 ? CGFloat(left + right + 1) / 2 / scale : -1
+        let dotY = bottom >= 0 ? CGFloat(top + bottom + 1) / 2 / scale : -1
+        print(String(format: "probe-band: hidden %@, row %.0fpt tall; dot at %.2f, %.2f, want %.2f, %.2f",
+                     model.hidden ? "yes" : "no", rect.height, dotX, dotY, wantX, wantY))
         var ok = true
-        if abs(capMiddle - bandMiddle) > 0.5 { print("probe-band: FAIL the cap height middle is more than 0.5pt from the band's middle"); ok = false }
-        if abs(dotMiddle - bandMiddle) > 0.5 { print("probe-band: FAIL the dot is more than 0.5pt from the band's middle"); ok = false }
+        if !model.hidden { print("probe-band: FAIL the closed notch is not hidden under a hardware notch"); ok = false }
+        if abs(dotX - wantX) > 0.5 || abs(dotY - wantY) > 0.5 { print("probe-band: FAIL the dot is more than 0.5pt from the left wing's middle"); ok = false }
         return ok
     }
 
