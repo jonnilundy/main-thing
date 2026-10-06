@@ -6,6 +6,16 @@
         <description>Main Thing updates</description>
         <language>en</language>
         <item>
+            <title>Version 0.7.6</title>
+            <pubDate>Tue, 06 Oct 2026 23:20:48 +0000</pubDate>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>0.7.6</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <sparkle:fullReleaseNotesLink>https://github.com/jonnilundy/main-thing/releases/tag/v0.7.6</sparkle:fullReleaseNotesLink>
+            <description sparkle:format="markdown"><![CDATA[Main Thing 0.7.6.]]></description>
+            <enclosure url="https://github.com/jonnilundy/main-thing/releases/download/v0.7.6/MainThing-0.7.6.zip" length="3059185" type="application/octet-stream" sparkle:edSignature="d1mmMRErD4XIZmuJ6sYhNBlkCcDlz4EBfCyffSgEpqZ7sLdEiZwNL88RTftFzTCLxtCP3lp3d+musx/I0weXAA=="/>
+        </item>
+        <item>
             <title>Version 0.7.5</title>
             <pubDate>Mon, 05 Oct 2026 21:20:58 +0000</pubDate>
             <sparkle:version>17</sparkle:version>
