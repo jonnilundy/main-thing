@@ -53,8 +53,9 @@ In the notch:
 - Drag a task by its number to move it, or the current task by its dot. A task dropped on top is the new current task, and the old one moves to 2.
 - Hover the bottom of the open card and click New task. Type, press Return to add it at the end, and type the next one. Escape closes the field.
 - Press and hold a task for Rename and Discard. Rename edits the title in place: Return saves, Escape cancels. Discard deletes the task. Command Z brings it back for 4 seconds.
-- Hide the closed notch with Hide Main Thing in the right click menu, or the Hide or show shortcut. It folds into the menu bar row and shows only the color dot: on a MacBook with a camera notch, a black shape the camera's width with an equal wing each side and the dot in the left wing; on a screen with no notch, a small pill with the dot in the center. Hover still opens the full list. Show Main Thing brings the task back. Main Thing remembers the choice.
-- Right click for the menu: Hide Main Thing or Show Main Thing, Launch at Login, Keyboard Shortcuts (every shortcut with its keys), Check for Updates, Settings and Quit. Settings has four tabs: General (sounds, reminder, the tasks file, the command line tool), Shortcuts, Adapters and Updates.
+- On a MacBook with a camera notch, the closed notch is always hidden, because the menu bar has little room there. It is a black shape the camera's width with an equal wing each side, and the color dot sits in the left wing, beside the camera. Hover opens the full list. Hide, Show and the Hide or show shortcut do nothing there.
+- On a screen with no notch, hide the closed notch with Hide Main Thing in the right click menu, or the Hide or show shortcut. It folds into the menu bar row as a small pill with the dot in the center. Hover still opens the full list. Show Main Thing brings the task back. Main Thing remembers the choice.
+- Right click for the menu: Hide Main Thing or Show Main Thing (not under a camera notch), Launch at Login, Keyboard Shortcuts (every shortcut with its keys), Check for Updates, Settings and Quit. Settings has four tabs: General (sounds, reminder, the tasks file, the command line tool), Shortcuts, Adapters and Updates.
 
 <img src="docs/demo.gif" alt="Hovering the notch opens the list. A task is typed at the bottom, and a pasted Linear link turns into the issue title. Then Control Option Space opens the list from the keyboard, the arrow keys move the highlight, Return crosses off a task, Command Z brings it back, and Escape closes the list. At the end the closed notch glows and sparkles for the reminder." width="100%">
 
@@ -66,7 +67,7 @@ These shortcuts work from any app. To change one, open Settings, go to Shortcuts
 | --- | --- | --- |
 | Show list | Control Option Space | Opens the list and gives it the keyboard (see [Keyboard](#keyboard)). It stays open until the pointer goes on it and leaves, you press the shortcut again, or you press Escape. |
 | Add task | Control Option N | Opens the list with the New task field ready for typing. Return adds the task, Escape closes the field and the list. |
-| Hide or show | None | Folds the closed notch down to its dot, or brings the task back. The open list is the same either way. |
+| Hide or show | None | Folds the closed notch down to its dot, or brings the task back. The open list is the same either way. Under a camera notch it is always hidden. |
 | Cross off main task | None | Crosses off task 1, the same as a click on it. It changes your list, so you set it yourself. |
 
 Main Thing uses hot keys for these, so it needs no Accessibility permission. If Control Option Space already switches your input source, record another shortcut.
@@ -117,7 +118,7 @@ The command wraps a local API at `http://main-thing.localhost` (port 7788 if por
 | `POST /tasks/done` | Cross off the first task. Body `{"index":N}` or `{"ref":"..."}` picks another |
 | `POST /hide` | Hide the notch, as Hide Main Thing in the right click menu does. Answers `{"hidden":true}` |
 | `POST /show` | Show it again. Answers `{"hidden":false}` |
-| `GET /hidden` | `{"hidden":true}` or `{"hidden":false}` |
+| `GET /hidden` | `{"hidden":true}` or `{"hidden":false}`. Always true under a camera notch, where `POST /show` does nothing and answers `{"hidden":true}` |
 | `GET /health` | Is the app up, and on which port |
 
 ```sh

@@ -133,6 +133,7 @@ final class APIServer {
             request, port: port, hidden: isHidden?() ?? headlessHidden,
             setHidden: { [self] value in
                 if let setHidden { setHidden(value) } else { headlessHidden = value }
+                return isHidden?() ?? headlessHidden
             }
         )
         if response.status >= 400 {

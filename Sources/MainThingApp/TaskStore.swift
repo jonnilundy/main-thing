@@ -278,13 +278,14 @@ final class TaskStore {
 
     /// Routes one API request against the current list and runs the store method it asks for.
     /// `POST /tasks/done` and the done circle both end in `complete(expected:source:)`.
-    /// The hidden state is not the store's: it comes in as `hidden` and a hide or show goes out through `setHidden`.
-    func handle(_ request: HTTPRequest, port: UInt16, hidden: Bool, setHidden: (Bool) -> Void) -> HTTPResponse {
+    /// The hidden state is not the store's: it comes in as `hidden` and a hide or show goes out through `setHidden`,
+    /// which returns the state after it. A show under a hardware notch stays hidden, and the answer says so.
+    func handle(_ request: HTTPRequest, port: UInt16, hidden: Bool, setHidden: (Bool) -> Bool) -> HTTPResponse {
         let outcome = MainThingRouter.handle(request, list: list, status: events.report(installed: runner.installed()), port: port, hidden: hidden)
         switch outcome.action {
         case .replace(let tasks, let source): replace(tasks, source: source)
         case .complete(let key, let source): complete(key: key, expected: nil, source: source)
-        case .setHidden(let value): setHidden(value)
+        case .setHidden(let value): return .json(200, JSONBody.hidden(setHidden(value)))
         case .none: break
         }
         // A change answers with the list as the store has it, placeholders for new links included.

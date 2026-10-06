@@ -56,7 +56,7 @@ main-thing: the task list in the Main Thing notch, over its local API.
   main-thing done             mark the current task done
   main-thing done 3           mark the third task done
   main-thing hide             fold the notch down to its dot, as Hide Main Thing does
-  main-thing show             bring the notch back
+  main-thing show             bring the notch back (a camera notch stays hidden)
   main-thing hidden           print true or false
   main-thing adapters         installed adapters and their last run
   main-thing hooks            installed hooks and their last run
@@ -83,7 +83,7 @@ HTTP, at http://main-thing.localhost (port 80), or http://main-thing.localhost:7
   POST /tasks        add tasks at the end; body as PUT; answers with the list
   POST /tasks/done   complete the first task; body {"index":N} (0 based) or {"ref":"x:1"} picks another
   POST /hide         hide the notch; answers {"hidden":true}
-  POST /show         show the notch; answers {"hidden":false}
+  POST /show         show the notch; answers {"hidden":false}, {"hidden":true} under a camera notch
   GET  /hidden       {"hidden":true} or {"hidden":false}
   GET  /status       installed hooks and adapters with their last run
   GET  /health       {"ok":true,"port":80,"version":"0.1.0"}

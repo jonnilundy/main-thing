@@ -259,6 +259,10 @@ final class HoverController {
 
     /// Hide or show: the closed notch folds down to its dot, or comes back. The open card is the same.
     func toggleHidden() {
+        guard !model.mustHide else {
+            log.notice("hide or show: always hidden under a hardware notch")
+            return
+        }
         model.toggleHidden()
         log.notice("hidden = \(self.model.hidden, privacy: .public)")
         refresh()

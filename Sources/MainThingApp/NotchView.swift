@@ -977,8 +977,11 @@ struct NotchMenu: View {
     let model: NotchModel
 
     var body: some View {
-        Button(model.hidden ? "Show Main Thing" : "Hide Main Thing") { model.toggleHidden() }
-        Divider()
+        // Under a hardware notch it is always hidden, so there is nothing to choose.
+        if !model.mustHide {
+            Button(model.hidden ? "Show Main Thing" : "Hide Main Thing") { model.toggleHidden() }
+            Divider()
+        }
         if LaunchAtLogin.needsApproval {
             Button("Launch at Login: approve in System Settings") { LaunchAtLogin.openSettings() }
         } else {

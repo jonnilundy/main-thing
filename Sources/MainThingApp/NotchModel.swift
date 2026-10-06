@@ -29,9 +29,17 @@ final class NotchModel {
     /// Where the notch sits and how tall it is. Recomputed on display changes.
     var geometry: NotchGeometry
     var isOpen = false
-    /// Hide: the closed notch folds into the menu bar row and shows only the dot. Kept in
-    /// UserDefaults (`hidden`). The open card is the same either way.
-    var hidden: Bool
+    /// Hide: the closed notch folds into the menu bar row and shows only the dot. The open card
+    /// is the same either way. Always on under a hardware notch: the menu bar is tight on a
+    /// MacBook, so there the dot sits beside the camera and hover opens the list.
+    var hidden: Bool {
+        get { hideChoice || mustHide }
+        set { hideChoice = newValue }
+    }
+    /// The user's Hide or Show, kept in UserDefaults (`hidden`). It applies on screens with no notch.
+    var hideChoice: Bool
+    /// Under a hardware notch the notch is always hidden, and Show does nothing.
+    var mustHide: Bool { geometry.hasHardwareNotch }
     /// Rows that were clicked and are struck through, waiting to leave.
     var pending = PendingCompletions()
     var apiBound = true
@@ -108,12 +116,14 @@ final class NotchModel {
     init(geometry: NotchGeometry, apiPort: UInt16, hidden: Bool = false) {
         self.geometry = geometry
         self.apiPort = apiPort
-        self.hidden = hidden
+        self.hideChoice = hidden
     }
 
+    /// Hide or Show. Does nothing under a hardware notch, where it is always hidden.
     func toggleHidden() {
-        hidden.toggle()
-        UserDefaults.standard.set(hidden, forKey: NotchModel.hiddenKey)
+        guard !mustHide else { return }
+        hideChoice.toggle()
+        UserDefaults.standard.set(hideChoice, forKey: NotchModel.hiddenKey)
     }
 
     /// The folded look: hidden and closed, with something to draw. An empty list under a hardware
