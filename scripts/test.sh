@@ -69,4 +69,4 @@ for _ in $(seq 1 50); do
     sleep 0.1
 done
 
-MAIN_THING_PORT=$PORT MAIN_THING_CONFIG_DIR="$TMP/config" scripts/smoke.sh | /usr/bin/tail -1
+MAIN_THING_HEADLESS=1 MAIN_THING_PORT=$PORT MAIN_THING_CONFIG_DIR="$TMP/config" scripts/smoke.sh | /usr/bin/tail -1

@@ -56,8 +56,9 @@ fi
 echo "saved list: $original"
 original_hidden=$(curl -s "$BASE/hidden")
 # Under a hardware notch on the primary screen the notch is always hidden, and show does nothing.
+# A headless app (MAIN_THING_HEADLESS=1, as test.sh runs it) has no notch, so show shows.
 shown=false
-if [[ $(osascript -l JavaScript -e 'ObjC.import("AppKit"); $.NSScreen.screens.objectAtIndex(0).safeAreaInsets.top > 0') == true ]]; then
+if [[ -z "${MAIN_THING_HEADLESS:-}" && $(osascript -l JavaScript -e 'ObjC.import("AppKit"); $.NSScreen.screens.objectAtIndex(0).safeAreaInsets.top > 0') == true ]]; then
     shown=true
 fi
 
